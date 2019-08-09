@@ -10,7 +10,7 @@ $('#lastfm').on('click', function (event) {
         + $('#lastFmId').val());
     socket.onmessage = function (message) {
         $("#progressBar").setAttribute("aria-valuenow",
-            JSON.parse(message.data));
+            $.parseJSON(message.data));
     }
 });
 
