@@ -9,7 +9,7 @@ $('#lastfm').on('click', function (event) {
         = new WebSocket("wss://spotify-web-api-demo.herokuapp.com/socket/"
         + $('#lastFmId').val());
     socket.onmessage = function (message) {
-        $("#progressBar").setAttribute("aria-valuenow",
+        $("#progressBar").attr("aria-valuenow",
             $.parseJSON(message.data));
     }
 });
