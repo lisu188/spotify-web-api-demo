@@ -1,0 +1,61 @@
+package com.lis.spotify.service
+
+import com.lis.spotify.domain.Song
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.async
+import org.jsoup.Jsoup
+import org.jsoup.nodes.Element
+import org.slf4j.LoggerFactory
+import org.springframework.stereotype.Service
+import kotlin.streams.toList
+
+@Service
+class LastFmService {
+
+
+    suspend fun yearlyChartlist(lastFmLogin: String, year: Int): List<Song> {
+        LoggerFactory.getLogger(javaClass).info("yearlyChartlist: {} {}", lastFmLogin, year)
+        return (1..7).map { page: Int ->
+            GlobalScope.async { yearlyChartlist(lastFmLogin, year, page) }
+        }.map { it.await() }
+                .stream()
+                .flatMap { it.stream() }
+                .toList()
+    }
+
+    private fun yearlyChartlist(lastFmLogin: String, year: Int, page: Int): List<Song> {
+        LoggerFactory.getLogger(javaClass).info("yearlyChartlist: {} {} {}", lastFmLogin, year, page)
+        val ret: MutableList<Song> = mutableListOf()
+        val get = Jsoup.connect("https://www.last.fm/user/$lastFmLogin/library/tracks?from=$year-01-01&rangetype=year&page=$page").get()
+        get.run {
+            select(".chartlist-row").forEach {
+                try {
+                    ret.add(parseElement(it))
+                } catch (e: Exception) {
+                    LoggerFactory.getLogger(javaClass).error("Cannot parse: {}", it, e)
+                }
+            }
+        }
+        return ret
+    }
+
+    fun globalChartlist(lastFmLogin: String, page: Int = 1): List<Song> {
+        LoggerFactory.getLogger(javaClass).info("globalChartlist: {} {}", lastFmLogin, page)
+        val ret: MutableList<Song> = mutableListOf()
+        val get = Jsoup.connect("https://www.last.fm/user/$lastFmLogin/library/tracks?page=$page").get()
+        get.run {
+            select(".chartlist-row").forEach {
+                try {
+                    ret.add(parseElement(it))
+                } catch (e: Exception) {
+                    LoggerFactory.getLogger(javaClass).error("Cannot parse: {}", it, e)
+                }
+            }
+        }
+        return ret
+    }
+
+    private fun parseElement(it: Element) =
+            Song(artist = it.children()[5].children()[0].text().orEmpty(),
+                    title = it.children()[4].children()[0].text().orEmpty())
+}
