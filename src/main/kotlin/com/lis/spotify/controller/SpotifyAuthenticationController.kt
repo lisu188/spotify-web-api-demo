@@ -19,9 +19,10 @@ import javax.servlet.http.HttpServletResponse
 @Controller
 class SpotifyAuthenticationController(val spotifyAuthenticationService: SpotifyAuthenticationService, var restTemplateBuilder: RestTemplateBuilder) {
     companion object {
+        val CLIENT_ID: String = System.getenv()["CLIENT_ID"].orEmpty()
+        val CLIENT_SECRET: String = System.getenv()["CLIENT_SECRET"].orEmpty()
+
         val CALLBACK: String = "https://spotify-web-api-demo.herokuapp.com/callback"
-        val CLIENT_ID: String = "1aa49071301549ad869e22dfb5e4982c"
-        val CLIENT_SECRET: String = "000616d5bdef440bac9eacd0d3fd3fc2"
         val AUTH_URL = "https://accounts.spotify.com/authorize"
         val SCOPES = "user-top-read playlist-modify-public"
         val TOKEN_URL = "https://accounts.spotify.com/api/token"
