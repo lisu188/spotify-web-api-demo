@@ -48,6 +48,9 @@ class YearlyPlaylistsEndpoint(var spotifyTopPlaylistsService: SpotifyTopPlaylist
             launch.cancel()
             launch.join()
             reportProgress(session)
+            synchronized(this@YearlyPlaylistsEndpoint) {
+                session.close()
+            }
         }
     }
 

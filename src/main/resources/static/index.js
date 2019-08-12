@@ -15,13 +15,9 @@ $('#top').on('click', function (event) {
     $.ajax({
         type: "post", url: "https://spotify-web-api-demo.herokuapp.com/updateTopPlaylists",
         success: function (data, text) {
-            $('#top').prop('aria-pressed', false);
-            $('#top').removeClass("active")
             $('#top').prop('disabled', false)
         },
         error: function (request, status, error) {
-            $('#top').prop('aria-pressed', false);
-            $('#top').removeClass("active")
             $('#top').prop('disabled', false)
         }
     });
@@ -45,7 +41,6 @@ $('#lastfm').on('click', function (event) {
         $('#lastfm').prop('disabled', false);
         $('#lastFmId').prop('disabled', false)
         $('#top').prop('aria-pressed', false);
-        $('#top').removeClass("active")
     };
     socket.onerror = function (ev) {
         console.log(ev)
