@@ -21,14 +21,14 @@ $('#lastfm').on('click', function (event) {
         = new WebSocket("wss://spotify-web-api-demo.herokuapp.com/socket/"
         + $('#lastFmId').val());
     socket.onopen = function (ev) {
-        $("#progressBar").show()
+        $("#progress").show()
     };
     socket.onmessage = function (message) {
         $("#progressBar")[0].style.width =
             $.parseJSON(message.data) + '%';
     };
     socket.onclose = function (ev) {
-        $("#progressBar").hide()
+        $("#progress").hide()
     };
     socket.onerror = function (ev) {
         console.log(ev)
