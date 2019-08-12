@@ -22,6 +22,8 @@ $('#lastfm').on('click', function (event) {
         + $('#lastFmId').val());
     socket.onopen = function (ev) {
         $("#progress").show()
+        $('#lastfm').prop('disabled', true);
+        $('#lastFmId').prop('disabled', true)
     };
     socket.onmessage = function (message) {
         $("#progressBar")[0].style.width =
@@ -29,6 +31,8 @@ $('#lastfm').on('click', function (event) {
     };
     socket.onclose = function (ev) {
         $("#progress").hide()
+        $('#lastfm').prop('disabled', false);
+        $('#lastFmId').prop('disabled', false)
     };
     socket.onerror = function (ev) {
         console.log(ev)
