@@ -11,9 +11,20 @@
  */
 
 $('#top').on('click', function (event) {
-    $.post("https://spotify-web-api-demo.herokuapp.com/updateTopPlaylists", function (data, status) {
-
-    }, 'json')
+    $('#top').prop('disabled', true)
+    $.ajax({
+        type: "post", url: "https://spotify-web-api-demo.herokuapp.com/updateTopPlaylists",
+        success: function (data, text) {
+            $('#top').prop('aria-pressed', false);
+            $('#top').removeClass("active")
+            $('#top').prop('disabled', false)
+        },
+        error: function (request, status, error) {
+            $('#top').prop('aria-pressed', false);
+            $('#top').removeClass("active")
+            $('#top').prop('disabled', false)
+        }
+    });
 });
 
 $('#lastfm').on('click', function (event) {
@@ -21,7 +32,7 @@ $('#lastfm').on('click', function (event) {
         = new WebSocket("wss://spotify-web-api-demo.herokuapp.com/socket/"
         + $('#lastFmId').val());
     socket.onopen = function (ev) {
-        $("#progress").show()
+        $("#progress").show();
         $('#lastfm').prop('disabled', true);
         $('#lastFmId').prop('disabled', true)
     };
@@ -30,9 +41,11 @@ $('#lastfm').on('click', function (event) {
             $.parseJSON(message.data) + '%';
     };
     socket.onclose = function (ev) {
-        $("#progress").hide()
+        $("#progress").hide();
         $('#lastfm').prop('disabled', false);
         $('#lastFmId').prop('disabled', false)
+        $('#top').prop('aria-pressed', false);
+        $('#top').removeClass("active")
     };
     socket.onerror = function (ev) {
         console.log(ev)
