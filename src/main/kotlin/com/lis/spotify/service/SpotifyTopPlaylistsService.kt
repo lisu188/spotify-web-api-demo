@@ -79,7 +79,7 @@ class SpotifyTopPlaylistsService(var spotifyPlaylistService: SpotifyPlaylistServ
                                       clientId: String,
                                       progressUpdater: (Pair<Int, Int>) -> Unit = {}) {
         LoggerFactory.getLogger(javaClass).info("updateYearlyPlaylists: {} {}", lastFmLogin, clientId)
-        (2010..2020).map { year: Int ->
+        (2005..2020).map { year: Int ->
             GlobalScope.async {
                 var progress = AtomicInteger()
                 progressUpdater(Pair(year, progress.get()))
