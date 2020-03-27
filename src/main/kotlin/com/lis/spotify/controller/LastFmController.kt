@@ -21,6 +21,6 @@ import org.springframework.web.bind.annotation.RestController
 class LastFmController(val lastFmService: LastFmService) {
     @PostMapping("/verifyLastFmId/{lastFmLogin}")
     fun verifyLastFmId(@PathVariable("lastFmLogin") lastFmLogin: String): Boolean {
-        return lastFmService.globalChartlist(lastFmLogin).size > 0
+        return lastFmService.globalChartlist(lastFmLogin).isNotEmpty()
     }
 }

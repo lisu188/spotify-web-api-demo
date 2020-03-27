@@ -25,55 +25,38 @@ import org.springframework.web.bind.annotation.RestController
 import java.util.concurrent.atomic.AtomicInteger
 
 @Service
-@RestController
 class SpotifyTopPlaylistsService(var spotifyPlaylistService: SpotifyPlaylistService,
                                  var spotifyTopTrackService: SpotifyTopTrackService,
                                  var lastFmService: LastFmService,
                                  var spotifySearchService: SpotifySearchService) {
 
-    @PostMapping("/updateTopPlaylists")
-    fun updateTopPlaylists(@CookieValue("clientId") clientId: String) {
+    fun updateTopPlaylists(clientId: String) {
         LoggerFactory.getLogger(javaClass).info("updateTopPlaylists: {}", clientId)
 
         runBlocking {
-            val shortTerm = GlobalScope.async {
-                spotifyTopTrackService.getTopTracksShortTerm(clientId).map { it.id }.toCollection(arrayListOf())
-            }
-            val midTerm = GlobalScope.async {
-                spotifyTopTrackService.getTopTracksMidTerm(clientId).map { it.id }.toCollection(arrayListOf())
-            }
-            val longTerm = GlobalScope.async {
-                spotifyTopTrackService.getTopTracksLongTerm(clientId).map { it.id }.toCollection(arrayListOf())
-            }
+            val shortTerm = spotifyTopTrackService.getTopTracksShortTerm(clientId).map { it.id }.toCollection(arrayListOf())
 
-            val launch = GlobalScope.launch {
-                spotifyPlaylistService.modifyPlaylist(spotifyPlaylistService.getOrCreatePlaylist("Short Term", clientId).id, shortTerm.await(), clientId)
-            }
+            val midTerm = spotifyTopTrackService.getTopTracksMidTerm(clientId).map { it.id }.toCollection(arrayListOf())
 
-            val launch1 = GlobalScope.launch {
-                spotifyPlaylistService.modifyPlaylist(spotifyPlaylistService.getOrCreatePlaylist("Mid Term", clientId).id, midTerm.await(), clientId)
-            }
+            val longTerm = spotifyTopTrackService.getTopTracksLongTerm(clientId).map { it.id }.toCollection(arrayListOf())
 
-            val launch2 = GlobalScope.launch {
-                spotifyPlaylistService.modifyPlaylist(spotifyPlaylistService.getOrCreatePlaylist("Long Term", clientId).id, longTerm.await(), clientId)
-            }
+            spotifyPlaylistService.modifyPlaylist(spotifyPlaylistService.getOrCreatePlaylist("Short Term", clientId).id, shortTerm, clientId)
 
-            val launch3 = GlobalScope.launch {
-                val trackList1: List<String> = (shortTerm.await().asIterable()
-                        + midTerm.await().asIterable()
-                        + longTerm.await().asIterable())
-                        .toCollection(arrayListOf())
-                        .distinct()
+            spotifyPlaylistService.modifyPlaylist(spotifyPlaylistService.getOrCreatePlaylist("Mid Term", clientId).id, midTerm, clientId)
 
-                spotifyPlaylistService.modifyPlaylist(spotifyPlaylistService.getOrCreatePlaylist("Mixed Term", clientId).id, trackList1, clientId)
-            }
+            spotifyPlaylistService.modifyPlaylist(spotifyPlaylistService.getOrCreatePlaylist("Long Term", clientId).id, longTerm, clientId)
 
-            launch.join()
-            launch1.join()
-            launch2.join()
-            launch3.join()
+
+            val trackList1: List<String> = (shortTerm.asIterable()
+                    + midTerm.asIterable()
+                    + longTerm.asIterable())
+                    .toCollection(arrayListOf())
+                    .distinct()
+
+            spotifyPlaylistService.modifyPlaylist(spotifyPlaylistService.getOrCreatePlaylist("Mixed Term", clientId).id, trackList1, clientId)
         }
     }
+
 
     suspend fun updateYearlyPlaylists(lastFmLogin: String,
                                       clientId: String,
@@ -86,7 +69,7 @@ class SpotifyTopPlaylistsService(var spotifyPlaylistService: SpotifyPlaylistServ
                 val chartlist = lastFmService.yearlyChartlist(lastFmLogin, year)
                 var trackList = spotifySearchService.doSearch(chartlist, clientId) { progressUpdater(Pair(year, progress.incrementAndGet() * 100 / chartlist.size)) }
                 progressUpdater(Pair(year, 100))
-                Pair(year, trackList);
+                Pair(year, trackList)
             }
         }.map {
             it.await()

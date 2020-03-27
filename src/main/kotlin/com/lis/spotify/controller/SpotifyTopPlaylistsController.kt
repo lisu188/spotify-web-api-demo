@@ -10,29 +10,18 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-button {
-    width: 100%;
-}
+package com.lis.spotify.controller
 
-input {
-    width: 100%;
-}
+import com.lis.spotify.service.LastFmService
+import com.lis.spotify.service.SpotifyTopPlaylistsService
+import org.springframework.web.bind.annotation.CookieValue
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RestController
 
-html, body {
-    margin: 0;
-    padding: 0;
-    border: 0;
-    width: 100%;
-    height: 100%;
-}
-
-iframe {
-    float: left;
-    width: 25%;
-    height: 100%;
-    margin: 0;
-    padding: 0;
-    background: blue;
-    border: 0;
-    display: block;
+@RestController
+class SpotifyTopPlaylistsController(val lastFmService: LastFmService, val spotifyTopPlaylistsService: SpotifyTopPlaylistsService) {
+    @PostMapping("/updateTopPlaylists")
+    fun updateTopPlaylists(@CookieValue("clientId") clientId: String) {
+        spotifyTopPlaylistsService.updateTopPlaylists(clientId)
+    }
 }
