@@ -25,7 +25,7 @@ function appendPlayButton(div, playlistId) {
 }
 
 $('#top').on('click', function (event) {
-    $('#top').prop('disabled', true);
+    $('#top').prop('disabled', true)
     $.ajax({
         type: "post", url: "https://spotify-web-api-demo.herokuapp.com/updateTopPlaylists",
         success: function (data, text) {
@@ -56,7 +56,7 @@ $('#lastfm').on('click', function (event) {
     socket.onclose = function (ev) {
         $("#progress").hide();
         $('#lastfm').prop('disabled', false);
-        $('#lastFmId').prop('disabled', false);
+        $('#lastFmId').prop('disabled', false)
         $('#top').prop('aria-pressed', false);
     };
     socket.onerror = function (ev) {
