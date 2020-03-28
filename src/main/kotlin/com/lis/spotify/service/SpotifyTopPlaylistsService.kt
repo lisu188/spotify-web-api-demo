@@ -30,21 +30,29 @@ class SpotifyTopPlaylistsService(var spotifyPlaylistService: SpotifyPlaylistServ
                                  var lastFmService: LastFmService,
                                  var spotifySearchService: SpotifySearchService) {
 
-    fun updateTopPlaylists(clientId: String) {
+    fun updateTopPlaylists(clientId: String): List<String> {
         LoggerFactory.getLogger(javaClass).info("updateTopPlaylists: {}", clientId)
 
-        runBlocking {
+        return runBlocking {
             val shortTerm = spotifyTopTrackService.getTopTracksShortTerm(clientId).map { it.id }.toCollection(arrayListOf())
 
             val midTerm = spotifyTopTrackService.getTopTracksMidTerm(clientId).map { it.id }.toCollection(arrayListOf())
 
             val longTerm = spotifyTopTrackService.getTopTracksLongTerm(clientId).map { it.id }.toCollection(arrayListOf())
 
-            spotifyPlaylistService.modifyPlaylist(spotifyPlaylistService.getOrCreatePlaylist("Short Term", clientId).id, shortTerm, clientId)
+            val shortTermId = spotifyPlaylistService.getOrCreatePlaylist("Short Term", clientId).id
 
-            spotifyPlaylistService.modifyPlaylist(spotifyPlaylistService.getOrCreatePlaylist("Mid Term", clientId).id, midTerm, clientId)
+            val midTermId = spotifyPlaylistService.getOrCreatePlaylist("Mid Term", clientId).id
 
-            spotifyPlaylistService.modifyPlaylist(spotifyPlaylistService.getOrCreatePlaylist("Long Term", clientId).id, longTerm, clientId)
+            val longTermId = spotifyPlaylistService.getOrCreatePlaylist("Long Term", clientId).id
+
+            val mixedTermId = spotifyPlaylistService.getOrCreatePlaylist("Mixed Term", clientId).id
+
+            spotifyPlaylistService.modifyPlaylist(shortTermId, shortTerm, clientId)
+
+            spotifyPlaylistService.modifyPlaylist(midTermId, midTerm, clientId)
+
+            spotifyPlaylistService.modifyPlaylist(longTermId, longTerm, clientId)
 
 
             val trackList1: List<String> = (shortTerm.asIterable()
@@ -53,7 +61,9 @@ class SpotifyTopPlaylistsService(var spotifyPlaylistService: SpotifyPlaylistServ
                     .toCollection(arrayListOf())
                     .distinct()
 
-            spotifyPlaylistService.modifyPlaylist(spotifyPlaylistService.getOrCreatePlaylist("Mixed Term", clientId).id, trackList1, clientId)
+            spotifyPlaylistService.modifyPlaylist(mixedTermId, trackList1, clientId)
+
+            listOf(shortTermId, midTermId, longTermId, mixedTermId)
         }
     }
 
