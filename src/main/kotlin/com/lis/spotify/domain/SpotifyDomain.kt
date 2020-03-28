@@ -43,3 +43,6 @@ class Playlist(var id: String,
 
 class Playlists(var items: List<Playlist>,
                 var next: String?)
+
+class Artists(var items: List<Artist>,
+              var next: String?)

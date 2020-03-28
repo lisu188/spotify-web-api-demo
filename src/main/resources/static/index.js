@@ -10,12 +10,25 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+function buildPlayButtonUrl(id) {
+    return "https://open.spotify.com/embed/playlist/" + id
+}
+
+
 $('#top').on('click', function (event) {
-    $('#top').prop('disabled', true)
+    $('#top').prop('disabled', true);
     $.ajax({
         type: "post", url: "https://spotify-web-api-demo.herokuapp.com/updateTopPlaylists",
         success: function (data, text) {
-            $('#top').prop('disabled', false)
+            $('#top').prop('disabled', false);
+            for (var playlistId of data) {
+                $('<iframe>', {
+                    src: buildPlayButtonUrl(playlistId),
+                    frameborder: 0,
+                    allow: "encrypted-media",
+                    allowtransparency: "true"
+                }).appendTo('#spotifyTop');
+            }
         },
         error: function (request, status, error) {
             $('#top').prop('disabled', false)
@@ -39,7 +52,7 @@ $('#lastfm').on('click', function (event) {
     socket.onclose = function (ev) {
         $("#progress").hide();
         $('#lastfm').prop('disabled', false);
-        $('#lastFmId').prop('disabled', false)
+        $('#lastFmId').prop('disabled', false);
         $('#top').prop('aria-pressed', false);
     };
     socket.onerror = function (ev) {
