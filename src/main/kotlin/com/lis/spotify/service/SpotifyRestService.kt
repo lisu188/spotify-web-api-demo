@@ -29,7 +29,7 @@ import org.springframework.web.client.exchange
 class SpotifyRestService(restTemplateBuilder: RestTemplateBuilder, val spotifyAuthenticationService: SpotifyAuthenticationService) {
 
 
-    val restTemplate: RestTemplate = restTemplateBuilder.build();
+    val restTemplate: RestTemplate = restTemplateBuilder.build()
 
 
     final suspend inline fun <reified U : Any> doRequest(url: String, httpMethod: HttpMethod, params: Map<String, Any> = HashMap(), body: Any? = null, clientId: String): U {
@@ -47,9 +47,6 @@ class SpotifyRestService(restTemplateBuilder: RestTemplateBuilder, val spotifyAu
                 e.responseHeaders?.get(RETRY_AFTER)?.first()?.toInt()?.let { delay((it) * 1000L + 500L) }
                 doRequest(task)
             }
-//            catch (e: HttpClientErrorException.Unauthorized){
-//                //TODO: refresh Token
-//            }
         }.await()
     }
 

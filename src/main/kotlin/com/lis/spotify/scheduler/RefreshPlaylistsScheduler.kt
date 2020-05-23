@@ -18,6 +18,7 @@ import com.lis.spotify.service.SpotifyTopPlaylistsService
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
+import org.springframework.web.client.HttpClientErrorException
 
 @Service
 class RefreshPlaylistsScheduler(var spotifyAuthenticationService: SpotifyAuthenticationService,
@@ -30,8 +31,12 @@ class RefreshPlaylistsScheduler(var spotifyAuthenticationService: SpotifyAuthent
                 .map { it.clientId }
                 .forEach {
                     it?.let { clientId ->
-                        LoggerFactory.getLogger(javaClass).info("Refreshing Spotify playlists for user: {}", clientId)
-                        spotifyTopPlaylistsService.updateTopPlaylists(clientId)
+                        try {
+                            LoggerFactory.getLogger(javaClass).info("Refreshing Spotify playlists for user: {}", clientId)
+                            spotifyTopPlaylistsService.updateTopPlaylists(clientId)
+                        } catch (e: HttpClientErrorException.Unauthorized) {
+                            spotifyAuthenticationService.refreshToken(clientId)
+                        }
                     }
                 }
     }
@@ -43,8 +48,12 @@ class RefreshPlaylistsScheduler(var spotifyAuthenticationService: SpotifyAuthent
                 .forEach {
                     it?.let { clientId ->
                         lastFmLoginService.getLastFmLogin(clientId)?.let {
-                            LoggerFactory.getLogger(javaClass).info("Refreshing last.fm playlists for user: {} {}", clientId, it)
-                            spotifyTopPlaylistsService.updateTopPlaylists(clientId)
+                            try {
+                                LoggerFactory.getLogger(javaClass).info("Refreshing last.fm playlists for user: {} {}", clientId, it)
+                                spotifyTopPlaylistsService.updateTopPlaylists(clientId)
+                            } catch (e: HttpClientErrorException.Unauthorized) {
+                                spotifyAuthenticationService.refreshToken(clientId)
+                            }
                         }
                     }
                 }
