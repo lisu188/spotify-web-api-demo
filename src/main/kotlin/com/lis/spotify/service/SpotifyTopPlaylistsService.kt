@@ -74,13 +74,12 @@ class SpotifyTopPlaylistsService(var spotifyPlaylistService: SpotifyPlaylistServ
                 val chartlist = lastFmService.yearlyChartlist(clientId, year)
                 var trackList = spotifySearchService.doSearch(chartlist, clientId) { progressUpdater(Pair(year, progress.incrementAndGet() * 100 / chartlist.size)) }
                 progressUpdater(Pair(year, 100))
-                Pair(year, trackList)
-            }.filter { it.second.isNotEmpty() }
-                    .map {
-                        val id = spotifyPlaylistService.getOrCreatePlaylist("LAST.FM " + it.first, clientId).id
-                        spotifyPlaylistService.modifyPlaylist(id,
-                                it.second, clientId)
-                    }
+                if (trackList.isNotEmpty()) {
+                    val id = spotifyPlaylistService.getOrCreatePlaylist("LAST.FM $year", clientId).id
+                    spotifyPlaylistService.modifyPlaylist(id,
+                            trackList, clientId)
+                }
+            }
         }
     }
 }
