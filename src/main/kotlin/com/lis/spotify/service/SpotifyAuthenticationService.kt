@@ -64,11 +64,15 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
     }
 
     fun getAuthToken(clientId: String): AuthToken? {
-        return tokenCache.get(clientId) {
-            mongoTemplate.find(
-                    Query().addCriteria(Criteria.where("clientId").`is`(clientId)),
-                    AuthToken::class.java,
-                    "auth").first()
+        return try {
+            tokenCache.get(clientId) {
+                mongoTemplate.find(
+                        Query().addCriteria(Criteria.where("clientId").`is`(clientId)),
+                        AuthToken::class.java,
+                        "auth").firstOrNull()
+            }
+        } catch (e: Exception) {
+            null
         }
     }
 
