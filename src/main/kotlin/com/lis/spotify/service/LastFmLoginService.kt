@@ -28,12 +28,12 @@ class LastFmLoginService(val mongoTemplate: MongoTemplate) {
         mongoTemplate.save(LastFmLogin(spotifyClientId, lastFmLogin), "login")
     }
 
-    fun getLastFmLogin(spotifyClientId: String): String {
+    fun getLastFmLogin(spotifyClientId: String): String? {
         return mongoTemplate.find(
                 Query().addCriteria(Criteria.where("spotifyClientId").`is`(spotifyClientId)),
                 LastFmLogin::class.java,
                 "login")
-                .first()
-                .lastFmLogin
+                .firstOrNull()
+                ?.lastFmLogin
     }
 }
