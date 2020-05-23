@@ -36,6 +36,8 @@ class RefreshPlaylistsScheduler(var spotifyAuthenticationService: SpotifyAuthent
                             spotifyTopPlaylistsService.updateTopPlaylists(clientId)
                         } catch (e: HttpClientErrorException.Unauthorized) {
                             spotifyAuthenticationService.refreshToken(clientId)
+                        } catch (e: Exception) {
+                            LoggerFactory.getLogger(javaClass).error(e.message)
                         }
                     }
                 }
@@ -53,6 +55,8 @@ class RefreshPlaylistsScheduler(var spotifyAuthenticationService: SpotifyAuthent
                                 spotifyTopPlaylistsService.updateTopPlaylists(clientId)
                             } catch (e: HttpClientErrorException.Unauthorized) {
                                 spotifyAuthenticationService.refreshToken(clientId)
+                            } catch (e: Exception) {
+                                LoggerFactory.getLogger(javaClass).error(e.message)
                             }
                         }
                     }
