@@ -15,6 +15,7 @@ package com.lis.spotify.scheduler
 import com.lis.spotify.service.LastFmLoginService
 import com.lis.spotify.service.SpotifyAuthenticationService
 import com.lis.spotify.service.SpotifyTopPlaylistsService
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
@@ -52,7 +53,7 @@ class RefreshPlaylistsScheduler(var spotifyAuthenticationService: SpotifyAuthent
                         lastFmLoginService.getLastFmLogin(clientId)?.let {
                             try {
                                 LoggerFactory.getLogger(javaClass).info("Refreshing last.fm playlists for user: {} {}", clientId, it)
-                                spotifyTopPlaylistsService.updateTopPlaylists(clientId)
+                                runBlocking { spotifyTopPlaylistsService.updateYearlyPlaylists(clientId) }
                             } catch (e: HttpClientErrorException.Unauthorized) {
                                 spotifyAuthenticationService.refreshToken(clientId)
                             } catch (e: Exception) {
