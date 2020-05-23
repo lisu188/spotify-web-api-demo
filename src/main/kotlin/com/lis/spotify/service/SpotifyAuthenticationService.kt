@@ -13,14 +13,16 @@
 package com.lis.spotify.service
 
 
-import com.lis.spotify.domain.AuthToken
 import com.lis.spotify.controller.SpotifyAuthenticationController
+import com.lis.spotify.domain.AuthToken
 import org.bson.BsonDocument
 import org.bson.BsonString
 import org.slf4j.LoggerFactory
 import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.data.mongodb.core.MongoTemplate
 import org.springframework.data.mongodb.core.findAll
+import org.springframework.data.mongodb.core.query.Criteria
+import org.springframework.data.mongodb.core.query.Query
 import org.springframework.http.HttpHeaders
 import org.springframework.stereotype.Service
 import org.springframework.web.client.postForObject
@@ -30,7 +32,7 @@ import org.springframework.web.util.UriComponentsBuilder
 @Service
 class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplateBuilder, val mongoTemplate: MongoTemplate) {
     fun getHeaders(token: AuthToken): HttpHeaders {
-        val headers = HttpHeaders();
+        val headers = HttpHeaders()
         headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + token.access_token)//TODO, auto get Token
         headers.set(HttpHeaders.ACCEPT, "application/json")
         return headers
@@ -53,7 +55,10 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
     }
 
     fun getAuthToken(clientId: String): AuthToken? {
-        return mongoTemplate.findAll<AuthToken>("auth").find { it.clientId == clientId }
+        return mongoTemplate.find(
+                Query().addCriteria(Criteria.where("clientId").`is`(clientId)),
+                AuthToken::class.java,
+                "auth").first()
     }
 
     fun getAuthTokens(): List<AuthToken> {
