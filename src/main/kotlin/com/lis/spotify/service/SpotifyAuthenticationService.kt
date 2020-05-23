@@ -13,6 +13,7 @@
 package com.lis.spotify.service
 
 
+import com.google.common.cache.CacheBuilder
 import com.lis.spotify.controller.SpotifyAuthenticationController
 import com.lis.spotify.domain.AuthToken
 import org.bson.BsonDocument
@@ -27,10 +28,15 @@ import org.springframework.http.HttpHeaders
 import org.springframework.stereotype.Service
 import org.springframework.web.client.postForObject
 import org.springframework.web.util.UriComponentsBuilder
+import java.util.concurrent.TimeUnit
 
 
 @Service
 class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplateBuilder, val mongoTemplate: MongoTemplate) {
+    val tokenCache = CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.MINUTES)
+            .maximumSize(50)
+            .build<String, AuthToken>()
+
     fun getHeaders(token: AuthToken): HttpHeaders {
         val headers = HttpHeaders()
         headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + token.access_token)//TODO, auto get Token
@@ -53,13 +59,17 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
         mongoTemplate.getCollection("auth")
                 .deleteMany(BsonDocument("clientId", BsonString(token.clientId)))
         mongoTemplate.save(token, "auth")
+
+        tokenCache.invalidate("clientId")
     }
 
     fun getAuthToken(clientId: String): AuthToken? {
-        return mongoTemplate.find(
-                Query().addCriteria(Criteria.where("clientId").`is`(clientId)),
-                AuthToken::class.java,
-                "auth").first()
+        return tokenCache.get(clientId) {
+            mongoTemplate.find(
+                    Query().addCriteria(Criteria.where("clientId").`is`(clientId)),
+                    AuthToken::class.java,
+                    "auth").first()
+        }
     }
 
     fun getAuthTokens(): List<AuthToken> {
