@@ -20,7 +20,6 @@ import org.springframework.web.socket.config.annotation.EnableWebSocket
 
 @SpringBootApplication
 @EnableWebSocket
-@EnableScheduling
 class Application {
     private val log = LoggerFactory.getLogger(Application::class.java)
 }
