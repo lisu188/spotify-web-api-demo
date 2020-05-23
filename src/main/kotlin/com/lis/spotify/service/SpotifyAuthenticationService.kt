@@ -50,7 +50,8 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
     fun setAuthToken(token: AuthToken) {
         LoggerFactory.getLogger(javaClass).info("setAuthToken: {}", token.clientId)
 
-        mongoTemplate.getCollection("auth").deleteMany(BsonDocument("clientId", BsonString(token.clientId)))
+        mongoTemplate.getCollection("auth")
+                .deleteMany(BsonDocument("clientId", BsonString(token.clientId)))
         mongoTemplate.save(token, "auth")
     }
 

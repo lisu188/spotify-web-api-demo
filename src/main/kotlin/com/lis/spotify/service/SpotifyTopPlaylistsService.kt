@@ -15,13 +15,9 @@ package com.lis.spotify.service
 
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.async
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import org.springframework.web.bind.annotation.CookieValue
-import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.RestController
 import java.util.concurrent.atomic.AtomicInteger
 
 @Service
@@ -68,15 +64,14 @@ class SpotifyTopPlaylistsService(var spotifyPlaylistService: SpotifyPlaylistServ
     }
 
 
-    suspend fun updateYearlyPlaylists(lastFmLogin: String,
-                                      clientId: String,
+    suspend fun updateYearlyPlaylists(clientId: String,
                                       progressUpdater: (Pair<Int, Int>) -> Unit = {}) {
-        LoggerFactory.getLogger(javaClass).info("updateYearlyPlaylists: {} {}", lastFmLogin, clientId)
+        LoggerFactory.getLogger(javaClass).info("updateYearlyPlaylists: {}", clientId)
         (2005..2020).map { year: Int ->
             GlobalScope.async {
                 var progress = AtomicInteger()
                 progressUpdater(Pair(year, progress.get()))
-                val chartlist = lastFmService.yearlyChartlist(lastFmLogin, year)
+                val chartlist = lastFmService.yearlyChartlist(clientId, year)
                 var trackList = spotifySearchService.doSearch(chartlist, clientId) { progressUpdater(Pair(year, progress.incrementAndGet() * 100 / chartlist.size)) }
                 progressUpdater(Pair(year, 100))
                 Pair(year, trackList)
@@ -85,7 +80,8 @@ class SpotifyTopPlaylistsService(var spotifyPlaylistService: SpotifyPlaylistServ
             it.await()
         }.filter { it.second.isNotEmpty() }
                 .map {
-                    spotifyPlaylistService.modifyPlaylist(spotifyPlaylistService.getOrCreatePlaylist("LAST.FM " + it.first, clientId).id,
+                    val id = spotifyPlaylistService.getOrCreatePlaylist("LAST.FM " + it.first, clientId).id
+                    spotifyPlaylistService.modifyPlaylist(id,
                             it.second, clientId)
                 }
     }

@@ -10,42 +10,30 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package com.lis.spotify.domain
+package com.lis.spotify.service
 
-class PlaylistTrack(var track: Track)
+import com.lis.spotify.domain.LastFmLogin
+import org.bson.BsonDocument
+import org.bson.BsonString
+import org.springframework.data.mongodb.core.MongoTemplate
+import org.springframework.data.mongodb.core.query.Criteria
+import org.springframework.data.mongodb.core.query.Query
+import org.springframework.stereotype.Service
 
-class PlaylistTracks(var items: List<PlaylistTrack>,
-                     var next: String?)
+@Service
+class LastFmLoginService(val mongoTemplate: MongoTemplate) {
+    fun saveLoginData(spotifyClientId: String, lastFmLogin: String) {
+        mongoTemplate.getCollection("login")
+                .deleteMany(BsonDocument("spotifyClientId", BsonString(spotifyClientId)))
+        mongoTemplate.save(LastFmLogin(spotifyClientId, lastFmLogin), "login")
+    }
 
-class SearchResult(var tracks: SearchResultInternal)
-
-class SearchResultInternal(var items: List<Track>)
-
-
-class Tracks(var items: List<Track>)
-
-class Track(var id: String,
-            var name: String,
-            var artists: List<Artist>,
-            var album: Album)
-
-class Artist(var id: String,
-             var name: String)
-
-class Album(var id: String,
-            var name: String,
-            var artists: List<Artist>)
-
-class User(var id: String)
-
-class Playlist(var id: String,
-               var name: String)
-
-class Playlists(var items: List<Playlist>,
-                var next: String?)
-
-class Artists(var items: List<Artist>,
-              var next: String?)
-
-class LastFmLogin(val spotifyClientId: String,
-                  val lastFmLogin: String)
+    fun getLastFmLogin(spotifyClientId: String): String {
+        return mongoTemplate.find(
+                Query().addCriteria(Criteria.where("spotifyClientId").`is`(spotifyClientId)),
+                LastFmLogin::class.java,
+                "login")
+                .first()
+                .lastFmLogin
+    }
+}

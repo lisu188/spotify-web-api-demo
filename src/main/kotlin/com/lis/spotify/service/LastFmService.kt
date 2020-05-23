@@ -22,13 +22,13 @@ import org.springframework.stereotype.Service
 import kotlin.streams.toList
 
 @Service
-class LastFmService {
+class LastFmService(var lastFmLoginService: LastFmLoginService) {
 
 
-    suspend fun yearlyChartlist(lastFmLogin: String, year: Int): List<Song> {
-        LoggerFactory.getLogger(javaClass).info("yearlyChartlist: {} {}", lastFmLogin, year)
+    suspend fun yearlyChartlist(spotifyClientId: String, year: Int): List<Song> {
+        LoggerFactory.getLogger(javaClass).info("yearlyChartlist: {} {}", lastFmLoginService.getLastFmLogin(spotifyClientId), year)
         return (1..7).map { page: Int ->
-            GlobalScope.async { yearlyChartlist(lastFmLogin, year, page) }
+            GlobalScope.async { yearlyChartlist(lastFmLoginService.getLastFmLogin(spotifyClientId), year, page) }
         }.map { it.await() }
                 .stream()
                 .flatMap { it.stream() }
