@@ -15,10 +15,12 @@ package com.lis.spotify
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
+import org.springframework.scheduling.annotation.EnableScheduling
 import org.springframework.web.socket.config.annotation.EnableWebSocket
 
 @SpringBootApplication
 @EnableWebSocket
+@EnableScheduling
 class Application {
     private val log = LoggerFactory.getLogger(Application::class.java)
 }

@@ -36,5 +36,6 @@ dependencies {
     compile("com.fasterxml.jackson.module:jackson-module-kotlin")
 
     compile("org.jsoup:jsoup:1.10.3")
+    compile("com.google.guava:guava:29.0-jre")
 }
 
