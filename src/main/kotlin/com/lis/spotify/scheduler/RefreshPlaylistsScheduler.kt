@@ -19,7 +19,6 @@ import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
-import org.springframework.web.client.HttpClientErrorException
 
 @Service
 class RefreshPlaylistsScheduler(var spotifyAuthenticationService: SpotifyAuthenticationService,
@@ -33,12 +32,9 @@ class RefreshPlaylistsScheduler(var spotifyAuthenticationService: SpotifyAuthent
                 .forEach {
                     it?.let { clientId ->
                         try {
-                            try {
-                                LoggerFactory.getLogger(javaClass).info("Refreshing Spotify playlists for user: {}", clientId)
-                                spotifyTopPlaylistsService.updateTopPlaylists(clientId)
-                            } catch (e: HttpClientErrorException.Unauthorized) {
-                                spotifyAuthenticationService.refreshToken(clientId)
-                            }
+                            LoggerFactory.getLogger(javaClass).info("Refreshing Spotify playlists for user: {}", clientId)
+                            spotifyAuthenticationService.refreshToken(clientId)
+                            spotifyTopPlaylistsService.updateTopPlaylists(clientId)
                         } catch (e: Exception) {
                             LoggerFactory.getLogger(javaClass).error(e.message)
                         }
@@ -54,12 +50,9 @@ class RefreshPlaylistsScheduler(var spotifyAuthenticationService: SpotifyAuthent
                     it?.let { clientId ->
                         lastFmLoginService.getLastFmLogin(clientId)?.let {
                             try {
-                                try {
-                                    LoggerFactory.getLogger(javaClass).info("Refreshing last.fm playlists for user: {} {}", clientId, it)
-                                    runBlocking { spotifyTopPlaylistsService.updateYearlyPlaylists(clientId) }
-                                } catch (e: HttpClientErrorException.Unauthorized) {
-                                    spotifyAuthenticationService.refreshToken(clientId)
-                                }
+                                LoggerFactory.getLogger(javaClass).info("Refreshing last.fm playlists for user: {} {}", clientId, it)
+                                spotifyAuthenticationService.refreshToken(clientId)
+                                runBlocking { spotifyTopPlaylistsService.updateYearlyPlaylists(clientId) }
                             } catch (e: Exception) {
                                 LoggerFactory.getLogger(javaClass).error(e.message)
                             }
