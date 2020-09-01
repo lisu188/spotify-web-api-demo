@@ -69,17 +69,19 @@ class SpotifyTopPlaylistsService(var spotifyPlaylistService: SpotifyPlaylistServ
         LoggerFactory.getLogger(javaClass).info("updateYearlyPlaylists: {}", clientId)
         GlobalScope.async {
             (2005..2020).map { year: Int ->
-                var progress = AtomicInteger()
-                progressUpdater(Pair(year, progress.get()))
-                val chartlist = lastFmService.yearlyChartlist(clientId, year)
-                var trackList = spotifySearchService.doSearch(chartlist, clientId) { progressUpdater(Pair(year, progress.incrementAndGet() * 100 / chartlist.size)) }
-                progressUpdater(Pair(year, 100))
-                if (trackList.isNotEmpty()) {
-                    val id = spotifyPlaylistService.getOrCreatePlaylist("LAST.FM $year", clientId).id
-                    spotifyPlaylistService.modifyPlaylist(id,
-                            trackList, clientId)
+                GlobalScope.async {
+                    var progress = AtomicInteger()
+                    progressUpdater(Pair(year, progress.get()))
+                    val chartlist = lastFmService.yearlyChartlist(clientId, year)
+                    var trackList = spotifySearchService.doSearch(chartlist, clientId) { progressUpdater(Pair(year, progress.incrementAndGet() * 100 / chartlist.size)) }
+                    progressUpdater(Pair(year, 100))
+                    if (trackList.isNotEmpty()) {
+                        val id = spotifyPlaylistService.getOrCreatePlaylist("LAST.FM $year", clientId).id
+                        spotifyPlaylistService.modifyPlaylist(id,
+                                trackList, clientId)
+                    }
                 }
-            }
+            }.map { it.await() }
         }.await()
     }
 }
