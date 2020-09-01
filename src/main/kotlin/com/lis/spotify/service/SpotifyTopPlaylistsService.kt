@@ -80,6 +80,6 @@ class SpotifyTopPlaylistsService(var spotifyPlaylistService: SpotifyPlaylistServ
                             trackList, clientId)
                 }
             }
-        }
+        }.await()
     }
 }
