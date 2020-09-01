@@ -77,7 +77,7 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
     }
 
     fun getAuthTokens(): List<AuthToken> {
-        return mongoTemplate.findAll<AuthToken>("auth")
+        return mongoTemplate.findAll<AuthToken>("auth").shuffled()
     }
 
     fun refreshToken(clientId: String) {
