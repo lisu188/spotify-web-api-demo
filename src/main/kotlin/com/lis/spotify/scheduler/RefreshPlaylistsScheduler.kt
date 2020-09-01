@@ -25,7 +25,7 @@ class RefreshPlaylistsScheduler(var spotifyAuthenticationService: SpotifyAuthent
                                 var spotifyTopPlaylistsService: SpotifyTopPlaylistsService,
                                 var lastFmLoginService: LastFmLoginService) {
 
-    @Scheduled(initialDelay = 1000 * 60 * 15, fixedDelay = 1000 * 60 * 15)
+    @Scheduled(initialDelay = 1000 * 60 * 1, fixedDelay = 1000 * 60 * 60)
     fun refreshSpotify() {
         spotifyAuthenticationService.getAuthTokens()
                 .map { it.clientId }
@@ -42,7 +42,7 @@ class RefreshPlaylistsScheduler(var spotifyAuthenticationService: SpotifyAuthent
                 }
     }
 
-    @Scheduled(initialDelay = 1000 * 60 * 15, fixedDelay = 1000 * 60 * 15)
+    @Scheduled(initialDelay = 1000 * 60 * 1, fixedDelay = 1000 * 60 * 60)
     fun refreshLastFm() {
         spotifyAuthenticationService.getAuthTokens()
                 .map { it.clientId }
