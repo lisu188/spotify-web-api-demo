@@ -10,6 +10,8 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+URL = "http://78.10.231.199:32402"
+WS_URL = "ws://78.10.231.199:32402"
 
 function buildPlayButtonUrl(id) {
     return "https://open.spotify.com/embed/playlist/" + id
@@ -27,7 +29,7 @@ function appendPlayButton(div, playlistId) {
 $('#top').on('click', function (event) {
     $('#top').prop('disabled', true)
     $.ajax({
-        type: "post", url: "https://spotify-web-api-demo.herokuapp.com/updateTopPlaylists",
+        type: "post", url: URL + "/updateTopPlaylists",
         success: function (data, text) {
             $('#top').prop('disabled', false);
             for (var playlistId of data) {
@@ -42,7 +44,7 @@ $('#top').on('click', function (event) {
 
 $('#lastfm').on('click', function (event) {
     var socket
-        = new WebSocket("wss://spotify-web-api-demo.herokuapp.com/socket/"
+        = new WebSocket(WS_URL + "/socket/"
         + $('#lastFmId').val());
     socket.onopen = function (ev) {
         $("#progress").show();
@@ -84,7 +86,7 @@ $('#lastFmId').on('input', function (event) {
         verifyRequest.abort()
     }
     disable();
-    verifyRequest = $.post("https://spotify-web-api-demo.herokuapp.com/verifyLastFmId/" + $('#lastFmId').val(),
+    verifyRequest = $.post(URL + "/verifyLastFmId/" + $('#lastFmId').val(),
         function (data, status) {
             if ($.parseJSON(data)) {
                 enable()

@@ -28,13 +28,15 @@ import org.springframework.web.util.UriComponentsBuilder
 import javax.servlet.http.Cookie
 import javax.servlet.http.HttpServletResponse
 
+val URL = "http://78.10.231.199:32402"
+
 @Controller
 class SpotifyAuthenticationController(val spotifyAuthenticationService: SpotifyAuthenticationService, var restTemplateBuilder: RestTemplateBuilder) {
     companion object {
         val CLIENT_ID: String = System.getenv()["CLIENT_ID"].orEmpty()
         val CLIENT_SECRET: String = System.getenv()["CLIENT_SECRET"].orEmpty()
 
-        val CALLBACK: String = "https://spotify-web-api-demo.herokuapp.com/callback"
+        val CALLBACK: String = URL + "/callback"
         val AUTH_URL = "https://accounts.spotify.com/authorize"
         val SCOPES = "user-top-read playlist-modify-public"
         val TOKEN_URL = "https://accounts.spotify.com/api/token"
@@ -73,7 +75,7 @@ class SpotifyAuthenticationController(val spotifyAuthenticationService: SpotifyA
                 .queryParam("scope", SCOPES)
                 .queryParam("redirect_uri", CALLBACK)
 
-        return "redirect:" + builder.toUriString();
+        return "redirect:" + builder.toUriString()
     }
 
 

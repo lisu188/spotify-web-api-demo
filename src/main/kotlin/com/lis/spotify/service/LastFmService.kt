@@ -40,17 +40,21 @@ class LastFmService(var lastFmLoginService: LastFmLoginService) {
     private fun yearlyChartlist(lastFmLogin: String, year: Int, page: Int): List<Song> {
         LoggerFactory.getLogger(javaClass).info("yearlyChartlist: {} {} {}", lastFmLogin, year, page)
         val ret: MutableList<Song> = mutableListOf()
-        val get = Jsoup.connect("https://www.last.fm/user/$lastFmLogin/library/tracks?from=$year-01-01&rangetype=year&page=$page").get()
-        get.run {
-            select(".chartlist-row").forEach {
-                try {
-                    ret.add(parseElement(it))
-                } catch (e: Exception) {
-                    LoggerFactory.getLogger(javaClass).error("Cannot parse: {}", it, e)
+        try {
+            val get = Jsoup.connect("https://www.last.fm/user/$lastFmLogin/library/tracks?from=$year-01-01&rangetype=year&page=$page").get()
+            get.run {
+                select(".chartlist-row").forEach {
+                    try {
+                        ret.add(parseElement(it))
+                    } catch (e: Exception) {
+                        LoggerFactory.getLogger(javaClass).error("Cannot parse: {}", it, e)
+                    }
                 }
             }
+            return ret
+        } catch (e: Exception) {
+            return emptyList()
         }
-        return ret
     }
 
     fun globalChartlist(lastFmLogin: String, page: Int = 1): List<Song> {
