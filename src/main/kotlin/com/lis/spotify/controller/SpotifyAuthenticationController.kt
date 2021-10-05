@@ -28,10 +28,13 @@ import org.springframework.web.util.UriComponentsBuilder
 import javax.servlet.http.Cookie
 import javax.servlet.http.HttpServletResponse
 
-val URL = "http://78.10.231.199:32402"
+val URL = "http://78.10.226.56:32402"
 
 @Controller
-class SpotifyAuthenticationController(val spotifyAuthenticationService: SpotifyAuthenticationService, var restTemplateBuilder: RestTemplateBuilder) {
+class SpotifyAuthenticationController(
+    val spotifyAuthenticationService: SpotifyAuthenticationService,
+    var restTemplateBuilder: RestTemplateBuilder
+) {
     companion object {
         val CLIENT_ID: String = System.getenv()["CLIENT_ID"].orEmpty()
         val CLIENT_SECRET: String = System.getenv()["CLIENT_SECRET"].orEmpty()
@@ -43,18 +46,21 @@ class SpotifyAuthenticationController(val spotifyAuthenticationService: SpotifyA
     }
 
     fun getCurrentUserId(token: AuthToken): String? =
-            restTemplateBuilder.build().exchange<User>("https://api.spotify.com/v1/me", HttpMethod.GET,
-                    HttpEntity(null, spotifyAuthenticationService.getHeaders(token))).body?.id
+        restTemplateBuilder.build().exchange<User>(
+            "https://api.spotify.com/v1/me", HttpMethod.GET,
+            HttpEntity(null, spotifyAuthenticationService.getHeaders(token))
+        ).body?.id
 
     @GetMapping("/callback")
     fun callback(code: String, response: HttpServletResponse): String {
         val tokenUrl = UriComponentsBuilder.fromHttpUrl(TOKEN_URL)
-                .queryParam("grant_type", "authorization_code")
-                .queryParam("code", code)
-                .queryParam("redirect_uri", CALLBACK)
-                .build().toUri()
+            .queryParam("grant_type", "authorization_code")
+            .queryParam("code", code)
+            .queryParam("redirect_uri", CALLBACK)
+            .build().toUri()
 
-        val authToken = restTemplateBuilder.basicAuthentication(CLIENT_ID, CLIENT_SECRET).build().postForObject<AuthToken>(tokenUrl)//TODO: check error message
+        val authToken = restTemplateBuilder.basicAuthentication(CLIENT_ID, CLIENT_SECRET).build()
+            .postForObject<AuthToken>(tokenUrl)//TODO: check error message
 
         authToken?.let { token: AuthToken ->
             getCurrentUserId(token)?.let { clientId: String ->
@@ -68,12 +74,16 @@ class SpotifyAuthenticationController(val spotifyAuthenticationService: SpotifyA
 
 
     @GetMapping("/authorize")
-    fun authorize(attributes: RedirectAttributes, response: HttpServletResponse, @CookieValue("clientId", defaultValue = "") clientId: String): String {
+    fun authorize(
+        attributes: RedirectAttributes,
+        response: HttpServletResponse,
+        @CookieValue("clientId", defaultValue = "") clientId: String
+    ): String {
         val builder = UriComponentsBuilder.fromHttpUrl(AUTH_URL)
-                .queryParam("response_type", "code")
-                .queryParam("client_id", CLIENT_ID)
-                .queryParam("scope", SCOPES)
-                .queryParam("redirect_uri", CALLBACK)
+            .queryParam("response_type", "code")
+            .queryParam("client_id", CLIENT_ID)
+            .queryParam("scope", SCOPES)
+            .queryParam("redirect_uri", CALLBACK)
 
         return "redirect:" + builder.toUriString()
     }

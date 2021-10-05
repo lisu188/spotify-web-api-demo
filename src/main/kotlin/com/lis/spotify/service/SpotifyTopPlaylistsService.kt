@@ -18,23 +18,28 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 
 @Service
-class SpotifyTopPlaylistsService(var spotifyPlaylistService: SpotifyPlaylistService,
-                                 var spotifyTopTrackService: SpotifyTopTrackService,
-                                 var lastFmService: LastFmService,
-                                 var spotifySearchService: SpotifySearchService) {
+class SpotifyTopPlaylistsService(
+    var spotifyPlaylistService: SpotifyPlaylistService,
+    var spotifyTopTrackService: SpotifyTopTrackService,
+    var lastFmService: LastFmService,
+    var spotifySearchService: SpotifySearchService
+) {
 
     fun updateTopPlaylists(clientId: String): List<String> {
         LoggerFactory.getLogger(javaClass).info("updateTopPlaylists: {}", clientId)
 
         return runBlocking {
-            val shortTerm = spotifyTopTrackService.getTopTracksShortTerm(clientId).map { it.id }.toCollection(arrayListOf())
+            val shortTerm =
+                spotifyTopTrackService.getTopTracksShortTerm(clientId).map { it.id }.toCollection(arrayListOf())
 
             val midTerm = spotifyTopTrackService.getTopTracksMidTerm(clientId).map { it.id }.toCollection(arrayListOf())
 
-            val longTerm = spotifyTopTrackService.getTopTracksLongTerm(clientId).map { it.id }.toCollection(arrayListOf())
+            val longTerm =
+                spotifyTopTrackService.getTopTracksLongTerm(clientId).map { it.id }.toCollection(arrayListOf())
 
             val shortTermId = spotifyPlaylistService.getOrCreatePlaylist("Short Term", clientId).id
 
@@ -54,8 +59,8 @@ class SpotifyTopPlaylistsService(var spotifyPlaylistService: SpotifyPlaylistServ
             val trackList1: List<String> = (shortTerm.asIterable()
                     + midTerm.asIterable()
                     + longTerm.asIterable())
-                    .toCollection(arrayListOf())
-                    .distinct()
+                .toCollection(arrayListOf())
+                .distinct()
 
             spotifyPlaylistService.modifyPlaylist(mixedTermId, trackList1, clientId)
 
@@ -64,22 +69,35 @@ class SpotifyTopPlaylistsService(var spotifyPlaylistService: SpotifyPlaylistServ
     }
 
 
-    suspend fun updateYearlyPlaylists(clientId: String,
-                                      progressUpdater: (Pair<Int, Int>) -> Unit = {}) {
+    suspend fun updateYearlyPlaylists(
+        clientId: String,
+        progressUpdater: (Pair<Int, Int>) -> Unit = {}
+    ) {
         LoggerFactory.getLogger(javaClass).info("updateYearlyPlaylists: {}", clientId)
         GlobalScope.async {
-            (2005..2030).map { year: Int ->
+            (2005..getYear()).map { year: Int ->
                 var progress = AtomicInteger()
                 progressUpdater(Pair(year, progress.get()))
                 val chartlist = lastFmService.yearlyChartlist(clientId, year)
-                var trackList = spotifySearchService.doSearch(chartlist, clientId) { progressUpdater(Pair(year, progress.incrementAndGet() * 100 / chartlist.size)) }
+                var trackList = spotifySearchService.doSearch(chartlist, clientId) {
+                    progressUpdater(
+                        Pair(
+                            year,
+                            progress.incrementAndGet() * 100 / chartlist.size
+                        )
+                    )
+                }
                 progressUpdater(Pair(year, 100))
                 if (trackList.isNotEmpty()) {
                     val id = spotifyPlaylistService.getOrCreatePlaylist("LAST.FM $year", clientId).id
-                    spotifyPlaylistService.modifyPlaylist(id,
-                            trackList, clientId)
+                    spotifyPlaylistService.modifyPlaylist(
+                        id,
+                        trackList, clientId
+                    )
                 }
             }
         }.await()
     }
+
+    private fun getYear() = Calendar.getInstance().get(Calendar.YEAR)
 }

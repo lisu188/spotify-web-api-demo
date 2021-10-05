@@ -25,10 +25,13 @@ import javax.websocket.server.PathParam
 import javax.websocket.server.ServerEndpoint
 
 @Component
-@ServerEndpoint("/socket/{login}"
-        , configurator = WebsocketSpringConfigurator::class
+@ServerEndpoint(
+    "/socket/{login}", configurator = WebsocketSpringConfigurator::class
 )
-class YearlyPlaylistsEndpoint(var spotifyTopPlaylistsService: SpotifyTopPlaylistsService, var lastFmLoginService: LastFmLoginService) {
+class YearlyPlaylistsEndpoint(
+    var spotifyTopPlaylistsService: SpotifyTopPlaylistsService,
+    var lastFmLoginService: LastFmLoginService
+) {
 
     var progressMap = mutableMapOf<Int, Int>()
 

@@ -32,10 +32,13 @@ import java.util.concurrent.TimeUnit
 
 
 @Service
-class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplateBuilder, val mongoTemplate: MongoTemplate) {
+class SpotifyAuthenticationService(
+    private val restTemplateBuilder: RestTemplateBuilder,
+    val mongoTemplate: MongoTemplate
+) {
     val tokenCache = CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.MINUTES)
-            .maximumSize(50)
-            .build<String, AuthToken>()
+        .maximumSize(50)
+        .build<String, AuthToken>()
 
     fun getHeaders(token: AuthToken): HttpHeaders {
         val headers = HttpHeaders()
@@ -57,7 +60,7 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
         LoggerFactory.getLogger(javaClass).info("setAuthToken: {}", token.clientId)
 
         mongoTemplate.getCollection("auth")
-                .deleteMany(BsonDocument("clientId", BsonString(token.clientId)))
+            .deleteMany(BsonDocument("clientId", BsonString(token.clientId)))
         mongoTemplate.save(token, "auth")
 
         tokenCache.invalidate("clientId")
@@ -67,9 +70,10 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
         return try {
             tokenCache.get(clientId) {
                 mongoTemplate.find(
-                        Query().addCriteria(Criteria.where("clientId").`is`(clientId)),
-                        AuthToken::class.java,
-                        "auth").firstOrNull()
+                    Query().addCriteria(Criteria.where("clientId").`is`(clientId)),
+                    AuthToken::class.java,
+                    "auth"
+                ).firstOrNull()
             }
         } catch (e: Exception) {
             null
@@ -86,11 +90,14 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
         val code = getAuthToken(clientId)?.refresh_token.orEmpty()
 
         val tokenUrl = UriComponentsBuilder.fromHttpUrl(SpotifyAuthenticationController.TOKEN_URL)
-                .queryParam("grant_type", "refresh_token")
-                .queryParam("refresh_token", code)
-                .build().toUri()
+            .queryParam("grant_type", "refresh_token")
+            .queryParam("refresh_token", code)
+            .build().toUri()
 
-        val authToken = restTemplateBuilder.basicAuthentication(SpotifyAuthenticationController.CLIENT_ID, SpotifyAuthenticationController.CLIENT_SECRET).build().postForObject<AuthToken>(tokenUrl)//TODO: check error message
+        val authToken = restTemplateBuilder.basicAuthentication(
+            SpotifyAuthenticationController.CLIENT_ID,
+            SpotifyAuthenticationController.CLIENT_SECRET
+        ).build().postForObject<AuthToken>(tokenUrl)//TODO: check error message
 
         authToken?.clientId = clientId
         authToken?.refresh_token = code
@@ -99,7 +106,7 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
     }
 
     fun isAuthorized(clientId: String) =
-            clientId.isNotEmpty() && getAuthToken(clientId) != null
+        clientId.isNotEmpty() && getAuthToken(clientId) != null
 }
 
 

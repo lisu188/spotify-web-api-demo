@@ -19,7 +19,10 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
-class SpotifyTopPlaylistsController(val lastFmService: LastFmService, val spotifyTopPlaylistsService: SpotifyTopPlaylistsService) {
+class SpotifyTopPlaylistsController(
+    val lastFmService: LastFmService,
+    val spotifyTopPlaylistsService: SpotifyTopPlaylistsService
+) {
     @PostMapping("/updateTopPlaylists")
     fun updateTopPlaylists(@CookieValue("clientId") clientId: String): List<String> {
         return spotifyTopPlaylistsService.updateTopPlaylists(clientId)

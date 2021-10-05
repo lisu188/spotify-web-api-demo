@@ -28,7 +28,11 @@ class SpotifyTopTrackService(var spotifyRestService: SpotifyRestService) {
 
 
     private suspend fun getTopTracks(term: String, clientId: String): Tracks {
-        return spotifyRestService.doGet<Tracks>(URL, params = mapOf("limit" to 50, "time_range" to term), clientId = clientId)
+        return spotifyRestService.doGet<Tracks>(
+            URL,
+            params = mapOf("limit" to 50, "time_range" to term),
+            clientId = clientId
+        )
     }
 
     suspend fun getTopTracksLongTerm(clientId: String): List<Track> {

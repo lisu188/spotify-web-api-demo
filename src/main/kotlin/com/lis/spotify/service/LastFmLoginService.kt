@@ -24,16 +24,17 @@ import org.springframework.stereotype.Service
 class LastFmLoginService(val mongoTemplate: MongoTemplate) {
     fun saveLoginData(spotifyClientId: String, lastFmLogin: String) {
         mongoTemplate.getCollection("login")
-                .deleteMany(BsonDocument("spotifyClientId", BsonString(spotifyClientId)))
+            .deleteMany(BsonDocument("spotifyClientId", BsonString(spotifyClientId)))
         mongoTemplate.save(LastFmLogin(spotifyClientId, lastFmLogin), "login")
     }
 
     fun getLastFmLogin(spotifyClientId: String): String? {
         return mongoTemplate.find(
-                Query().addCriteria(Criteria.where("spotifyClientId").`is`(spotifyClientId)),
-                LastFmLogin::class.java,
-                "login")
-                .firstOrNull()
-                ?.lastFmLogin
+            Query().addCriteria(Criteria.where("spotifyClientId").`is`(spotifyClientId)),
+            LastFmLogin::class.java,
+            "login"
+        )
+            .firstOrNull()
+            ?.lastFmLogin
     }
 }

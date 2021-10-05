@@ -14,8 +14,6 @@ package com.lis.spotify.service
 
 import com.lis.spotify.domain.Artist
 import com.lis.spotify.domain.Artists
-import com.lis.spotify.domain.Track
-import com.lis.spotify.domain.Tracks
 import org.springframework.stereotype.Service
 
 
@@ -30,7 +28,11 @@ class SpotifyTopArtistService(var spotifyRestService: SpotifyRestService) {
 
 
     private suspend fun getTopArtists(term: String, clientId: String): Artists {
-        return spotifyRestService.doGet<Artists>(URL, params = mapOf("limit" to 10, "time_range" to term), clientId = clientId)
+        return spotifyRestService.doGet<Artists>(
+            URL,
+            params = mapOf("limit" to 10, "time_range" to term),
+            clientId = clientId
+        )
     }
 
     suspend fun getTopArtistsLongTerm(clientId: String): List<Artist> {

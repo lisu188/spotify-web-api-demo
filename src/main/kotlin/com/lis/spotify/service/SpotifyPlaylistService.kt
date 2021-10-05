@@ -20,7 +20,6 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.async
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import kotlin.collections.ArrayList
 
 @Service
 class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
@@ -34,7 +33,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
     suspend fun getCurrentUserPlaylists(clientId: String): MutableList<Playlist> {
         LoggerFactory.getLogger(javaClass).info("getCurrentUserPlaylists: {}", clientId)
 
-        val playlistList: MutableList<Playlist> = ArrayList();
+        val playlistList: MutableList<Playlist> = ArrayList()
         var url: String = USER_PLAYLISTS_URL
         do {
             val playlists: Playlists? = spotifyRestService.doGet<Playlists>(url, clientId = clientId)
@@ -44,26 +43,28 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
         } while (!playlists?.next.isNullOrEmpty())
 
 
-        return playlistList;
+        return playlistList
     }
 
     suspend fun getPlaylistTracks(id: String, clientId: String): List<Track>? {
         LoggerFactory.getLogger(javaClass).info("getPlaylistTracks: {} {}", id, clientId)
 
 
-        val trackList: MutableList<Track> = ArrayList();
+        val trackList: MutableList<Track> = ArrayList()
         var url: String = PLAYLIST_TRACKS_URL
         do {
-            val tracks: PlaylistTracks? = spotifyRestService.doGet<PlaylistTracks>(url, mapOf("id" to id), clientId = clientId)
+            val tracks: PlaylistTracks? =
+                spotifyRestService.doGet<PlaylistTracks>(url, mapOf("id" to id), clientId = clientId)
             tracks?.items?.let { it.forEach { trackList.add(it.track) } }
 
             url = tracks?.next.orEmpty()
         } while (!tracks?.next.isNullOrEmpty())
-        return trackList;
+        return trackList
     }
 
 
-    suspend fun getPlaylistTrackIds(id: String, clientId: String
+    suspend fun getPlaylistTrackIds(
+        id: String, clientId: String
     ): List<String>? {
         return getPlaylistTracks(id, clientId = clientId)?.map { it.id }
     }
@@ -93,7 +94,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
     }
 
     private fun getDiff(old: List<String>, new: List<String>): ArrayList<String> {
-        val ret = ArrayList<String>();
+        val ret = ArrayList<String>()
         old.forEach {
             if (it in new) {
 
@@ -120,18 +121,26 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
             val tracksToAdd = getDiff(new, old)
             addTracksToPlaylist(id, tracksToAdd, clientId)
 
-            return mapOf("added" to tracksToAdd,
-                    "removed" to tracksToRemove)
+            return mapOf(
+                "added" to tracksToAdd,
+                "removed" to tracksToRemove
+            )
         }
 
-        return mapOf("added" to emptyList(),
-                "removed" to emptyList())
+        return mapOf(
+            "added" to emptyList(),
+            "removed" to emptyList()
+        )
     }
 
     suspend fun createPlaylist(name: String, clientId: String): Playlist {
         LoggerFactory.getLogger(javaClass).info("createPlaylist: {} {}", name, clientId)
 
-        return spotifyRestService.doPost<Playlist>(USER_PLAYLISTS_URL, body = mapOf("name" to name), clientId = clientId)
+        return spotifyRestService.doPost<Playlist>(
+            USER_PLAYLISTS_URL,
+            body = mapOf("name" to name),
+            clientId = clientId
+        )
     }
 
     suspend fun getOrCreatePlaylist(playlistName: String, clientId: String): Playlist {

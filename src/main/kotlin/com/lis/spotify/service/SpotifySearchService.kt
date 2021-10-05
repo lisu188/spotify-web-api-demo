@@ -27,26 +27,30 @@ class SpotifySearchService(val spotifyRestService: SpotifyRestService) {
     }
 
     suspend fun doSearch(song: Song, clientId: String): SearchResult? {
-        return spotifyRestService.doGet(SEARCH_URL, params = mapOf("q" to "track:${song.title} artist:${song.artist}", "type" to "track"), clientId = clientId)
+        return spotifyRestService.doGet(
+            SEARCH_URL,
+            params = mapOf("q" to "track:${song.title} artist:${song.artist}", "type" to "track"),
+            clientId = clientId
+        )
     }
 
     suspend fun doSearch(values: List<Song>, clientId: String, progress: () -> Unit = {}): List<String> {
         LoggerFactory.getLogger(javaClass).info("doSearch: {} {}", clientId, values.size)
-        lateinit var retVal: List<String>;
+        lateinit var retVal: List<String>
         val time = measureTimeMillis {
             retVal = values
-                    .map {
-                        GlobalScope.async {
-                            val doSearch = doSearch(it, clientId)
-                            progress()
-                            doSearch
-                        }
+                .map {
+                    GlobalScope.async {
+                        val doSearch = doSearch(it, clientId)
+                        progress()
+                        doSearch
                     }
-                    .mapNotNull { it.await() }
-                    .map { it.tracks.items }
-                    .mapNotNull { it.stream().findFirst().orElse(null) }
-                    .map { it.id }
-                    .distinct()
+                }
+                .mapNotNull { it.await() }
+                .map { it.tracks.items }
+                .mapNotNull { it.stream().findFirst().orElse(null) }
+                .map { it.id }
+                .distinct()
         }
         LoggerFactory.getLogger(javaClass).info("doSearch: {} {} took: {}", clientId, values.size, time)
         return retVal

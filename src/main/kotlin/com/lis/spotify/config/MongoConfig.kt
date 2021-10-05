@@ -29,7 +29,7 @@ class MongoConfig : AbstractMongoConfiguration() {
     }
 
     override fun getDatabaseName(): String {
-        return parseUrl(MONGODB_URI).getOrDefault("databaseName", "db");
+        return parseUrl(MONGODB_URI).getOrDefault("databaseName", "db")
     }
 
     @Bean
@@ -38,13 +38,18 @@ class MongoConfig : AbstractMongoConfiguration() {
             return MongoClient()
         } else {
             val parseUrl = parseUrl(MONGODB_URI)
-            return MongoClient(ServerAddress(parseUrl.getOrDefault("host", ""),
-                    parseUrl.getOrDefault("port", "").toInt()),
-                    MongoCredential.createCredential(
-                            parseUrl.getOrDefault("userName", ""),
-                            parseUrl.getOrDefault("databaseName", ""),
-                            parseUrl.getOrDefault("password", "").toCharArray()),
-                    MongoClientOptions.builder().build())
+            return MongoClient(
+                ServerAddress(
+                    parseUrl.getOrDefault("host", ""),
+                    parseUrl.getOrDefault("port", "").toInt()
+                ),
+                MongoCredential.createCredential(
+                    parseUrl.getOrDefault("userName", ""),
+                    parseUrl.getOrDefault("databaseName", ""),
+                    parseUrl.getOrDefault("password", "").toCharArray()
+                ),
+                MongoClientOptions.builder().build()
+            )
         }
     }
 
@@ -55,7 +60,13 @@ class MongoConfig : AbstractMongoConfiguration() {
             val userName = userInfo[0]
             val databaseName = uri.path.split("/")[1]
             val password = userInfo[1]
-            return mapOf("host" to uri.host, "port" to uri.port.toString(), "userName" to userName, "databaseName" to databaseName, "password" to password)
+            return mapOf(
+                "host" to uri.host,
+                "port" to uri.port.toString(),
+                "userName" to userName,
+                "databaseName" to databaseName,
+                "password" to password
+            )
         }
         return mapOf()
     }

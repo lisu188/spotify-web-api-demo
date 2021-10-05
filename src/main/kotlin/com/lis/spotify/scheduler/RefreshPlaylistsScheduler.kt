@@ -21,43 +21,46 @@ import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 
 @Service
-class RefreshPlaylistsScheduler(var spotifyAuthenticationService: SpotifyAuthenticationService,
-                                var spotifyTopPlaylistsService: SpotifyTopPlaylistsService,
-                                var lastFmLoginService: LastFmLoginService) {
+class RefreshPlaylistsScheduler(
+    var spotifyAuthenticationService: SpotifyAuthenticationService,
+    var spotifyTopPlaylistsService: SpotifyTopPlaylistsService,
+    var lastFmLoginService: LastFmLoginService
+) {
 
     @Scheduled(initialDelay = 1000 * 60 * 1, fixedDelay = 1000 * 60 * 60)
     fun refreshSpotify() {
         spotifyAuthenticationService.getAuthTokens()
-                .map { it.clientId }
-                .forEach {
-                    it?.let { clientId ->
-                        try {
-                            LoggerFactory.getLogger(javaClass).info("Refreshing Spotify playlists for user: {}", clientId)
-                            spotifyAuthenticationService.refreshToken(clientId)
-                            spotifyTopPlaylistsService.updateTopPlaylists(clientId)
-                        } catch (e: Exception) {
-                            LoggerFactory.getLogger(javaClass).error(e.message)
-                        }
+            .map { it.clientId }
+            .forEach {
+                it?.let { clientId ->
+                    try {
+                        LoggerFactory.getLogger(javaClass).info("Refreshing Spotify playlists for user: {}", clientId)
+                        spotifyAuthenticationService.refreshToken(clientId)
+                        spotifyTopPlaylistsService.updateTopPlaylists(clientId)
+                    } catch (e: Exception) {
+                        LoggerFactory.getLogger(javaClass).error(e.message)
                     }
                 }
+            }
     }
 
     @Scheduled(initialDelay = 1000 * 60 * 1, fixedDelay = 1000 * 60 * 60)
     fun refreshLastFm() {
         spotifyAuthenticationService.getAuthTokens()
-                .map { it.clientId }
-                .forEach {
-                    it?.let { clientId ->
-                        lastFmLoginService.getLastFmLogin(clientId)?.let {
-                            try {
-                                LoggerFactory.getLogger(javaClass).info("Refreshing last.fm playlists for user: {} {}", clientId, it)
-                                spotifyAuthenticationService.refreshToken(clientId)
-                                runBlocking { spotifyTopPlaylistsService.updateYearlyPlaylists(clientId) }
-                            } catch (e: Exception) {
-                                LoggerFactory.getLogger(javaClass).error(e.message)
-                            }
+            .map { it.clientId }
+            .forEach {
+                it?.let { clientId ->
+                    lastFmLoginService.getLastFmLogin(clientId)?.let {
+                        try {
+                            LoggerFactory.getLogger(javaClass)
+                                .info("Refreshing last.fm playlists for user: {} {}", clientId, it)
+                            spotifyAuthenticationService.refreshToken(clientId)
+                            runBlocking { spotifyTopPlaylistsService.updateYearlyPlaylists(clientId) }
+                        } catch (e: Exception) {
+                            LoggerFactory.getLogger(javaClass).error(e.message)
                         }
                     }
                 }
+            }
     }
 }

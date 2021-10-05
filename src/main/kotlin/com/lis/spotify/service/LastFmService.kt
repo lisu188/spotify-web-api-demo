@@ -31,9 +31,9 @@ class LastFmService(var lastFmLoginService: LastFmLoginService) {
             (1..7).map { page: Int ->
                 GlobalScope.async { yearlyChartlist(lastFmLogin, year, page) }
             }.map { it.await() }
-                    .stream()
-                    .flatMap { it.stream() }
-                    .toList()
+                .stream()
+                .flatMap { it.stream() }
+                .toList()
         } ?: emptyList()
     }
 
@@ -41,7 +41,9 @@ class LastFmService(var lastFmLoginService: LastFmLoginService) {
         LoggerFactory.getLogger(javaClass).info("yearlyChartlist: {} {} {}", lastFmLogin, year, page)
         val ret: MutableList<Song> = mutableListOf()
         try {
-            val get = Jsoup.connect("https://www.last.fm/user/$lastFmLogin/library/tracks?from=$year-01-01&rangetype=year&page=$page").get()
+            val get =
+                Jsoup.connect("https://www.last.fm/user/$lastFmLogin/library/tracks?from=$year-01-01&rangetype=year&page=$page")
+                    .get()
             get.run {
                 select(".chartlist-row").forEach {
                     try {
@@ -74,6 +76,8 @@ class LastFmService(var lastFmLoginService: LastFmLoginService) {
     }
 
     private fun parseElement(it: Element) =
-            Song(artist = it.children()[5].children()[0].text().orEmpty(),
-                    title = it.children()[4].children()[0].text().orEmpty())
+        Song(
+            artist = it.children()[5].children()[0].text().orEmpty(),
+            title = it.children()[4].children()[0].text().orEmpty()
+        )
 }

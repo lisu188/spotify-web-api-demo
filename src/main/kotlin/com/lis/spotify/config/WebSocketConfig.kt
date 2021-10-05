@@ -41,11 +41,14 @@ class WebsocketSpringConfigurator : ServerEndpointConfig.Configurator(), Applica
         private var context: BeanFactory? = null
     }
 
-    override fun modifyHandshake(config: ServerEndpointConfig,
-                                 request: HandshakeRequest,
-                                 response: HandshakeResponse) {
+    override fun modifyHandshake(
+        config: ServerEndpointConfig,
+        request: HandshakeRequest,
+        response: HandshakeResponse
+    ) {
         //TODO: handle nulls
-        config.userProperties["clientId"] = getRequest(request).cookies.findLast { cookie: Cookie? -> cookie?.name == "clientId" }?.value
+        config.userProperties["clientId"] =
+            getRequest(request).cookies.findLast { cookie: Cookie? -> cookie?.name == "clientId" }?.value
     }
 
     private fun getRequest(request: HandshakeRequest): HttpServletRequest {
