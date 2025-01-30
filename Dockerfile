@@ -8,6 +8,7 @@ RUN chmod +x gradlew && \
 # Runtime stage
 FROM eclipse-temurin:23-jre-alpine
 WORKDIR /app
+RUN find . -type f
 COPY --from=builder /app/build/libs/spotify-web-api-demo-1.0.0-SNAPSHOT.jar spotify-web-api-demo-1.0.0-SNAPSHOT.jar
 
 # Create a non-root user and switch to it
