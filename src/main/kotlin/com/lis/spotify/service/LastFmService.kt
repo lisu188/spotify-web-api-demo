@@ -112,6 +112,7 @@ class LastFmService {
     try {
       val get =
         Jsoup.connect("https://www.last.fm/user/$lastFmLogin/library/tracks?page=$page").get()
+      logger.info(get.toString())
       get.run {
         select(".chartlist-row").forEach {
           try {
