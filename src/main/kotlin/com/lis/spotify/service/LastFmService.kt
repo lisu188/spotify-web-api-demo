@@ -42,39 +42,65 @@ class LastFmService {
     // You could add a debug log if you want to trace internal flow more closely
     logger.debug("Preparing to fetch pages [1..7] for user={} in year={}", lastFmLogin, year)
 
-    val result = (1..7)
-      .map { page: Int -> GlobalScope.async { yearlyChartlist(lastFmLogin, year, page) } }
-      .map { it.await() }
-      .flatten()
+    val result =
+      (1..7)
+        .map { page: Int -> GlobalScope.async { yearlyChartlist(lastFmLogin, year, page) } }
+        .map { it.await() }
+        .flatten()
 
-    logger.info("Completed yearlyChartlist for user={}, year={}. Retrieved {} songs total.",
-      lastFmLogin, year, result.size
+    logger.info(
+      "Completed yearlyChartlist for user={}, year={}. Retrieved {} songs total.",
+      lastFmLogin,
+      year,
+      result.size,
     )
     return result
   }
 
   private fun yearlyChartlist(lastFmLogin: String, year: Int, page: Int): List<Song> {
-    logger.info("Fetching yearly chartlist page: user={}, year={}, page={}", lastFmLogin, year, page)
+    logger.info(
+      "Fetching yearly chartlist page: user={}, year={}, page={}",
+      lastFmLogin,
+      year,
+      page,
+    )
     val ret: MutableList<Song> = mutableListOf()
     try {
       val get =
         Jsoup.connect(
-          "https://www.last.fm/user/$lastFmLogin/library/tracks?from=$year-01-01&rangetype=year&page=$page"
-        ).get()
+            "https://www.last.fm/user/$lastFmLogin/library/tracks?from=$year-01-01&rangetype=year&page=$page"
+          )
+          .get()
       get.run {
         select(".chartlist-row").forEach {
           try {
             ret.add(parseElement(it))
           } catch (e: Exception) {
-            logger.error("Cannot parse element on page={}. Element={}, error={}", page, it, e.message, e)
+            logger.error(
+              "Cannot parse element on page={}. Element={}, error={}",
+              page,
+              it,
+              e.message,
+              e,
+            )
           }
         }
       }
-      logger.debug("Successfully fetched page={} for user={}. Songs parsed: {}", page, lastFmLogin, ret.size)
+      logger.debug(
+        "Successfully fetched page={} for user={}. Songs parsed: {}",
+        page,
+        lastFmLogin,
+        ret.size,
+      )
       return ret
     } catch (e: Exception) {
-      logger.error("Error fetching yearly chartlist for user={}, year={}, page={}: {}",
-        lastFmLogin, year, page, e.message, e
+      logger.error(
+        "Error fetching yearly chartlist for user={}, year={}, page={}: {}",
+        lastFmLogin,
+        year,
+        page,
+        e.message,
+        e,
       )
       return emptyList()
     }
@@ -84,22 +110,37 @@ class LastFmService {
     logger.info("Fetching global chartlist: user={}, page={}", lastFmLogin, page)
     val ret: MutableList<Song> = mutableListOf()
     try {
-      val get = Jsoup.connect("https://www.last.fm/user/$lastFmLogin/library/tracks?page=$page").get()
+      val get =
+        Jsoup.connect("https://www.last.fm/user/$lastFmLogin/library/tracks?page=$page").get()
       get.run {
         select(".chartlist-row").forEach {
           try {
             ret.add(parseElement(it))
           } catch (e: Exception) {
-            logger.error("Cannot parse element in globalChartlist. Page={}, Element={}, error={}",
-              page, it, e.message, e
+            logger.error(
+              "Cannot parse element in globalChartlist. Page={}, Element={}, error={}",
+              page,
+              it,
+              e.message,
+              e,
             )
           }
         }
       }
-      logger.debug("Successfully fetched global chartlist. Page={}, Songs parsed: {}", page, ret.size)
+      logger.debug(
+        "Successfully fetched global chartlist. Page={}, Songs parsed: {}",
+        page,
+        ret.size,
+      )
       return ret
     } catch (e: Exception) {
-      logger.error("Error fetching global chartlist: user={}, page={}, error={}", lastFmLogin, page, e.message, e)
+      logger.error(
+        "Error fetching global chartlist: user={}, page={}, error={}",
+        lastFmLogin,
+        page,
+        e.message,
+        e,
+      )
       return emptyList()
     }
   }
@@ -108,9 +149,6 @@ class LastFmService {
     val artist = it.children()[5].children()[0].text().orEmpty()
     val title = it.children()[4].children()[0].text().orEmpty()
     logger.debug("Parsed song element: artist='{}', title='{}'", artist, title)
-    return Song(
-      artist = artist,
-      title = title
-    )
+    return Song(artist = artist, title = title)
   }
 }
