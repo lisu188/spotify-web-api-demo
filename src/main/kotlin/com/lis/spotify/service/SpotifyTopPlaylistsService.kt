@@ -12,93 +12,76 @@
 
 package com.lis.spotify.service
 
-import java.util.*
-import java.util.concurrent.atomic.AtomicInteger
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import java.util.*
+import java.util.concurrent.atomic.AtomicInteger
 
 @Service
 class SpotifyTopPlaylistsService(
-  var spotifyPlaylistService: SpotifyPlaylistService,
-  var spotifyTopTrackService: SpotifyTopTrackService,
-  var lastFmService: LastFmService,
-  var spotifySearchService: SpotifySearchService,
+    var spotifyPlaylistService: SpotifyPlaylistService,
+    var spotifyTopTrackService: SpotifyTopTrackService,
+    var lastFmService: LastFmService,
+    var spotifySearchService: SpotifySearchService,
 ) {
 
-  fun updateTopPlaylists(clientId: String): List<String> {
-    LoggerFactory.getLogger(javaClass).info("updateTopPlaylists: {}", clientId)
+    fun updateTopPlaylists(clientId: String): List<String> {
+        LoggerFactory.getLogger(javaClass).info("updateTopPlaylists: {}", clientId)
 
-    return runBlocking {
-      val shortTerm =
-        spotifyTopTrackService
-          .getTopTracksShortTerm(clientId)
-          .map { it.id }
-          .toCollection(arrayListOf())
+        return runBlocking {
+            val shortTerm =
+                spotifyTopTrackService.getTopTracksShortTerm(clientId).map { it.id }.toCollection(arrayListOf())
 
-      val midTerm =
-        spotifyTopTrackService
-          .getTopTracksMidTerm(clientId)
-          .map { it.id }
-          .toCollection(arrayListOf())
+            val midTerm = spotifyTopTrackService.getTopTracksMidTerm(clientId).map { it.id }.toCollection(arrayListOf())
 
-      val longTerm =
-        spotifyTopTrackService
-          .getTopTracksLongTerm(clientId)
-          .map { it.id }
-          .toCollection(arrayListOf())
+            val longTerm =
+                spotifyTopTrackService.getTopTracksLongTerm(clientId).map { it.id }.toCollection(arrayListOf())
 
-      val shortTermId = spotifyPlaylistService.getOrCreatePlaylist("Short Term", clientId).id
+            val shortTermId = spotifyPlaylistService.getOrCreatePlaylist("Short Term", clientId).id
 
-      val midTermId = spotifyPlaylistService.getOrCreatePlaylist("Mid Term", clientId).id
+            val midTermId = spotifyPlaylistService.getOrCreatePlaylist("Mid Term", clientId).id
 
-      val longTermId = spotifyPlaylistService.getOrCreatePlaylist("Long Term", clientId).id
+            val longTermId = spotifyPlaylistService.getOrCreatePlaylist("Long Term", clientId).id
 
-      val mixedTermId = spotifyPlaylistService.getOrCreatePlaylist("Mixed Term", clientId).id
+            val mixedTermId = spotifyPlaylistService.getOrCreatePlaylist("Mixed Term", clientId).id
 
-      spotifyPlaylistService.modifyPlaylist(shortTermId, shortTerm, clientId)
+            spotifyPlaylistService.modifyPlaylist(shortTermId, shortTerm, clientId)
 
-      spotifyPlaylistService.modifyPlaylist(midTermId, midTerm, clientId)
+            spotifyPlaylistService.modifyPlaylist(midTermId, midTerm, clientId)
 
-      spotifyPlaylistService.modifyPlaylist(longTermId, longTerm, clientId)
+            spotifyPlaylistService.modifyPlaylist(longTermId, longTerm, clientId)
 
-      val trackList1: List<String> =
-        (shortTerm.asIterable() + midTerm.asIterable() + longTerm.asIterable())
-          .toCollection(arrayListOf())
-          .distinct()
+            val trackList1: List<String> =
+                (shortTerm.asIterable() + midTerm.asIterable() + longTerm.asIterable()).toCollection(arrayListOf())
+                    .distinct()
 
-      spotifyPlaylistService.modifyPlaylist(mixedTermId, trackList1, clientId)
+            spotifyPlaylistService.modifyPlaylist(mixedTermId, trackList1, clientId)
 
-      listOf(shortTermId, midTermId, longTermId, mixedTermId)
-    }
-  }
-
-  suspend fun updateYearlyPlaylists(
-    clientId: String,
-    progressUpdater: (Pair<Int, Int>) -> Unit = {},
-    lastFmLogin: String,
-  ) {
-    LoggerFactory.getLogger(javaClass).info("updateYearlyPlaylists: {}", clientId)
-    GlobalScope.async {
-        (2005..getYear()).map { year: Int ->
-          var progress = AtomicInteger()
-          progressUpdater(Pair(year, progress.get()))
-          val chartlist = lastFmService.yearlyChartlist(clientId, year, lastFmLogin)
-          var trackList =
-            spotifySearchService.doSearch(chartlist, clientId) {
-              progressUpdater(Pair(year, progress.incrementAndGet() * 100 / chartlist.size))
-            }
-          progressUpdater(Pair(year, 100))
-          if (trackList.isNotEmpty()) {
-            val id = spotifyPlaylistService.getOrCreatePlaylist("LAST.FM $year", clientId).id
-            spotifyPlaylistService.modifyPlaylist(id, trackList, clientId)
-          }
+            listOf(shortTermId, midTermId, longTermId, mixedTermId)
         }
-      }
-      .await()
-  }
+    }
 
-  private fun getYear() = Calendar.getInstance().get(Calendar.YEAR)
+    suspend fun updateYearlyPlaylists(
+        clientId: String,
+        progressUpdater: (Pair<Int, Int>) -> Unit = {},
+        lastFmLogin: String,
+    ) {
+        LoggerFactory.getLogger(javaClass).info("updateYearlyPlaylists: {}", clientId)
+        (2005..getYear()).map { year: Int ->
+            var progress = AtomicInteger()
+            progressUpdater(Pair(year, progress.get()))
+            val chartlist = lastFmService.yearlyChartlist(clientId, year, lastFmLogin)
+            var trackList = spotifySearchService.doSearch(chartlist, clientId) {
+                progressUpdater(Pair(year, progress.incrementAndGet() * 100 / chartlist.size))
+            }
+            progressUpdater(Pair(year, 100))
+            if (trackList.isNotEmpty()) {
+                val id = spotifyPlaylistService.getOrCreatePlaylist("LAST.FM $year", clientId).id
+                spotifyPlaylistService.modifyPlaylist(id, trackList, clientId)
+            }
+        }
+    }
+
+    private fun getYear() = Calendar.getInstance().get(Calendar.YEAR)
 }
