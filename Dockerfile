@@ -8,11 +8,11 @@ RUN chmod +x gradlew && \
 # Runtime stage
 FROM eclipse-temurin:23-jre-alpine
 WORKDIR /app
-COPY --from=builder /app/build/libs/*.jar app.jar
+COPY --from=builder /app/build/libs/spotify-web-api-demo-1.0.0-SNAPSHOT.jar spotify-web-api-demo-1.0.0-SNAPSHOT.jar
 
 # Create a non-root user and switch to it
 RUN addgroup -S spring && adduser -S spring -G spring
 USER spring:spring
 
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+ENTRYPOINT ["java", "-jar", "/app/spotify-web-api-demo-1.0.0-SNAPSHOT.jar"]
