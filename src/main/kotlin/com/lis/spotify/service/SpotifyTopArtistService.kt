@@ -26,7 +26,7 @@ class SpotifyTopArtistService(var spotifyRestService: SpotifyRestService) {
     private val LONG_TERM = "long_term"
   }
 
-  private suspend fun getTopArtists(term: String, clientId: String): Artists {
+  private fun getTopArtists(term: String, clientId: String): Artists {
     return spotifyRestService.doGet<Artists>(
       URL,
       params = mapOf("limit" to 10, "time_range" to term),
@@ -34,15 +34,15 @@ class SpotifyTopArtistService(var spotifyRestService: SpotifyRestService) {
     )
   }
 
-  suspend fun getTopArtistsLongTerm(clientId: String): List<Artist> {
+  fun getTopArtistsLongTerm(clientId: String): List<Artist> {
     return getTopArtists(LONG_TERM, clientId).items
   }
 
-  suspend fun getTopArtistsMidTerm(clientId: String): List<Artist> {
+  fun getTopArtistsMidTerm(clientId: String): List<Artist> {
     return getTopArtists(MID_TERM, clientId).items
   }
 
-  suspend fun getTopArtistsShortTerm(clientId: String): List<Artist> {
+  fun getTopArtistsShortTerm(clientId: String): List<Artist> {
     return getTopArtists(SHORT_TERM, clientId).items
   }
 }

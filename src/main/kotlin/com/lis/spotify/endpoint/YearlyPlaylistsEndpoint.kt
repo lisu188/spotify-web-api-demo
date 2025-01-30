@@ -17,51 +17,32 @@ import com.lis.spotify.service.SpotifyTopPlaylistsService
 import javax.websocket.*
 import javax.websocket.server.PathParam
 import javax.websocket.server.ServerEndpoint
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import org.springframework.stereotype.Component
 
 @Component
 @ServerEndpoint("/socket/{login}", configurator = WebsocketSpringConfigurator::class)
 class YearlyPlaylistsEndpoint(var spotifyTopPlaylistsService: SpotifyTopPlaylistsService) {
 
+  private lateinit var lastFmLogin: String
+  private lateinit var clientId: String
   var progressMap = mutableMapOf<Int, Int>()
 
   @OnOpen
   fun onOpen(session: Session, config: EndpointConfig, @PathParam("login") lastFmLogin: String) {
-    GlobalScope.launch {
-      val launch = launch {
-        while (true) {
-          delay(1000)
-          reportProgress(session)
-        }
-      }
-      spotifyTopPlaylistsService.updateYearlyPlaylists(
-        config.userProperties["clientId"] as String,
-        { updateProgress(it) },
-        lastFmLogin,
-      )
-      launch.cancel()
-      launch.join()
-      reportProgress(session)
-      synchronized(this@YearlyPlaylistsEndpoint) { session.close() }
-    }
+    this.clientId = config.userProperties["clientId"] as String
+    this.lastFmLogin = lastFmLogin
   }
 
   private fun updateProgress(it: Pair<Int, Int>) {
     synchronized(this@YearlyPlaylistsEndpoint) { progressMap[it.first] = it.second }
   }
 
-  private fun reportProgress(session: Session) {
-    synchronized(this@YearlyPlaylistsEndpoint) {
-      session.basicRemote.sendText((progressMap.values.sum() / progressMap.size).toString())
-    }
+  @OnMessage
+  fun onMessage(session: Session, message: String) {
+    spotifyTopPlaylistsService.updateYearlyPlaylists(clientId, { updateProgress(it) }, lastFmLogin)
   }
-
-  @OnMessage fun onMessage(session: Session, payload: String) {}
 
   @OnClose fun onClose(session: Session) {}
 
-  @OnError fun onError(session: Session, throwable: Throwable) {}
+  @OnError fun onError(session: Session, e: Throwable) {}
 }

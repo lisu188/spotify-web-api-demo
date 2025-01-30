@@ -12,9 +12,6 @@
 
 package com.lis.spotify.service
 
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
-import kotlinx.coroutines.delay
 import org.slf4j.LoggerFactory
 import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.http.HttpEntity
@@ -33,7 +30,7 @@ class SpotifyRestService(
 
   val restTemplate: RestTemplate = restTemplateBuilder.build()
 
-  final suspend inline fun <reified U : Any> doRequest(
+  final inline fun <reified U : Any> doRequest(
     url: String,
     httpMethod: HttpMethod,
     params: Map<String, Any> = HashMap(),
@@ -47,16 +44,15 @@ class SpotifyRestService(
     }
   }
 
-  suspend fun <U> doRequest(task: () -> U): U {
-    return GlobalScope.async {
-        try {
-          task()
-        } catch (e: HttpClientErrorException.TooManyRequests) {
-          e.responseHeaders?.get(RETRY_AFTER)?.first()?.toInt()?.let { delay((it) * 1000L + 500L) }
-          doRequest(task)
-        }
+  fun <U> doRequest(task: () -> U): U {
+    try {
+      return task()
+    } catch (e: HttpClientErrorException.TooManyRequests) {
+      e.responseHeaders?.get(RETRY_AFTER)?.first()?.toInt()?.let {
+        Thread.sleep((it) * 1000L + 500L)
       }
-      .await()
+      return doRequest(task)
+    }
   }
 
   final inline fun <reified U : Any> doExchange(
@@ -76,7 +72,7 @@ class SpotifyRestService(
       .body ?: throw Exception() // TODO:
   }
 
-  final suspend inline fun <reified U : Any> doGet(
+  final inline fun <reified U : Any> doGet(
     url: String,
     params: Map<String, Any> = HashMap(),
     body: Any? = null,
@@ -85,7 +81,7 @@ class SpotifyRestService(
     return doRequest(url, HttpMethod.GET, params, body, clientId)
   }
 
-  final suspend inline fun <reified U : Any> doDelete(
+  final inline fun <reified U : Any> doDelete(
     url: String,
     params: Map<String, Any> = HashMap(),
     body: Any? = null,
@@ -94,7 +90,7 @@ class SpotifyRestService(
     return doRequest(url, HttpMethod.DELETE, params, body, clientId)
   }
 
-  final suspend inline fun <reified U : Any> doPost(
+  final inline fun <reified U : Any> doPost(
     url: String,
     params: Map<String, Any> = HashMap(),
     body: Any? = null,

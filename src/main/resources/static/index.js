@@ -32,41 +32,33 @@ function buildPlayButtonUrl(id) {
 
 function appendPlayButton(div, playlistId) {
     $('<iframe>', {
-        src: buildPlayButtonUrl(playlistId),
-        frameborder: 0,
-        allow: "encrypted-media",
-        allowtransparency: "true"
+        src: buildPlayButtonUrl(playlistId), frameborder: 0, allow: "encrypted-media", allowtransparency: "true"
     }).appendTo('#' + div);
 }
 
 $('#top').on('click', function (event) {
     $('#top').prop('disabled', true)
     $.ajax({
-        type: "post", url: URL + "/updateTopPlaylists",
-        success: function (data, text) {
+        type: "post", url: URL + "/updateTopPlaylists", success: function (data, text) {
             $('#top').prop('disabled', false);
             for (var playlistId of data) {
                 appendPlayButton('spotifyTop', playlistId)
             }
-        },
-        error: function (request, status, error) {
+        }, error: function (request, status, error) {
             $('#top').prop('disabled', false)
         }
     });
 });
 
 $('#lastfm').on('click', function (event) {
-    var socket
-        = new WebSocket(WS_URL + "/socket/"
-        + $('#lastFmId').val());
+    var socket = new WebSocket(WS_URL + "/socket/" + $('#lastFmId').val());
     socket.onopen = function (ev) {
         $("#progress").show();
         $('#lastfm').prop('disabled', true);
         $('#lastFmId').prop('disabled', true)
     };
     socket.onmessage = function (message) {
-        $("#progressBar")[0].style.width =
-            $.parseJSON(message.data) + '%';
+        $("#progressBar")[0].style.width = $.parseJSON(message.data) + '%';
     };
     socket.onclose = function (ev) {
         $("#progress").hide();
@@ -77,6 +69,7 @@ $('#lastfm').on('click', function (event) {
     socket.onerror = function (ev) {
         console.log(ev)
     }
+    socket.send("BEGIN")
 });
 
 
@@ -99,12 +92,11 @@ $('#lastFmId').on('input', function (event) {
         verifyRequest.abort()
     }
     disable();
-    verifyRequest = $.post(URL + "/verifyLastFmId/" + $('#lastFmId').val(),
-        function (data, status) {
-            if ($.parseJSON(data)) {
-                enable()
-            } else {
-                disable()
-            }
-        }, 'json')
+    verifyRequest = $.post(URL + "/verifyLastFmId/" + $('#lastFmId').val(), function (data, status) {
+        if ($.parseJSON(data)) {
+            enable()
+        } else {
+            disable()
+        }
+    }, 'json')
 });
