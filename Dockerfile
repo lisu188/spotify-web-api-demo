@@ -3,7 +3,7 @@ FROM gradle:8.10-jdk23-alpine AS builder
 WORKDIR /app
 COPY . .
 RUN chmod +x gradlew && \
-    ./gradlew build --no-daemon
+    ./gradlew bootJar
 
 # Runtime stage
 FROM eclipse-temurin:23-jre-alpine
