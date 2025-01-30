@@ -10,8 +10,21 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-URL = "http://78.10.226.56:32402"
-WS_URL = "ws://78.10.226.56:32402"
+// Dynamically determine the HTTP and WS origins
+const ORIGIN = window.location.origin; // e.g., http://localhost:8080 or https://example.com
+
+// Helper function to transform http:// -> ws:// and https:// -> wss://
+function buildWebSocketUrl(origin) {
+    if (origin.startsWith("https://")) {
+        return origin.replace("https://", "wss://");
+    } else if (origin.startsWith("http://")) {
+        return origin.replace("http://", "ws://");
+    }
+    return origin; // Fallback, though normally won't happen for a valid http/https origin
+}
+
+const URL = ORIGIN; // For all your standard AJAX calls
+const WS_URL = buildWebSocketUrl(ORIGIN); // For WebSocket connections
 
 function buildPlayButtonUrl(id) {
     return "https://open.spotify.com/embed/playlist/" + id
