@@ -1,31 +1,13 @@
-/*
- * MIT License
- *
- * Copyright (c) 2019 Andrzej Lis
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this software
- * and associated documentation files (the "Software"), to deal in the Software without
- * restriction, including without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all copies or
- * substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
- * BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- */
-
 package com.lis.spotify.controller
 
 import com.lis.spotify.domain.AuthToken
 import com.lis.spotify.domain.User
 import com.lis.spotify.service.SpotifyAuthenticationService
+import java.lang.Exception
 import javax.servlet.http.Cookie
 import javax.servlet.http.HttpServletResponse
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpMethod
@@ -39,14 +21,18 @@ import org.springframework.web.util.UriComponentsBuilder
 
 @Controller
 class SpotifyAuthenticationController(
-  val spotifyAuthenticationService: SpotifyAuthenticationService,
-  var restTemplateBuilder: RestTemplateBuilder,
+  private val spotifyAuthenticationService: SpotifyAuthenticationService,
+  private val restTemplateBuilder: RestTemplateBuilder,
 ) {
+
   companion object {
+    private val logger: Logger =
+      LoggerFactory.getLogger(SpotifyAuthenticationController::class.java)
+
     // Read BASE_URL from an environment variable or use the default if it's not set
     private val BASE_URL = System.getenv("URL").orEmpty()
 
-    // Client ID and secret still come from env vars (existing code)
+    // Client ID and secret still come from env vars
     val CLIENT_ID: String = System.getenv()["CLIENT_ID"].orEmpty()
     val CLIENT_SECRET: String = System.getenv()["CLIENT_SECRET"].orEmpty()
 
@@ -57,19 +43,28 @@ class SpotifyAuthenticationController(
     val TOKEN_URL = "https://accounts.spotify.com/api/token"
   }
 
-  fun getCurrentUserId(token: AuthToken): String? =
-    restTemplateBuilder
-      .build()
-      .exchange<User>(
-        "https://api.spotify.com/v1/me",
-        HttpMethod.GET,
-        HttpEntity(null, spotifyAuthenticationService.getHeaders(token)),
-      )
-      .body
-      ?.id
+  fun getCurrentUserId(token: AuthToken): String? {
+    logger.debug("Attempting to retrieve current user ID using provided AuthToken.")
+    return try {
+      val response =
+        restTemplateBuilder
+          .build()
+          .exchange<User>(
+            "https://api.spotify.com/v1/me",
+            HttpMethod.GET,
+            HttpEntity(null, spotifyAuthenticationService.getHeaders(token)),
+          )
+      logger.info("Successfully retrieved user info from Spotify.")
+      response.body?.id
+    } catch (ex: Exception) {
+      logger.error("Failed to retrieve current user ID from Spotify API.", ex)
+      null
+    }
+  }
 
   @GetMapping("/callback")
   fun callback(code: String, response: HttpServletResponse): String {
+    logger.info("Received callback from Spotify with code: {}", code)
     val tokenUrl =
       UriComponentsBuilder.fromHttpUrl(TOKEN_URL)
         .queryParam("grant_type", "authorization_code")
@@ -78,20 +73,32 @@ class SpotifyAuthenticationController(
         .build()
         .toUri()
 
-    val authToken =
-      restTemplateBuilder
-        .basicAuthentication(CLIENT_ID, CLIENT_SECRET)
-        .build()
-        .postForObject<AuthToken>(tokenUrl) // TODO: Handle error cases
+    return try {
+      val authToken =
+        restTemplateBuilder
+          .basicAuthentication(CLIENT_ID, CLIENT_SECRET)
+          .build()
+          .postForObject<AuthToken>(tokenUrl)
 
-    authToken.let { token ->
-      getCurrentUserId(token)?.let { clientId ->
-        token.clientId = clientId
-        spotifyAuthenticationService.setAuthToken(token)
-        response.addCookie(Cookie("clientId", clientId))
+      if (authToken != null) {
+        logger.debug("Received AuthToken from Spotify (access token redacted).")
+        val clientId = getCurrentUserId(authToken)
+        if (clientId != null) {
+          authToken.clientId = clientId
+          spotifyAuthenticationService.setAuthToken(authToken)
+          response.addCookie(Cookie("clientId", clientId))
+          logger.info("Successfully set auth token for user: {}", clientId)
+        } else {
+          logger.warn("Could not retrieve client ID. Auth token not stored.")
+        }
+      } else {
+        logger.warn("AuthToken was null; could not process authentication callback.")
       }
+      "redirect:/"
+    } catch (ex: Exception) {
+      logger.error("Error occurred while handling Spotify callback.", ex)
+      "redirect:/error"
     }
-    return "redirect:/"
   }
 
   @GetMapping("/authorize")
@@ -100,6 +107,7 @@ class SpotifyAuthenticationController(
     response: HttpServletResponse,
     @CookieValue("clientId", defaultValue = "") clientId: String,
   ): String {
+    logger.info("Authorize endpoint called. Current clientId from cookie: {}", clientId)
     val builder =
       UriComponentsBuilder.fromHttpUrl(AUTH_URL)
         .queryParam("response_type", "code")
@@ -107,6 +115,7 @@ class SpotifyAuthenticationController(
         .queryParam("scope", SCOPES)
         .queryParam("redirect_uri", CALLBACK)
 
+    logger.debug("Redirecting user to Spotify authorization URL.")
     return "redirect:" + builder.toUriString()
   }
 }
