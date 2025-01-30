@@ -56,6 +56,8 @@ $('#lastfm').on('click', function (event) {
         $("#progress").show();
         $('#lastfm').prop('disabled', true);
         $('#lastFmId').prop('disabled', true)
+
+        socket.send("BEGIN")
     };
     socket.onmessage = function (message) {
         $("#progressBar")[0].style.width = $.parseJSON(message.data) + '%';
@@ -69,7 +71,6 @@ $('#lastfm').on('click', function (event) {
     socket.onerror = function (ev) {
         console.log(ev)
     }
-    socket.send("BEGIN")
 });
 
 
