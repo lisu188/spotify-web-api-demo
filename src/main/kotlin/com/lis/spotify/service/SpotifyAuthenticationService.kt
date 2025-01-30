@@ -67,7 +67,7 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
 
   fun setAuthToken(token: AuthToken) {
     logger.info("Storing AuthToken in cache for clientId={}", token.clientId)
-    tokenCache["clientId"] = token
+    tokenCache[token.clientId] = token
   }
 
   fun getAuthToken(clientId: String): AuthToken? {
