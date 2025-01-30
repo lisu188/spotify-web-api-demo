@@ -21,3 +21,5 @@ steps:
       - '--allow-unauthenticated'
 images:
   - 'gcr.io/$PROJECT_ID/spotify-web-api-demo:$COMMIT_SHA'
+options:
+  logging: CLOUD_LOGGING_ONLY
