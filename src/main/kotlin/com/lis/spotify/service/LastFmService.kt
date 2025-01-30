@@ -25,8 +25,6 @@
 package com.lis.spotify.service
 
 import com.lis.spotify.domain.Song
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.slf4j.LoggerFactory
@@ -42,8 +40,7 @@ class LastFmService {
         // You could add a debug log if you want to trace internal flow more closely
         logger.debug("Preparing to fetch pages [1..7] for user={} in year={}", lastFmLogin, year)
 
-        val result = (1..7).map { page: Int -> GlobalScope.async { yearlyChartlist(lastFmLogin, year, page) } }
-            .map { it.await() }.flatten()
+        val result = (1..7).map { page: Int -> yearlyChartlist(lastFmLogin, year, page) }.flatten()
 
         logger.info(
             "Completed yearlyChartlist for user={}, year={}. Retrieved {} songs total.",
