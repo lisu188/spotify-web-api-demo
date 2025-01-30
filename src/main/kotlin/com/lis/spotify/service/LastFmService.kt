@@ -37,8 +37,8 @@ class LastFmService {
 
     suspend fun yearlyChartlist(spotifyClientId: String, year: Int, lastFmLogin: String): List<Song> {
         logger.info("Entering yearlyChartlist: lastFmLogin={}, year={}", lastFmLogin, year)
-        // You could add a debug log if you want to trace internal flow more closely
-        logger.debug("Preparing to fetch pages [1..7] for user={} in year={}", lastFmLogin, year)
+        // You could add a info log if you want to trace internal flow more closely
+        logger.info("Preparing to fetch pages [1..7] for user={} in year={}", lastFmLogin, year)
 
         val result = (1..7).map { page: Int -> yearlyChartlist(lastFmLogin, year, page) }.flatten()
 
@@ -78,7 +78,7 @@ class LastFmService {
                     }
                 }
             }
-            logger.debug(
+            logger.info(
                 "Successfully fetched page={} for user={}. Songs parsed: {}",
                 page,
                 lastFmLogin,
@@ -118,7 +118,7 @@ class LastFmService {
                     }
                 }
             }
-            logger.debug(
+            logger.info(
                 "Successfully fetched global chartlist. Page={}, Songs parsed: {}",
                 page,
                 ret.size,
