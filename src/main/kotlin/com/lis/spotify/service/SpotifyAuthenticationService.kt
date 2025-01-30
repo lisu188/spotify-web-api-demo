@@ -13,32 +13,21 @@
 package com.lis.spotify.service
 
 
-import com.google.common.cache.CacheBuilder
 import com.lis.spotify.controller.SpotifyAuthenticationController
 import com.lis.spotify.domain.AuthToken
-import org.bson.BsonDocument
-import org.bson.BsonString
 import org.slf4j.LoggerFactory
 import org.springframework.boot.web.client.RestTemplateBuilder
-import org.springframework.data.mongodb.core.MongoTemplate
-import org.springframework.data.mongodb.core.findAll
-import org.springframework.data.mongodb.core.query.Criteria
-import org.springframework.data.mongodb.core.query.Query
 import org.springframework.http.HttpHeaders
 import org.springframework.stereotype.Service
 import org.springframework.web.client.postForObject
 import org.springframework.web.util.UriComponentsBuilder
-import java.util.concurrent.TimeUnit
 
 
 @Service
 class SpotifyAuthenticationService(
-    private val restTemplateBuilder: RestTemplateBuilder,
-    val mongoTemplate: MongoTemplate
+    private val restTemplateBuilder: RestTemplateBuilder
 ) {
-    val tokenCache = CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.MINUTES)
-        .maximumSize(50)
-        .build<String, AuthToken>()
+    val tokenCache: MutableMap<String, AuthToken> = mutableMapOf()
 
     fun getHeaders(token: AuthToken): HttpHeaders {
         val headers = HttpHeaders()
@@ -58,31 +47,13 @@ class SpotifyAuthenticationService(
 
     fun setAuthToken(token: AuthToken) {
         LoggerFactory.getLogger(javaClass).info("setAuthToken: {}", token.clientId)
-
-        mongoTemplate.getCollection("auth")
-            .deleteMany(BsonDocument("clientId", BsonString(token.clientId)))
-        mongoTemplate.save(token, "auth")
-
-        tokenCache.invalidate("clientId")
+        tokenCache["clientId"] = token
     }
 
     fun getAuthToken(clientId: String): AuthToken? {
-        return try {
-            tokenCache.get(clientId) {
-                mongoTemplate.find(
-                    Query().addCriteria(Criteria.where("clientId").`is`(clientId)),
-                    AuthToken::class.java,
-                    "auth"
-                ).firstOrNull()
-            }
-        } catch (e: Exception) {
-            null
-        }
+        return tokenCache[clientId]
     }
 
-    fun getAuthTokens(): List<AuthToken> {
-        return mongoTemplate.findAll<AuthToken>("auth").shuffled()
-    }
 
     fun refreshToken(clientId: String) {
         LoggerFactory.getLogger(javaClass).info("refreshToken: {}", clientId)
@@ -90,23 +61,19 @@ class SpotifyAuthenticationService(
         val code = getAuthToken(clientId)?.refresh_token.orEmpty()
 
         val tokenUrl = UriComponentsBuilder.fromHttpUrl(SpotifyAuthenticationController.TOKEN_URL)
-            .queryParam("grant_type", "refresh_token")
-            .queryParam("refresh_token", code)
-            .build().toUri()
+            .queryParam("grant_type", "refresh_token").queryParam("refresh_token", code).build().toUri()
 
         val authToken = restTemplateBuilder.basicAuthentication(
-            SpotifyAuthenticationController.CLIENT_ID,
-            SpotifyAuthenticationController.CLIENT_SECRET
+            SpotifyAuthenticationController.CLIENT_ID, SpotifyAuthenticationController.CLIENT_SECRET
         ).build().postForObject<AuthToken>(tokenUrl)//TODO: check error message
 
-        authToken?.clientId = clientId
-        authToken?.refresh_token = code
+        authToken.clientId = clientId
+        authToken.refresh_token = code
 
-        authToken?.let { setAuthToken(it) }
+        authToken.let { setAuthToken(it) }
     }
 
-    fun isAuthorized(clientId: String) =
-        clientId.isNotEmpty() && getAuthToken(clientId) != null
+    fun isAuthorized(clientId: String) = clientId.isNotEmpty() && getAuthToken(clientId) != null
 }
 
 

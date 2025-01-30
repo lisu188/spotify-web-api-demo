@@ -19,22 +19,17 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import kotlin.streams.toList
 
 @Service
-class LastFmService(var lastFmLoginService: LastFmLoginService) {
+class LastFmService {
 
 
-    suspend fun yearlyChartlist(spotifyClientId: String, year: Int): List<Song> {
-        return lastFmLoginService.getLastFmLogin(spotifyClientId)?.let { lastFmLogin ->
-            LoggerFactory.getLogger(javaClass).info("yearlyChartlist: {} {}", lastFmLogin, year)
-            (1..7).map { page: Int ->
-                GlobalScope.async { yearlyChartlist(lastFmLogin, year, page) }
-            }.map { it.await() }
-                .stream()
-                .flatMap { it.stream() }
-                .toList()
-        } ?: emptyList()
+    suspend fun yearlyChartlist(spotifyClientId: String, year: Int, lastFmLogin: String): List<Song> {
+        LoggerFactory.getLogger(javaClass).info("yearlyChartlist: {} {}", lastFmLogin, year)
+        return (1..7).map { page: Int ->
+            GlobalScope.async { yearlyChartlist(lastFmLogin, year, page) }
+        }.map { it.await() }.flatten()
+
     }
 
     private fun yearlyChartlist(lastFmLogin: String, year: Int, page: Int): List<Song> {
@@ -75,9 +70,8 @@ class LastFmService(var lastFmLoginService: LastFmLoginService) {
         return ret
     }
 
-    private fun parseElement(it: Element) =
-        Song(
-            artist = it.children()[5].children()[0].text().orEmpty(),
-            title = it.children()[4].children()[0].text().orEmpty()
-        )
+    private fun parseElement(it: Element) = Song(
+        artist = it.children()[5].children()[0].text().orEmpty(),
+        title = it.children()[4].children()[0].text().orEmpty()
+    )
 }

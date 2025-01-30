@@ -1,18 +1,12 @@
 # Build stage
-FROM gradle:8.2.1-jdk17-alpine AS builder
+FROM gradle:8.10-jdk23-alpine AS builder
 WORKDIR /app
-
-# Copy all files from the repository
 COPY . .
-
-# Make gradlew executable (in case it's not in the repo)
-RUN chmod +x gradlew
-
-# Build application
-RUN ./gradlew build --no-daemon
+RUN chmod +x gradlew && \
+    ./gradlew build --no-daemon
 
 # Runtime stage
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:23-jre-alpine
 WORKDIR /app
 COPY --from=builder /app/build/libs/*.jar app.jar
 

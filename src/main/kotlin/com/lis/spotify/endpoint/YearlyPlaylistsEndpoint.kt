@@ -14,7 +14,6 @@ package com.lis.spotify.endpoint
 
 
 import com.lis.spotify.config.WebsocketSpringConfigurator
-import com.lis.spotify.service.LastFmLoginService
 import com.lis.spotify.service.SpotifyTopPlaylistsService
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
@@ -30,14 +29,12 @@ import javax.websocket.server.ServerEndpoint
 )
 class YearlyPlaylistsEndpoint(
     var spotifyTopPlaylistsService: SpotifyTopPlaylistsService,
-    var lastFmLoginService: LastFmLoginService
 ) {
 
     var progressMap = mutableMapOf<Int, Int>()
 
     @OnOpen
-    fun onOpen(session: Session, config: EndpointConfig, @PathParam("login") login: String) {
-        lastFmLoginService.saveLoginData(config.userProperties["clientId"] as String, login)
+    fun onOpen(session: Session, config: EndpointConfig, @PathParam("login") lastFmLogin: String) {
         GlobalScope.launch {
             val launch = launch {
                 while (true) {
@@ -45,9 +42,11 @@ class YearlyPlaylistsEndpoint(
                     reportProgress(session)
                 }
             }
-            spotifyTopPlaylistsService.updateYearlyPlaylists(config.userProperties["clientId"] as String) {
-                updateProgress(it)
-            }
+            spotifyTopPlaylistsService.updateYearlyPlaylists(
+                config.userProperties["clientId"] as String, {
+                    updateProgress(it)
+                }, lastFmLogin
+            )
             launch.cancel()
             launch.join()
             reportProgress(session)

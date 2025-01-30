@@ -56,11 +56,9 @@ class SpotifyTopPlaylistsService(
             spotifyPlaylistService.modifyPlaylist(longTermId, longTerm, clientId)
 
 
-            val trackList1: List<String> = (shortTerm.asIterable()
-                    + midTerm.asIterable()
-                    + longTerm.asIterable())
-                .toCollection(arrayListOf())
-                .distinct()
+            val trackList1: List<String> =
+                (shortTerm.asIterable() + midTerm.asIterable() + longTerm.asIterable()).toCollection(arrayListOf())
+                    .distinct()
 
             spotifyPlaylistService.modifyPlaylist(mixedTermId, trackList1, clientId)
 
@@ -70,20 +68,18 @@ class SpotifyTopPlaylistsService(
 
 
     suspend fun updateYearlyPlaylists(
-        clientId: String,
-        progressUpdater: (Pair<Int, Int>) -> Unit = {}
+        clientId: String, progressUpdater: (Pair<Int, Int>) -> Unit = {}, lastFmLogin: String
     ) {
         LoggerFactory.getLogger(javaClass).info("updateYearlyPlaylists: {}", clientId)
         GlobalScope.async {
             (2005..getYear()).map { year: Int ->
                 var progress = AtomicInteger()
                 progressUpdater(Pair(year, progress.get()))
-                val chartlist = lastFmService.yearlyChartlist(clientId, year)
+                val chartlist = lastFmService.yearlyChartlist(clientId, year, lastFmLogin)
                 var trackList = spotifySearchService.doSearch(chartlist, clientId) {
                     progressUpdater(
                         Pair(
-                            year,
-                            progress.incrementAndGet() * 100 / chartlist.size
+                            year, progress.incrementAndGet() * 100 / chartlist.size
                         )
                     )
                 }
@@ -91,8 +87,7 @@ class SpotifyTopPlaylistsService(
                 if (trackList.isNotEmpty()) {
                     val id = spotifyPlaylistService.getOrCreatePlaylist("LAST.FM $year", clientId).id
                     spotifyPlaylistService.modifyPlaylist(
-                        id,
-                        trackList, clientId
+                        id, trackList, clientId
                     )
                 }
             }

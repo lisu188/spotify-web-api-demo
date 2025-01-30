@@ -62,7 +62,7 @@ class SpotifyAuthenticationController(
         val authToken = restTemplateBuilder.basicAuthentication(CLIENT_ID, CLIENT_SECRET).build()
             .postForObject<AuthToken>(tokenUrl)//TODO: check error message
 
-        authToken?.let { token: AuthToken ->
+        authToken.let { token: AuthToken ->
             getCurrentUserId(token)?.let { clientId: String ->
                 authToken.clientId = clientId
                 spotifyAuthenticationService.setAuthToken(token)
