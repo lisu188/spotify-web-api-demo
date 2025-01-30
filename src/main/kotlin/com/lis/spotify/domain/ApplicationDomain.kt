@@ -18,7 +18,7 @@ data class AuthToken(
   val scope: String,
   val expires_in: Int,
   var refresh_token: String?,
-  var clientId: String,
+  var clientId: String?,
 )
 
 data class Song(val artist: String, val title: String)
