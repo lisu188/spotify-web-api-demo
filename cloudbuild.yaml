@@ -15,7 +15,7 @@ steps:
       - '--image'
       - 'gcr.io/$PROJECT_ID/spotify-web-api-demo:$COMMIT_SHA'
       - '--region'
-      - 'europe-central2'
+      - 'us-central1'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
