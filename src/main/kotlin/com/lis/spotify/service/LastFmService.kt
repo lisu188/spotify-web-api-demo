@@ -140,9 +140,9 @@ class LastFmService {
     }
 
     private fun parseElement(it: Element): Song {
-        // Added null checks and defensive element selection
         val titleElement = it.selectFirst(".chartlist-name a")
         val artistElement = it.selectFirst(".chartlist-artist a")
+        logger.info(it.toString())
         logger.info(titleElement.toString() + ":" + artistElement.toString())
         return Song(artist = artistElement?.text() ?: "", title = titleElement?.text() ?: "")
     }
