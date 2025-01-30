@@ -1,11 +1,14 @@
 # Build stage
 FROM gradle:8.2.1-jdk17-alpine AS builder
 WORKDIR /app
-COPY gradlew .
-COPY gradle gradle
-COPY build.gradle.kts .
-COPY settings.gradle.kts .
-COPY src src
+
+# Copy all files from the repository
+COPY . .
+
+# Make gradlew executable (in case it's not in the repo)
+RUN chmod +x gradlew
+
+# Build application
 RUN ./gradlew build --no-daemon
 
 # Runtime stage
