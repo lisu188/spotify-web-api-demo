@@ -16,36 +16,33 @@ import com.lis.spotify.domain.Artist
 import com.lis.spotify.domain.Artists
 import org.springframework.stereotype.Service
 
-
 @Service
 class SpotifyTopArtistService(var spotifyRestService: SpotifyRestService) {
-    companion object {
-        private val URL = "https://api.spotify.com/v1/me/top/artists?limit={limit}&time_range={time_range}"
-        private val SHORT_TERM = "short_term"
-        private val MID_TERM = "medium_term"
-        private val LONG_TERM = "long_term"
-    }
+  companion object {
+    private val URL =
+      "https://api.spotify.com/v1/me/top/artists?limit={limit}&time_range={time_range}"
+    private val SHORT_TERM = "short_term"
+    private val MID_TERM = "medium_term"
+    private val LONG_TERM = "long_term"
+  }
 
+  private suspend fun getTopArtists(term: String, clientId: String): Artists {
+    return spotifyRestService.doGet<Artists>(
+      URL,
+      params = mapOf("limit" to 10, "time_range" to term),
+      clientId = clientId,
+    )
+  }
 
-    private suspend fun getTopArtists(term: String, clientId: String): Artists {
-        return spotifyRestService.doGet<Artists>(
-            URL,
-            params = mapOf("limit" to 10, "time_range" to term),
-            clientId = clientId
-        )
-    }
+  suspend fun getTopArtistsLongTerm(clientId: String): List<Artist> {
+    return getTopArtists(LONG_TERM, clientId).items
+  }
 
-    suspend fun getTopArtistsLongTerm(clientId: String): List<Artist> {
-        return getTopArtists(LONG_TERM, clientId).items
-    }
+  suspend fun getTopArtistsMidTerm(clientId: String): List<Artist> {
+    return getTopArtists(MID_TERM, clientId).items
+  }
 
-    suspend fun getTopArtistsMidTerm(clientId: String): List<Artist> {
-        return getTopArtists(MID_TERM, clientId).items
-    }
-
-    suspend fun getTopArtistsShortTerm(clientId: String): List<Artist> {
-        return getTopArtists(SHORT_TERM, clientId).items
-    }
+  suspend fun getTopArtistsShortTerm(clientId: String): List<Artist> {
+    return getTopArtists(SHORT_TERM, clientId).items
+  }
 }
-
-

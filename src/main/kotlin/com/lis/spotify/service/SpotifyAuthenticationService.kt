@@ -12,7 +12,6 @@
 
 package com.lis.spotify.service
 
-
 import com.lis.spotify.controller.SpotifyAuthenticationController
 import com.lis.spotify.domain.AuthToken
 import org.slf4j.LoggerFactory
@@ -22,58 +21,60 @@ import org.springframework.stereotype.Service
 import org.springframework.web.client.postForObject
 import org.springframework.web.util.UriComponentsBuilder
 
-
 @Service
-class SpotifyAuthenticationService(
-    private val restTemplateBuilder: RestTemplateBuilder
-) {
-    val tokenCache: MutableMap<String, AuthToken> = mutableMapOf()
+class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplateBuilder) {
+  val tokenCache: MutableMap<String, AuthToken> = mutableMapOf()
 
-    fun getHeaders(token: AuthToken): HttpHeaders {
-        val headers = HttpHeaders()
-        headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + token.access_token)//TODO, auto get Token
-        headers.set(HttpHeaders.ACCEPT, "application/json")
-        return headers
+  fun getHeaders(token: AuthToken): HttpHeaders {
+    val headers = HttpHeaders()
+    headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + token.access_token) // TODO, auto get Token
+    headers.set(HttpHeaders.ACCEPT, "application/json")
+    return headers
+  }
+
+  fun getHeaders(clientId: String): HttpHeaders {
+    val authToken = getAuthToken(clientId)
+    if (authToken != null) {
+      return getHeaders(authToken)
     }
+    return HttpHeaders()
+  }
 
+  fun setAuthToken(token: AuthToken) {
+    LoggerFactory.getLogger(javaClass).info("setAuthToken: {}", token.clientId)
+    tokenCache["clientId"] = token
+  }
 
-    fun getHeaders(clientId: String): HttpHeaders {
-        val authToken = getAuthToken(clientId)
-        if (authToken != null) {
-            return getHeaders(authToken)
-        }
-        return HttpHeaders()
-    }
+  fun getAuthToken(clientId: String): AuthToken? {
+    return tokenCache[clientId]
+  }
 
-    fun setAuthToken(token: AuthToken) {
-        LoggerFactory.getLogger(javaClass).info("setAuthToken: {}", token.clientId)
-        tokenCache["clientId"] = token
-    }
+  fun refreshToken(clientId: String) {
+    LoggerFactory.getLogger(javaClass).info("refreshToken: {}", clientId)
 
-    fun getAuthToken(clientId: String): AuthToken? {
-        return tokenCache[clientId]
-    }
+    val code = getAuthToken(clientId)?.refresh_token.orEmpty()
 
+    val tokenUrl =
+      UriComponentsBuilder.fromHttpUrl(SpotifyAuthenticationController.TOKEN_URL)
+        .queryParam("grant_type", "refresh_token")
+        .queryParam("refresh_token", code)
+        .build()
+        .toUri()
 
-    fun refreshToken(clientId: String) {
-        LoggerFactory.getLogger(javaClass).info("refreshToken: {}", clientId)
+    val authToken =
+      restTemplateBuilder
+        .basicAuthentication(
+          SpotifyAuthenticationController.CLIENT_ID,
+          SpotifyAuthenticationController.CLIENT_SECRET,
+        )
+        .build()
+        .postForObject<AuthToken>(tokenUrl) // TODO: check error message
 
-        val code = getAuthToken(clientId)?.refresh_token.orEmpty()
+    authToken.clientId = clientId
+    authToken.refresh_token = code
 
-        val tokenUrl = UriComponentsBuilder.fromHttpUrl(SpotifyAuthenticationController.TOKEN_URL)
-            .queryParam("grant_type", "refresh_token").queryParam("refresh_token", code).build().toUri()
+    authToken.let { setAuthToken(it) }
+  }
 
-        val authToken = restTemplateBuilder.basicAuthentication(
-            SpotifyAuthenticationController.CLIENT_ID, SpotifyAuthenticationController.CLIENT_SECRET
-        ).build().postForObject<AuthToken>(tokenUrl)//TODO: check error message
-
-        authToken.clientId = clientId
-        authToken.refresh_token = code
-
-        authToken.let { setAuthToken(it) }
-    }
-
-    fun isAuthorized(clientId: String) = clientId.isNotEmpty() && getAuthToken(clientId) != null
+  fun isAuthorized(clientId: String) = clientId.isNotEmpty() && getAuthToken(clientId) != null
 }
-
-

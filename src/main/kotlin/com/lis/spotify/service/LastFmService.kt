@@ -23,55 +23,57 @@ import org.springframework.stereotype.Service
 @Service
 class LastFmService {
 
+  suspend fun yearlyChartlist(spotifyClientId: String, year: Int, lastFmLogin: String): List<Song> {
+    LoggerFactory.getLogger(javaClass).info("yearlyChartlist: {} {}", lastFmLogin, year)
+    return (1..7)
+      .map { page: Int -> GlobalScope.async { yearlyChartlist(lastFmLogin, year, page) } }
+      .map { it.await() }
+      .flatten()
+  }
 
-    suspend fun yearlyChartlist(spotifyClientId: String, year: Int, lastFmLogin: String): List<Song> {
-        LoggerFactory.getLogger(javaClass).info("yearlyChartlist: {} {}", lastFmLogin, year)
-        return (1..7).map { page: Int ->
-            GlobalScope.async { yearlyChartlist(lastFmLogin, year, page) }
-        }.map { it.await() }.flatten()
-
+  private fun yearlyChartlist(lastFmLogin: String, year: Int, page: Int): List<Song> {
+    LoggerFactory.getLogger(javaClass).info("yearlyChartlist: {} {} {}", lastFmLogin, year, page)
+    val ret: MutableList<Song> = mutableListOf()
+    try {
+      val get =
+        Jsoup.connect(
+            "https://www.last.fm/user/$lastFmLogin/library/tracks?from=$year-01-01&rangetype=year&page=$page"
+          )
+          .get()
+      get.run {
+        select(".chartlist-row").forEach {
+          try {
+            ret.add(parseElement(it))
+          } catch (e: Exception) {
+            LoggerFactory.getLogger(javaClass).error("Cannot parse: {}", it, e)
+          }
+        }
+      }
+      return ret
+    } catch (e: Exception) {
+      return emptyList()
     }
+  }
 
-    private fun yearlyChartlist(lastFmLogin: String, year: Int, page: Int): List<Song> {
-        LoggerFactory.getLogger(javaClass).info("yearlyChartlist: {} {} {}", lastFmLogin, year, page)
-        val ret: MutableList<Song> = mutableListOf()
+  fun globalChartlist(lastFmLogin: String, page: Int = 1): List<Song> {
+    LoggerFactory.getLogger(javaClass).info("globalChartlist: {} {}", lastFmLogin, page)
+    val ret: MutableList<Song> = mutableListOf()
+    val get = Jsoup.connect("https://www.last.fm/user/$lastFmLogin/library/tracks?page=$page").get()
+    get.run {
+      select(".chartlist-row").forEach {
         try {
-            val get =
-                Jsoup.connect("https://www.last.fm/user/$lastFmLogin/library/tracks?from=$year-01-01&rangetype=year&page=$page")
-                    .get()
-            get.run {
-                select(".chartlist-row").forEach {
-                    try {
-                        ret.add(parseElement(it))
-                    } catch (e: Exception) {
-                        LoggerFactory.getLogger(javaClass).error("Cannot parse: {}", it, e)
-                    }
-                }
-            }
-            return ret
+          ret.add(parseElement(it))
         } catch (e: Exception) {
-            return emptyList()
+          LoggerFactory.getLogger(javaClass).error("Cannot parse: {}", it, e)
         }
+      }
     }
+    return ret
+  }
 
-    fun globalChartlist(lastFmLogin: String, page: Int = 1): List<Song> {
-        LoggerFactory.getLogger(javaClass).info("globalChartlist: {} {}", lastFmLogin, page)
-        val ret: MutableList<Song> = mutableListOf()
-        val get = Jsoup.connect("https://www.last.fm/user/$lastFmLogin/library/tracks?page=$page").get()
-        get.run {
-            select(".chartlist-row").forEach {
-                try {
-                    ret.add(parseElement(it))
-                } catch (e: Exception) {
-                    LoggerFactory.getLogger(javaClass).error("Cannot parse: {}", it, e)
-                }
-            }
-        }
-        return ret
-    }
-
-    private fun parseElement(it: Element) = Song(
-        artist = it.children()[5].children()[0].text().orEmpty(),
-        title = it.children()[4].children()[0].text().orEmpty()
+  private fun parseElement(it: Element) =
+    Song(
+      artist = it.children()[5].children()[0].text().orEmpty(),
+      title = it.children()[4].children()[0].text().orEmpty(),
     )
 }

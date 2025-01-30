@@ -21,19 +21,18 @@ import org.springframework.scheduling.annotation.EnableScheduling
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler
 import org.springframework.web.socket.config.annotation.EnableWebSocket
 
-
 @SpringBootApplication
 @EnableWebSocket
 @EnableScheduling
 class Application {
-    private val log = LoggerFactory.getLogger(Application::class.java)
+  private val log = LoggerFactory.getLogger(Application::class.java)
 
-    @Bean
-    fun taskScheduler(): TaskScheduler {
-        return ThreadPoolTaskScheduler()
-    }
+  @Bean
+  fun taskScheduler(): TaskScheduler {
+    return ThreadPoolTaskScheduler()
+  }
 }
 
 fun main(args: Array<String>) {
-    runApplication<Application>(*args)
+  runApplication<Application>(*args)
 }

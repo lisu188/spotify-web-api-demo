@@ -27,77 +27,79 @@ import org.springframework.web.client.exchange
 
 @Service
 class SpotifyRestService(
-    restTemplateBuilder: RestTemplateBuilder,
-    val spotifyAuthenticationService: SpotifyAuthenticationService
+  restTemplateBuilder: RestTemplateBuilder,
+  val spotifyAuthenticationService: SpotifyAuthenticationService,
 ) {
 
+  val restTemplate: RestTemplate = restTemplateBuilder.build()
 
-    val restTemplate: RestTemplate = restTemplateBuilder.build()
+  final suspend inline fun <reified U : Any> doRequest(
+    url: String,
+    httpMethod: HttpMethod,
+    params: Map<String, Any> = HashMap(),
+    body: Any? = null,
+    clientId: String,
+  ): U {
+    return doRequest {
+      LoggerFactory.getLogger(javaClass)
+        .debug("doRequest: {} {} {} {}", url, httpMethod, params, body)
+      doExchange<U>(url, httpMethod, body, clientId, params)
+    }
+  }
 
-
-    final suspend inline fun <reified U : Any> doRequest(
-        url: String,
-        httpMethod: HttpMethod,
-        params: Map<String, Any> = HashMap(),
-        body: Any? = null,
-        clientId: String
-    ): U {
-        return doRequest {
-            LoggerFactory.getLogger(javaClass).debug("doRequest: {} {} {} {}", url, httpMethod, params, body)
-            doExchange<U>(url, httpMethod, body, clientId, params)
+  suspend fun <U> doRequest(task: () -> U): U {
+    return GlobalScope.async {
+        try {
+          task()
+        } catch (e: HttpClientErrorException.TooManyRequests) {
+          e.responseHeaders?.get(RETRY_AFTER)?.first()?.toInt()?.let { delay((it) * 1000L + 500L) }
+          doRequest(task)
         }
-    }
+      }
+      .await()
+  }
 
-    suspend fun <U> doRequest(task: () -> U): U {
-        return GlobalScope.async {
-            try {
-                task()
-            } catch (e: HttpClientErrorException.TooManyRequests) {
-                e.responseHeaders?.get(RETRY_AFTER)?.first()?.toInt()?.let { delay((it) * 1000L + 500L) }
-                doRequest(task)
-            }
-        }.await()
-    }
+  final inline fun <reified U : Any> doExchange(
+    url: String,
+    httpMethod: HttpMethod,
+    body: Any?,
+    clientId: String,
+    params: Map<String, Any>,
+  ): U {
+    return restTemplate
+      .exchange<U>(
+        url,
+        httpMethod,
+        HttpEntity(body, spotifyAuthenticationService.getHeaders(clientId)),
+        params,
+      )
+      .body ?: throw Exception() // TODO:
+  }
 
-    final inline fun <reified U : Any> doExchange(
-        url: String,
-        httpMethod: HttpMethod,
-        body: Any?,
-        clientId: String,
-        params: Map<String, Any>
-    ): U {
-        return restTemplate.exchange<U>(
-            url,
-            httpMethod,
-            HttpEntity(body, spotifyAuthenticationService.getHeaders(clientId)),
-            params
-        ).body ?: throw Exception()//TODO:
-    }
+  final suspend inline fun <reified U : Any> doGet(
+    url: String,
+    params: Map<String, Any> = HashMap(),
+    body: Any? = null,
+    clientId: String,
+  ): U {
+    return doRequest(url, HttpMethod.GET, params, body, clientId)
+  }
 
-    final suspend inline fun <reified U : Any> doGet(
-        url: String,
-        params: Map<String, Any> = HashMap(),
-        body: Any? = null,
-        clientId: String
-    ): U {
-        return doRequest(url, HttpMethod.GET, params, body, clientId)
-    }
+  final suspend inline fun <reified U : Any> doDelete(
+    url: String,
+    params: Map<String, Any> = HashMap(),
+    body: Any? = null,
+    clientId: String,
+  ): U {
+    return doRequest(url, HttpMethod.DELETE, params, body, clientId)
+  }
 
-    final suspend inline fun <reified U : Any> doDelete(
-        url: String,
-        params: Map<String, Any> = HashMap(),
-        body: Any? = null,
-        clientId: String
-    ): U {
-        return doRequest(url, HttpMethod.DELETE, params, body, clientId)
-    }
-
-    final suspend inline fun <reified U : Any> doPost(
-        url: String,
-        params: Map<String, Any> = HashMap(),
-        body: Any? = null,
-        clientId: String
-    ): U {
-        return doRequest(url, HttpMethod.POST, params, body, clientId)
-    }
+  final suspend inline fun <reified U : Any> doPost(
+    url: String,
+    params: Map<String, Any> = HashMap(),
+    body: Any? = null,
+    clientId: String,
+  ): U {
+    return doRequest(url, HttpMethod.POST, params, body, clientId)
+  }
 }
