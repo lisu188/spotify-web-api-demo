@@ -3,11 +3,23 @@
  *
  * Copyright (c) 2019 Andrzej Lis
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
  */
 
 package com.lis.spotify.service
@@ -23,57 +35,82 @@ import org.springframework.stereotype.Service
 @Service
 class LastFmService {
 
+  private val logger = LoggerFactory.getLogger(LastFmService::class.java)
+
   suspend fun yearlyChartlist(spotifyClientId: String, year: Int, lastFmLogin: String): List<Song> {
-    LoggerFactory.getLogger(javaClass).info("yearlyChartlist: {} {}", lastFmLogin, year)
-    return (1..7)
+    logger.info("Entering yearlyChartlist: lastFmLogin={}, year={}", lastFmLogin, year)
+    // You could add a debug log if you want to trace internal flow more closely
+    logger.debug("Preparing to fetch pages [1..7] for user={} in year={}", lastFmLogin, year)
+
+    val result = (1..7)
       .map { page: Int -> GlobalScope.async { yearlyChartlist(lastFmLogin, year, page) } }
       .map { it.await() }
       .flatten()
+
+    logger.info("Completed yearlyChartlist for user={}, year={}. Retrieved {} songs total.",
+      lastFmLogin, year, result.size
+    )
+    return result
   }
 
   private fun yearlyChartlist(lastFmLogin: String, year: Int, page: Int): List<Song> {
-    LoggerFactory.getLogger(javaClass).info("yearlyChartlist: {} {} {}", lastFmLogin, year, page)
+    logger.info("Fetching yearly chartlist page: user={}, year={}, page={}", lastFmLogin, year, page)
     val ret: MutableList<Song> = mutableListOf()
     try {
       val get =
         Jsoup.connect(
-            "https://www.last.fm/user/$lastFmLogin/library/tracks?from=$year-01-01&rangetype=year&page=$page"
-          )
-          .get()
+          "https://www.last.fm/user/$lastFmLogin/library/tracks?from=$year-01-01&rangetype=year&page=$page"
+        ).get()
       get.run {
         select(".chartlist-row").forEach {
           try {
             ret.add(parseElement(it))
           } catch (e: Exception) {
-            LoggerFactory.getLogger(javaClass).error("Cannot parse: {}", it, e)
+            logger.error("Cannot parse element on page={}. Element={}, error={}", page, it, e.message, e)
           }
         }
       }
+      logger.debug("Successfully fetched page={} for user={}. Songs parsed: {}", page, lastFmLogin, ret.size)
       return ret
     } catch (e: Exception) {
+      logger.error("Error fetching yearly chartlist for user={}, year={}, page={}: {}",
+        lastFmLogin, year, page, e.message, e
+      )
       return emptyList()
     }
   }
 
   fun globalChartlist(lastFmLogin: String, page: Int = 1): List<Song> {
-    LoggerFactory.getLogger(javaClass).info("globalChartlist: {} {}", lastFmLogin, page)
+    logger.info("Fetching global chartlist: user={}, page={}", lastFmLogin, page)
     val ret: MutableList<Song> = mutableListOf()
-    val get = Jsoup.connect("https://www.last.fm/user/$lastFmLogin/library/tracks?page=$page").get()
-    get.run {
-      select(".chartlist-row").forEach {
-        try {
-          ret.add(parseElement(it))
-        } catch (e: Exception) {
-          LoggerFactory.getLogger(javaClass).error("Cannot parse: {}", it, e)
+    try {
+      val get = Jsoup.connect("https://www.last.fm/user/$lastFmLogin/library/tracks?page=$page").get()
+      get.run {
+        select(".chartlist-row").forEach {
+          try {
+            ret.add(parseElement(it))
+          } catch (e: Exception) {
+            logger.error("Cannot parse element in globalChartlist. Page={}, Element={}, error={}",
+              page, it, e.message, e
+            )
+          }
         }
       }
+      logger.debug("Successfully fetched global chartlist. Page={}, Songs parsed: {}", page, ret.size)
+      return ret
+    } catch (e: Exception) {
+      logger.error("Error fetching global chartlist: user={}, page={}, error={}", lastFmLogin, page, e.message, e)
+      return emptyList()
     }
-    return ret
   }
 
-  private fun parseElement(it: Element) =
-    Song(
-      artist = it.children()[5].children()[0].text().orEmpty(),
-      title = it.children()[4].children()[0].text().orEmpty(),
+  private fun parseElement(it: Element): Song {
+    val artist = it.children()[5].children()[0].text().orEmpty()
+    val title = it.children()[4].children()[0].text().orEmpty()
+    logger.debug("Parsed song element: artist='{}', title='{}'", artist, title)
+    return Song(
+      artist = artist,
+      title = title
     )
+  }
 }
