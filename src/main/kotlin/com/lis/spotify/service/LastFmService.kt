@@ -65,6 +65,7 @@ class LastFmService {
             "https://www.last.fm/user/$lastFmLogin/library/tracks?from=$year-01-01&rangetype=year&page=$page"
           )
           .get()
+      logger.info("Yearly page {} HTML snippet: {}", page, get.html().substring(0, 500))
       get.run {
         select(".chartlist-row").forEach {
           try {
