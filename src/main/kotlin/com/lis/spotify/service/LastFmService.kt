@@ -33,8 +33,6 @@ import org.springframework.stereotype.Service
 @Service
 class LastFmService {
 
-  private val logger = LoggerFactory.getLogger(LastFmService::class.java)
-
   fun yearlyChartlist(spotifyClientId: String, year: Int, lastFmLogin: String): List<Song> {
     logger.info("Entering yearlyChartlist: lastFmLogin={}, year={}", lastFmLogin, year)
     // You could add a info log if you want to trace internal flow more closely
@@ -65,7 +63,6 @@ class LastFmService {
             "https://www.last.fm/user/$lastFmLogin/library/tracks?from=$year-01-01&rangetype=year&page=$page"
           )
           .get()
-      logger.info("Yearly page {} HTML snippet: {}", page, get.html().substring(0, 500))
       get.run {
         select(".chartlist-row").forEach {
           try {
@@ -146,5 +143,9 @@ class LastFmService {
     val song = Song(artist = artistElement?.text() ?: "", title = titleElement?.text() ?: "")
     logger.info(song.toString())
     return song
+  }
+
+  companion object {
+    private val logger = LoggerFactory.getLogger(LastFmService::class.java)
   }
 }

@@ -1,11 +1,11 @@
 package com.lis.spotify.controller
 
+import com.lis.spotify.AppEnvironment.Spotify
 import com.lis.spotify.domain.AuthToken
 import com.lis.spotify.domain.User
 import com.lis.spotify.service.SpotifyAuthenticationService
 import javax.servlet.http.Cookie
 import javax.servlet.http.HttpServletResponse
-import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.http.HttpEntity
@@ -23,24 +23,6 @@ class SpotifyAuthenticationController(
   private val spotifyAuthenticationService: SpotifyAuthenticationService,
   private val restTemplateBuilder: RestTemplateBuilder,
 ) {
-
-  companion object {
-    private val logger: Logger =
-      LoggerFactory.getLogger(SpotifyAuthenticationController::class.java)
-
-    // Read BASE_URL from an environment variable or use the default if it's not set
-    private val BASE_URL = System.getenv("URL").orEmpty()
-
-    // Client ID and secret still come from env vars
-    val CLIENT_ID: String = System.getenv()["CLIENT_ID"].orEmpty()
-    val CLIENT_SECRET: String = System.getenv()["CLIENT_SECRET"].orEmpty()
-
-    // Build callback URL from the BASE_URL above
-    val CALLBACK: String = "$BASE_URL/callback"
-    val AUTH_URL = "https://accounts.spotify.com/authorize"
-    val SCOPES = "user-top-read playlist-modify-public"
-    val TOKEN_URL = "https://accounts.spotify.com/api/token"
-  }
 
   fun getCurrentUserId(token: AuthToken): String? {
     logger.debug("Attempting to retrieve current user ID using provided AuthToken.")
@@ -61,24 +43,23 @@ class SpotifyAuthenticationController(
     }
   }
 
-  @GetMapping("/callback")
+  @GetMapping(Spotify.CALLBACK_PATH)
   fun callback(code: String, response: HttpServletResponse): String {
     logger.info("Received callback from Spotify with code: {}", code)
     val tokenUrl =
-      UriComponentsBuilder.fromHttpUrl(TOKEN_URL)
+      UriComponentsBuilder.fromHttpUrl(Spotify.TOKEN_URL)
         .queryParam("grant_type", "authorization_code")
         .queryParam("code", code)
-        .queryParam("redirect_uri", CALLBACK)
+        .queryParam("redirect_uri", Spotify.CALLBACK_URL)
         .build()
         .toUri()
 
     return try {
       val authToken =
         restTemplateBuilder
-          .basicAuthentication(CLIENT_ID, CLIENT_SECRET)
+          .basicAuthentication(Spotify.CLIENT_ID, Spotify.CLIENT_SECRET)
           .build()
           .postForObject<AuthToken>(tokenUrl)
-
       logger.debug("Received AuthToken from Spotify (access token redacted).")
       val clientId = getCurrentUserId(authToken)
       if (clientId != null) {
@@ -96,7 +77,7 @@ class SpotifyAuthenticationController(
     }
   }
 
-  @GetMapping("/authorize")
+  @GetMapping("/auth/spotify")
   fun authorize(
     attributes: RedirectAttributes,
     response: HttpServletResponse,
@@ -104,13 +85,16 @@ class SpotifyAuthenticationController(
   ): String {
     logger.info("Authorize endpoint called. Current clientId from cookie: {}", clientId)
     val builder =
-      UriComponentsBuilder.fromHttpUrl(AUTH_URL)
+      UriComponentsBuilder.fromHttpUrl(Spotify.AUTH_URL)
         .queryParam("response_type", "code")
-        .queryParam("client_id", CLIENT_ID)
-        .queryParam("scope", SCOPES)
-        .queryParam("redirect_uri", CALLBACK)
-
+        .queryParam("client_id", Spotify.CLIENT_ID)
+        .queryParam("scope", Spotify.SCOPES)
+        .queryParam("redirect_uri", Spotify.CALLBACK_URL)
     logger.debug("Redirecting user to Spotify authorization URL.")
     return "redirect:" + builder.toUriString()
+  }
+
+  companion object {
+    private val logger = LoggerFactory.getLogger(SpotifyAuthenticationController::class.java)
   }
 }

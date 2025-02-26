@@ -27,7 +27,7 @@
 
 package com.lis.spotify.service
 
-import com.lis.spotify.controller.SpotifyAuthenticationController
+import com.lis.spotify.AppEnvironment.Spotify
 import com.lis.spotify.domain.AuthToken
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -40,18 +40,14 @@ import org.springframework.web.util.UriComponentsBuilder
 @Service
 class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplateBuilder) {
 
-  companion object {
-    private val logger: Logger = LoggerFactory.getLogger(SpotifyAuthenticationService::class.java)
-  }
-
   val tokenCache: MutableMap<String, AuthToken> = mutableMapOf()
 
   fun getHeaders(token: AuthToken): HttpHeaders {
     logger.debug("Creating headers with Bearer token for clientId={}", token.clientId)
-    val headers = HttpHeaders()
-    headers[HttpHeaders.AUTHORIZATION] = "Bearer ${token.access_token}"
-    headers[HttpHeaders.ACCEPT] = "application/json"
-    return headers
+    return HttpHeaders().apply {
+      this[HttpHeaders.AUTHORIZATION] = "Bearer ${token.access_token}"
+      this[HttpHeaders.ACCEPT] = "application/json"
+    }
   }
 
   fun getHeaders(clientId: String): HttpHeaders {
@@ -77,34 +73,31 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
 
   fun refreshToken(clientId: String) {
     logger.info("Attempting to refresh token for clientId={}", clientId)
-    val code = getAuthToken(clientId)?.refresh_token.orEmpty()
-    if (code.isEmpty()) {
+    val currentToken = getAuthToken(clientId)
+    val refreshTokenValue = currentToken?.refresh_token.orEmpty()
+    if (refreshTokenValue.isEmpty()) {
       logger.warn("No refresh token available for clientId={}; cannot refresh.", clientId)
       return
     }
 
     val tokenUrl =
-      UriComponentsBuilder.fromHttpUrl(SpotifyAuthenticationController.TOKEN_URL)
+      UriComponentsBuilder.fromHttpUrl(Spotify.TOKEN_URL)
         .queryParam("grant_type", "refresh_token")
-        .queryParam("refresh_token", code)
+        .queryParam("refresh_token", refreshTokenValue)
         .build()
         .toUri()
 
     try {
       val authToken =
         restTemplateBuilder
-          .basicAuthentication(
-            SpotifyAuthenticationController.CLIENT_ID,
-            SpotifyAuthenticationController.CLIENT_SECRET,
-          )
+          .basicAuthentication(Spotify.CLIENT_ID, Spotify.CLIENT_SECRET)
           .build()
-          .postForObject<AuthToken>(tokenUrl) // TODO: handle error case if needed
-
-      // Keep the same refresh token
+          .postForObject<AuthToken>(tokenUrl)
+      // Preserve the existing refresh token.
       authToken.clientId = clientId
-      authToken.refresh_token = code
+      authToken.refresh_token = refreshTokenValue
 
-      logger.info("Successfully refreshed token (access_token redacted) for clientId={}", clientId)
+      logger.info("Successfully refreshed token (access token redacted) for clientId={}", clientId)
       setAuthToken(authToken)
     } catch (ex: Exception) {
       logger.error("Error while refreshing token for clientId={}", clientId, ex)
@@ -114,5 +107,9 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
   fun isAuthorized(clientId: String): Boolean {
     logger.debug("Checking if clientId={} is authorized", clientId)
     return clientId.isNotEmpty() && getAuthToken(clientId) != null
+  }
+
+  companion object {
+    private val logger: Logger = LoggerFactory.getLogger(SpotifyAuthenticationService::class.java)
   }
 }

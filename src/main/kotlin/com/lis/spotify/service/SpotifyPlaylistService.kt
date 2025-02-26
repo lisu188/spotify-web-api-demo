@@ -22,40 +22,33 @@ import org.springframework.stereotype.Service
 @Service
 class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
 
-  companion object {
-    private const val PLAYLIST_TRACKS_URL = "https://api.spotify.com/v1/playlists/{id}/tracks"
-    private const val USER_PLAYLISTS_URL = "https://api.spotify.com/v1/me/playlists"
-  }
-
   fun getCurrentUserPlaylists(clientId: String): MutableList<Playlist> {
-    LoggerFactory.getLogger(javaClass).info("getCurrentUserPlaylists: {}", clientId)
+    logger.info("getCurrentUserPlaylists: {}", clientId)
 
     val playlistList: MutableList<Playlist> = ArrayList()
     var url: String = USER_PLAYLISTS_URL
     do {
       val playlists: Playlists = spotifyRestService.doGet<Playlists>(url, clientId = clientId)
-      playlists?.items?.let { playlist: List<Playlist> ->
-        playlist.forEach { playlistList.add(it) }
-      }
+      playlists.items?.let { playlist: List<Playlist> -> playlist.forEach { playlistList.add(it) } }
 
-      url = playlists?.next.orEmpty()
-    } while (!playlists?.next.isNullOrEmpty())
+      url = playlists.next.orEmpty()
+    } while (!playlists.next.isNullOrEmpty())
 
     return playlistList
   }
 
   fun getPlaylistTracks(id: String, clientId: String): List<Track>? {
-    LoggerFactory.getLogger(javaClass).info("getPlaylistTracks: {} {}", id, clientId)
+    logger.info("getPlaylistTracks: {} {}", id, clientId)
 
     val trackList: MutableList<Track> = ArrayList()
     var url: String = PLAYLIST_TRACKS_URL
     do {
       val tracks: PlaylistTracks =
         spotifyRestService.doGet<PlaylistTracks>(url, mapOf("id" to id), clientId = clientId)
-      tracks?.items?.let { it.forEach { trackList.add(it.track) } }
+      tracks.items.let { it.forEach { trackList.add(it.track) } }
 
-      url = tracks?.next.orEmpty()
-    } while (!tracks?.next.isNullOrEmpty())
+      url = tracks.next.orEmpty()
+    } while (!tracks.next.isNullOrEmpty())
     return trackList
   }
 
@@ -64,8 +57,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
   }
 
   fun deleteTracksFromPlaylist(playlistId: String, tracks: List<String>, clientId: String) {
-    LoggerFactory.getLogger(javaClass)
-      .info("deleteTracksFromPlaylist: {} {} {}", playlistId, clientId, tracks)
+    logger.info("deleteTracksFromPlaylist: {} {} {}", playlistId, clientId, tracks)
 
     tracks.chunked(100).map {
       spotifyRestService.doDelete<Any>(
@@ -78,8 +70,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
   }
 
   fun addTracksToPlaylist(playlistId: String, tracks: List<String>, clientId: String) {
-    LoggerFactory.getLogger(javaClass)
-      .info("addTracksToPlaylist: {} {} {}", playlistId, clientId, tracks)
+    logger.info("addTracksToPlaylist: {} {} {}", playlistId, clientId, tracks)
 
     tracks.chunked(100).map {
       spotifyRestService.doPost<Any>(
@@ -107,8 +98,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
     trackList: List<String>,
     clientId: String,
   ): Map<String, List<String>> {
-    LoggerFactory.getLogger(javaClass)
-      .info("modifyPlaylist: {} {} {}", id, clientId, trackList.size)
+    logger.info("modifyPlaylist: {} {} {}", id, clientId, trackList.size)
 
     if (trackList.isNotEmpty()) {
       var old = getPlaylistTrackIds(id, clientId).orEmpty()
@@ -130,7 +120,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
   }
 
   fun createPlaylist(name: String, clientId: String): Playlist {
-    LoggerFactory.getLogger(javaClass).info("createPlaylist: {} {}", name, clientId)
+    logger.info("createPlaylist: {} {}", name, clientId)
 
     return spotifyRestService.doPost<Playlist>(
       USER_PLAYLISTS_URL,
@@ -140,7 +130,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
   }
 
   fun getOrCreatePlaylist(playlistName: String, clientId: String): Playlist {
-    LoggerFactory.getLogger(javaClass).info("getOrCreatePlaylist: {} {}", playlistName, clientId)
+    logger.info("getOrCreatePlaylist: {} {}", playlistName, clientId)
 
     val findAny =
       getCurrentUserPlaylists(clientId).stream().filter { it.name == playlistName }.findAny()
@@ -148,5 +138,11 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
       return findAny.get()
     }
     return createPlaylist(playlistName, clientId)
+  }
+
+  companion object {
+    private val logger = LoggerFactory.getLogger(SpotifyPlaylistService::class.java)
+    private const val PLAYLIST_TRACKS_URL = "https://api.spotify.com/v1/playlists/{id}/tracks"
+    private const val USER_PLAYLISTS_URL = "https://api.spotify.com/v1/me/playlists"
   }
 }
