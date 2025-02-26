@@ -1,6 +1,6 @@
 package com.example.lastfm.controller
 
-import com.example.lastfm.service.LastFmAuthenticationService
+import com.lis.spotify.service.LastFmAuthenticationService
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity

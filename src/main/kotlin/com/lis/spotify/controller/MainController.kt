@@ -1,6 +1,6 @@
 package com.lis.spotify.controller
 
-import com.example.lastfm.service.LastFmAuthenticationService
+import com.lis.spotify.service.LastFmAuthenticationService
 import com.lis.spotify.service.SpotifyAuthenticationService
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory

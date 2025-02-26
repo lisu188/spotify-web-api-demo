@@ -1,4 +1,4 @@
-package com.example.lastfm.service
+package com.lis.spotify.service
 
 import com.lis.spotify.AppEnvironment.LastFm
 import java.math.BigInteger
