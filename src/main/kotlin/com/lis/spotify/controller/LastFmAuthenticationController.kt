@@ -1,15 +1,13 @@
 package com.example.lastfm.controller
 
 import com.lis.spotify.service.LastFmAuthenticationService
+import javax.servlet.http.Cookie
+import javax.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
-import org.springframework.http.HttpStatus
-import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.servlet.view.RedirectView
-import javax.servlet.http.Cookie
-import javax.servlet.http.HttpServletResponse
 
 /**
  * LastFmAuthenticationController provides endpoints for handling Last.fm authentication.
@@ -29,10 +27,7 @@ class LastFmAuthenticationController(private val lastFmAuthService: LastFmAuthen
   }
 
   @GetMapping("/auth/lastfm/callback")
-  fun handleCallback(
-    @RequestParam token: String?,
-    response: HttpServletResponse,
-  ): String {
+  fun handleCallback(@RequestParam token: String?, response: HttpServletResponse): String {
     if (token.isNullOrEmpty()) {
       logger.warn("Token is missing in Last.fm callback")
       return "redirect:/error"

@@ -7,13 +7,13 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class LastFmControllerTest {
-    private val service = mockk<LastFmService>()
-    private val controller = LastFmController(service)
+  private val service = mockk<LastFmService>()
+  private val controller = LastFmController(service)
 
-    @Test
-    fun verifyLastFmIdUsesService() {
-        every { service.globalChartlist("login") } returns listOf()
-        val result = controller.verifyLastFmId("login")
-        assertTrue(result is Boolean)
-    }
+  @Test
+  fun verifyLastFmIdUsesService() {
+    every { service.globalChartlist("login") } returns listOf()
+    val result = controller.verifyLastFmId("login")
+    assertTrue(result is Boolean)
+  }
 }
