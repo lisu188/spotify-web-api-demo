@@ -7,6 +7,7 @@ RUN chmod +x gradlew && \
 
 # Runtime stage
 FROM eclipse-temurin:23-jre-alpine
+RUN apk add --no-cache tomcat-native
 WORKDIR /app
 COPY --from=builder /app/build/libs/*.jar spotify-web-api-demo.jar
 
