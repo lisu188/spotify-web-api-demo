@@ -1,151 +1,67 @@
-/*
- * MIT License
- *
- * Copyright (c) 2019 Andrzej Lis
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
-
 package com.lis.spotify.service
 
+import com.lis.spotify.AppEnvironment.LastFm
 import com.lis.spotify.domain.Song
-import org.jsoup.Jsoup
-import org.jsoup.nodes.Element
+import java.time.LocalDate
+import java.time.ZoneOffset
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import org.springframework.web.util.UriComponentsBuilder
+import org.springframework.web.client.RestTemplate
 
 @Service
 class LastFmService {
 
-  fun yearlyChartlist(spotifyClientId: String, year: Int, lastFmLogin: String): List<Song> {
-    logger.info("Entering yearlyChartlist: lastFmLogin={}, year={}", lastFmLogin, year)
-    // You could add a info log if you want to trace internal flow more closely
-    logger.info("Preparing to fetch pages [1..7] for user={} in year={}", lastFmLogin, year)
+  private val rest = RestTemplate()
+  private val log = LoggerFactory.getLogger(LastFmService::class.java)
 
-    val result = (1..7).map { page: Int -> yearlyChartlist(lastFmLogin, year, page) }.flatten()
-
-    logger.info(
-      "Completed yearlyChartlist for user={}, year={}. Retrieved {} songs total.",
-      lastFmLogin,
-      year,
-      result.size,
-    )
-    return result
+  private fun fetchRecent(
+    user: String,
+    from: Long,
+    to: Long,
+    page: Int
+  ): Map<String, Any> {
+    val uri =
+      UriComponentsBuilder.fromHttpUrl(LastFm.API_URL)
+        .queryParam("method", "user.getrecenttracks")
+        .queryParam("user", user)
+        .queryParam("from", from)
+        .queryParam("to", to)
+        .queryParam("page", page)
+        .queryParam("limit", 200)
+        .queryParam("api_key", LastFm.API_KEY)
+        .queryParam("format", "json")
+        .build()
+        .toUri()
+    return rest.getForObject(uri, Map::class.java) as Map<String, Any>
   }
 
-  private fun yearlyChartlist(lastFmLogin: String, year: Int, page: Int): List<Song> {
-    logger.info(
-      "Fetching yearly chartlist page: user={}, year={}, page={}",
-      lastFmLogin,
-      year,
-      page,
-    )
-    val ret: MutableList<Song> = mutableListOf()
-    try {
-      val get =
-        Jsoup.connect(
-            "https://www.last.fm/user/$lastFmLogin/library/tracks?from=$year-01-01&rangetype=year&page=$page"
-          )
-          .get()
-      get.run {
-        select(".chartlist-row").forEach {
-          try {
-            ret.add(parseElement(it))
-          } catch (e: Exception) {
-            logger.error(
-              "Cannot parse element on page={}. Element={}, error={}",
-              page,
-              it,
-              e.message,
-              e,
-            )
-          }
-        }
+  fun yearlyChartlist(
+    spotifyClientId: String,
+    year: Int,
+    lastFmLogin: String
+  ): List<Song> {
+    val from = LocalDate.of(year, 1, 1).atStartOfDay().toEpochSecond(ZoneOffset.UTC)
+    val to = LocalDate.of(year, 12, 31).atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC)
+    val songs = mutableListOf<Song>()
+    var page = 1
+    var totalPages: Int
+    do {
+      val data = fetchRecent(lastFmLogin, from, to, page++)
+      val recent = data["recenttracks"] as Map<*, *>
+      totalPages = (recent["totalPages"] as String).toInt()
+      val tracks = recent["track"] as List<*>
+      for (t in tracks) {
+        val m = t as Map<*, *>
+        val artist = (m["artist"] as Map<*, *>)["#text"] as String
+        val title = m["name"] as String
+        songs += Song(artist = artist, title = title)
       }
-      logger.info(
-        "Successfully fetched page={} for user={}. Songs parsed: {}",
-        page,
-        lastFmLogin,
-        ret.size,
-      )
-      return ret
-    } catch (e: Exception) {
-      logger.error(
-        "Error fetching yearly chartlist for user={}, year={}, page={}: {}",
-        lastFmLogin,
-        year,
-        page,
-        e.message,
-        e,
-      )
-      return emptyList()
-    }
+    } while (page <= totalPages)
+    log.info("yearlyChartlist {} {} => {}", lastFmLogin, year, songs.size)
+    return songs
   }
 
-  fun globalChartlist(lastFmLogin: String, page: Int = 1): List<Song> {
-    logger.info("Fetching global chartlist: user={}, page={}", lastFmLogin, page)
-    val ret: MutableList<Song> = mutableListOf()
-    try {
-      val get =
-        Jsoup.connect("https://www.last.fm/user/$lastFmLogin/library/tracks?page=$page").get()
-      get.run {
-        select(".chartlist-row").forEach {
-          try {
-            ret.add(parseElement(it))
-          } catch (e: Exception) {
-            logger.error(
-              "Cannot parse element in globalChartlist. Page={}, Element={}, error={}",
-              page,
-              it,
-              e.message,
-              e,
-            )
-          }
-        }
-      }
-      logger.info(
-        "Successfully fetched global chartlist. Page={}, Songs parsed: {}",
-        page,
-        ret.size,
-      )
-      return ret
-    } catch (e: Exception) {
-      logger.error(
-        "Error fetching global chartlist: user={}, page={}, error={}",
-        lastFmLogin,
-        page,
-        e.message,
-        e,
-      )
-      return emptyList()
-    }
-  }
-
-  private fun parseElement(it: Element): Song {
-    val titleElement = it.selectFirst(".chartlist-name a")
-    val artistElement = it.selectFirst(".chartlist-artist a")
-    val song = Song(artist = artistElement?.text() ?: "", title = titleElement?.text() ?: "")
-    logger.info(song.toString())
-    return song
-  }
-
-  companion object {
-    private val logger = LoggerFactory.getLogger(LastFmService::class.java)
-  }
+  fun globalChartlist(lastFmLogin: String, page: Int = 1): List<Song> =
+    yearlyChartlist("", 1970, lastFmLogin) // reuse; no date filter needed
 }
