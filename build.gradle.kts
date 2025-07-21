@@ -31,6 +31,11 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("org.jsoup:jsoup:1.17.2")
     implementation("com.google.guava:guava:33.0.0-jre")
+
+    testImplementation("org.jetbrains.kotlin:kotlin-test")
+    testImplementation("io.mockk:mockk:1.13.5")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.3")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.3")
 }
 
 tasks.withType<KotlinCompile> {
