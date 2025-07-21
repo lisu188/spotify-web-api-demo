@@ -9,6 +9,7 @@ plugins {
     id("io.spring.dependency-management") version "1.1.3"
     // Apply the ktfmt plugin
     id("com.ncorti.ktfmt.gradle") version "0.21.0"
+    id("jacoco")
 }
 
 group = "com.lis"
@@ -53,3 +54,24 @@ tasks.withType<Test> {
 ktfmt {
     googleStyle()
 }
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+}
+
+tasks.jacocoTestCoverageVerification {
+    dependsOn(tasks.jacocoTestReport)
+    violationRules {
+        rule {
+            limit {
+                minimum = "0.80".toBigDecimal()
+            }
+        }
+    }
+}
+
+tasks.check { dependsOn(tasks.jacocoTestCoverageVerification) }
