@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.servlet.view.RedirectView
+import javax.servlet.http.Cookie
+import javax.servlet.http.HttpServletResponse
 
 /**
  * LastFmAuthenticationController provides endpoints for handling Last.fm authentication.
@@ -27,17 +29,23 @@ class LastFmAuthenticationController(private val lastFmAuthService: LastFmAuthen
   }
 
   @GetMapping("/auth/lastfm/callback")
-  fun handleCallback(@RequestParam token: String?): ResponseEntity<Any> {
+  fun handleCallback(
+    @RequestParam token: String?,
+    response: HttpServletResponse,
+  ): String {
     if (token.isNullOrEmpty()) {
       logger.warn("Token is missing in Last.fm callback")
-      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Token is missing")
+      return "redirect:/error"
     }
     val sessionData = lastFmAuthService.getSession(token)
     return if (sessionData != null) {
-      ResponseEntity.ok(sessionData)
+      val key = ((sessionData["session"] as? Map<*, *>)?.get("key") as? String)
+      if (!key.isNullOrEmpty()) {
+        response.addCookie(Cookie("lastFmToken", key))
+      }
+      "redirect:/"
     } else {
-      ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-        .body("Failed to authenticate with Last.fm")
+      "redirect:/error"
     }
   }
 
