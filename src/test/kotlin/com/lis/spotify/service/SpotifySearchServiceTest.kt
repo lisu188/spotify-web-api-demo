@@ -13,20 +13,20 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
 
 class SpotifySearchServiceTest {
-    @Test
-    fun serviceInstantiates() {
-        val service = SpotifySearchService(mockk(relaxed = true))
-        assertNotNull(service)
-    }
+  @Test
+  fun serviceInstantiates() {
+    val service = SpotifySearchService(mockk(relaxed = true))
+    assertNotNull(service)
+  }
 
-    @Test
-    fun searchListReturnsIds() {
-        val rest = mockk<SpotifyRestService>()
-        val service = SpotifySearchService(rest)
-        val track = Track("1", "t", listOf(Artist("2","a")), Album("3","al", emptyList()))
-        val result = SearchResult(SearchResultInternal(listOf(track)))
-        every { rest.doRequest(any<() -> Any>()) } returns result
-        val ids = service.doSearch(listOf(Song("a","t")), "cid")
-        assertEquals(listOf("1"), ids)
-    }
+  @Test
+  fun searchListReturnsIds() {
+    val rest = mockk<SpotifyRestService>()
+    val service = SpotifySearchService(rest)
+    val track = Track("1", "t", listOf(Artist("2", "a")), Album("3", "al", emptyList()))
+    val result = SearchResult(SearchResultInternal(listOf(track)))
+    every { rest.doRequest(any<() -> Any>()) } returns result
+    val ids = service.doSearch(listOf(Song("a", "t")), "cid")
+    assertEquals(listOf("1"), ids)
+  }
 }

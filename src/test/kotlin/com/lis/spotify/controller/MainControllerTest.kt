@@ -9,22 +9,22 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
 class MainControllerTest {
-    private val spotifyService = mockk<SpotifyAuthenticationService>(relaxed = true)
-    private val lastfmService = mockk<LastFmAuthenticationService>(relaxed = true)
-    private val controller = MainController(spotifyService, lastfmService)
+  private val spotifyService = mockk<SpotifyAuthenticationService>(relaxed = true)
+  private val lastfmService = mockk<LastFmAuthenticationService>(relaxed = true)
+  private val controller = MainController(spotifyService, lastfmService)
 
-    @Test
-    fun redirectsToIndexWhenAuthorized() {
-        every { spotifyService.getAuthToken("abc") } returns mockk()
-        val result = controller.main("abc", "token")
-        assertEquals("forward:/index.html", result)
-        verify { spotifyService.refreshToken("abc") }
-    }
+  @Test
+  fun redirectsToIndexWhenAuthorized() {
+    every { spotifyService.getAuthToken("abc") } returns mockk()
+    val result = controller.main("abc", "token")
+    assertEquals("forward:/index.html", result)
+    verify { spotifyService.refreshToken("abc") }
+  }
 
-    @Test
-    fun redirectsToSpotifyWhenMissingToken() {
-        every { spotifyService.getAuthToken("abc") } returns null
-        val result = controller.main("abc", "token")
-        assertEquals("redirect:/auth/spotify", result)
-    }
+  @Test
+  fun redirectsToSpotifyWhenMissingToken() {
+    every { spotifyService.getAuthToken("abc") } returns null
+    val result = controller.main("abc", "token")
+    assertEquals("redirect:/auth/spotify", result)
+  }
 }
