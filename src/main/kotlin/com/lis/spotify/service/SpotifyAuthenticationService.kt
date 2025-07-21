@@ -63,7 +63,7 @@ class SpotifyAuthenticationService(
             .deleteMany(BsonDocument("clientId", BsonString(token.clientId)))
         mongoTemplate.save(token, "auth")
 
-        tokenCache.invalidate("clientId")
+        token.clientId?.let { tokenCache.invalidate(it) }
     }
 
     fun getAuthToken(clientId: String): AuthToken? {
