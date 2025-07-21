@@ -17,9 +17,7 @@ import com.lis.spotify.service.SpotifyTopPlaylistsService
 import javax.websocket.*
 import javax.websocket.server.PathParam
 import javax.websocket.server.ServerEndpoint
-import org.springframework.stereotype.Component
 
-@Component
 @ServerEndpoint("/socket/{login}", configurator = WebsocketSpringConfigurator::class)
 class YearlyPlaylistsEndpoint(var spotifyTopPlaylistsService: SpotifyTopPlaylistsService) {
 
