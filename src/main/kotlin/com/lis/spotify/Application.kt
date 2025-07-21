@@ -29,10 +29,12 @@ class Application {
 
   @Bean
   fun taskScheduler(): TaskScheduler {
+    log.debug("Creating TaskScheduler bean")
     return ThreadPoolTaskScheduler()
   }
 }
 
 fun main(args: Array<String>) {
+  LoggerFactory.getLogger("Main").info("Starting Spotify Web API Demo")
   runApplication<Application>(*args)
 }

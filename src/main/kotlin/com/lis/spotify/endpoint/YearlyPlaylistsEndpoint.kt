@@ -17,6 +17,7 @@ import com.lis.spotify.service.SpotifyTopPlaylistsService
 import javax.websocket.*
 import javax.websocket.server.PathParam
 import javax.websocket.server.ServerEndpoint
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
 @Component
@@ -31,6 +32,7 @@ class YearlyPlaylistsEndpoint(var spotifyTopPlaylistsService: SpotifyTopPlaylist
   fun onOpen(session: Session, config: EndpointConfig, @PathParam("login") lastFmLogin: String) {
     this.clientId = config.userProperties["clientId"] as String
     this.lastFmLogin = lastFmLogin
+    logger.info("WebSocket opened for clientId={} and login={}", clientId, lastFmLogin)
   }
 
   private fun updateProgress(it: Pair<Int, Int>) {
@@ -39,10 +41,21 @@ class YearlyPlaylistsEndpoint(var spotifyTopPlaylistsService: SpotifyTopPlaylist
 
   @OnMessage
   fun onMessage(session: Session, message: String) {
+    logger.debug("Received message '{}' from clientId={}", message, clientId)
     spotifyTopPlaylistsService.updateYearlyPlaylists(clientId, { updateProgress(it) }, lastFmLogin)
   }
 
-  @OnClose fun onClose(session: Session) {}
+  @OnClose
+  fun onClose(session: Session) {
+    logger.info("WebSocket closed for clientId={}", clientId)
+  }
 
-  @OnError fun onError(session: Session, e: Throwable) {}
+  @OnError
+  fun onError(session: Session, e: Throwable) {
+    logger.error("WebSocket error for clientId={}", clientId, e)
+  }
+
+  companion object {
+    private val logger = LoggerFactory.getLogger(YearlyPlaylistsEndpoint::class.java)
+  }
 }

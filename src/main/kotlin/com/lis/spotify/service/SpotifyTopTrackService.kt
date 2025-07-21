@@ -14,6 +14,7 @@ package com.lis.spotify.service
 
 import com.lis.spotify.domain.Track
 import com.lis.spotify.domain.Tracks
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
 @Service
@@ -24,9 +25,11 @@ class SpotifyTopTrackService(var spotifyRestService: SpotifyRestService) {
     private val SHORT_TERM = "short_term"
     private val MID_TERM = "medium_term"
     private val LONG_TERM = "long_term"
+    private val logger = LoggerFactory.getLogger(SpotifyTopTrackService::class.java)
   }
 
   private fun getTopTracks(term: String, clientId: String): Tracks {
+    logger.debug("Fetching top tracks for clientId={} term={}", clientId, term)
     return spotifyRestService.doGet<Tracks>(
       URL,
       params = mapOf("limit" to 50, "time_range" to term),
@@ -35,14 +38,20 @@ class SpotifyTopTrackService(var spotifyRestService: SpotifyRestService) {
   }
 
   fun getTopTracksLongTerm(clientId: String): List<Track> {
-    return getTopTracks(LONG_TERM, clientId).items
+    val result = getTopTracks(LONG_TERM, clientId).items
+    logger.info("Fetched {} long term tracks for clientId={}", result.size, clientId)
+    return result
   }
 
   fun getTopTracksMidTerm(clientId: String): List<Track> {
-    return getTopTracks(MID_TERM, clientId).items
+    val result = getTopTracks(MID_TERM, clientId).items
+    logger.info("Fetched {} mid term tracks for clientId={}", result.size, clientId)
+    return result
   }
 
   fun getTopTracksShortTerm(clientId: String): List<Track> {
-    return getTopTracks(SHORT_TERM, clientId).items
+    val result = getTopTracks(SHORT_TERM, clientId).items
+    logger.info("Fetched {} short term tracks for clientId={}", result.size, clientId)
+    return result
   }
 }

@@ -30,6 +30,7 @@ class LastFmAuthenticationService {
    * Format: http://www.last.fm/api/auth/?api_key=xxx&cb=<redirectUri>
    */
   fun getAuthorizationUrl(): String {
+    logger.debug("Generating Last.fm authorization URL")
     return "${LastFm.AUTHORIZE_URL}?api_key=${LastFm.API_KEY}&cb=${LastFm.CALLBACK_URL}"
   }
 
@@ -47,6 +48,7 @@ class LastFmAuthenticationService {
    * @return A map containing session data if successful; otherwise, null.
    */
   fun getSession(token: String): Map<String, Any>? {
+    logger.debug("Requesting session for token {}", token)
     val method = "auth.getSession"
     // Create signature string:
     // "api_keyYOUR_API_KEYmethodauth.getSessiontokenYOUR_TOKENYOUR_API_SECRET"
@@ -69,6 +71,7 @@ class LastFmAuthenticationService {
 
     return try {
       val response = restTemplate.postForEntity(LastFm.API_URL, request, Map::class.java)
+      logger.info("Received session response from Last.fm")
       response.body as? Map<String, Any>
     } catch (ex: Exception) {
       logger.error("Error getting session for token $token", ex)

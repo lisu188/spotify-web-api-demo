@@ -18,6 +18,7 @@ import javax.servlet.http.HttpServletRequest
 import javax.websocket.HandshakeResponse
 import javax.websocket.server.HandshakeRequest
 import javax.websocket.server.ServerEndpointConfig
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.BeanFactory
 import org.springframework.context.ApplicationContext
 import org.springframework.context.ApplicationContextAware
@@ -28,8 +29,13 @@ import org.springframework.web.socket.server.standard.ServerEndpointExporter
 
 @Configuration
 class WebSocketConfig {
+  companion object {
+    private val logger = LoggerFactory.getLogger(WebSocketConfig::class.java)
+  }
+
   @Bean
   fun serverEndpointExporter(): ServerEndpointExporter {
+    logger.debug("Creating ServerEndpointExporter bean")
     return ServerEndpointExporter()
   }
 }
@@ -38,6 +44,7 @@ class WebSocketConfig {
 class WebsocketSpringConfigurator : ServerEndpointConfig.Configurator(), ApplicationContextAware {
   companion object {
     private var context: BeanFactory? = null
+    private val logger = LoggerFactory.getLogger(WebsocketSpringConfigurator::class.java)
   }
 
   override fun modifyHandshake(
@@ -48,6 +55,7 @@ class WebsocketSpringConfigurator : ServerEndpointConfig.Configurator(), Applica
     // TODO: handle nulls
     config.userProperties["clientId"] =
       getRequest(request).cookies.findLast { cookie: Cookie? -> cookie?.name == "clientId" }?.value
+    logger.debug("Handshake modify: setting clientId={}", config.userProperties["clientId"])
   }
 
   private fun getRequest(request: HandshakeRequest): HttpServletRequest {
@@ -57,7 +65,9 @@ class WebsocketSpringConfigurator : ServerEndpointConfig.Configurator(), Applica
   }
 
   override fun <T> getEndpointInstance(clazz: Class<T>): T? {
-    return context?.getBean(clazz)
+    val instance = context?.getBean(clazz)
+    logger.debug("Providing endpoint instance of {} -> {}", clazz.simpleName, instance != null)
+    return instance
   }
 
   override fun setApplicationContext(applicationContext: ApplicationContext) {

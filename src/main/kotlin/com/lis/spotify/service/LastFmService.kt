@@ -6,8 +6,8 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import org.springframework.web.util.UriComponentsBuilder
 import org.springframework.web.client.RestTemplate
+import org.springframework.web.util.UriComponentsBuilder
 
 @Service
 class LastFmService {
@@ -15,12 +15,8 @@ class LastFmService {
   private val rest = RestTemplate()
   private val log = LoggerFactory.getLogger(LastFmService::class.java)
 
-  private fun fetchRecent(
-    user: String,
-    from: Long,
-    to: Long,
-    page: Int
-  ): Map<String, Any> {
+  private fun fetchRecent(user: String, from: Long, to: Long, page: Int): Map<String, Any> {
+    log.debug("Fetching recent tracks for user={} page={}", user, page)
     val uri =
       UriComponentsBuilder.fromHttpUrl(LastFm.API_URL)
         .queryParam("method", "user.getrecenttracks")
@@ -33,14 +29,12 @@ class LastFmService {
         .queryParam("format", "json")
         .build()
         .toUri()
-    return rest.getForObject(uri, Map::class.java) as Map<String, Any>
+    val result = rest.getForObject(uri, Map::class.java) as Map<String, Any>
+    log.debug("Fetched {} entries from Last.fm", (result["recenttracks"] as Map<*, *>)?.size ?: 0)
+    return result
   }
 
-  fun yearlyChartlist(
-    spotifyClientId: String,
-    year: Int,
-    lastFmLogin: String
-  ): List<Song> {
+  fun yearlyChartlist(spotifyClientId: String, year: Int, lastFmLogin: String): List<Song> {
     val from = LocalDate.of(year, 1, 1).atStartOfDay().toEpochSecond(ZoneOffset.UTC)
     val to = LocalDate.of(year, 12, 31).atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC)
     val songs = mutableListOf<Song>()
