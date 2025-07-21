@@ -41,5 +41,17 @@ Unit tests can be executed with:
 ./gradlew test
 ```
 
+Make sure the same environment variables are exported when running the tests.
+For convenience you can prefix the command:
+
+```bash
+BASE_URL=http://localhost \
+SPOTIFY_CLIENT_ID=dummy \
+SPOTIFY_CLIENT_SECRET=dummy \
+LASTFM_API_KEY=dummy \
+LASTFM_API_SECRET=dummy \
+./gradlew test
+```
+
 Note that the tests expect the same environment variables to be present.
 
