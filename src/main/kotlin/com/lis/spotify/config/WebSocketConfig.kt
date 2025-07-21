@@ -18,7 +18,7 @@ import javax.servlet.http.HttpServletRequest
 import javax.websocket.HandshakeResponse
 import javax.websocket.server.HandshakeRequest
 import javax.websocket.server.ServerEndpointConfig
-import org.springframework.beans.factory.BeanFactory
+import org.springframework.beans.factory.config.AutowireCapableBeanFactory
 import org.springframework.context.ApplicationContext
 import org.springframework.context.ApplicationContextAware
 import org.springframework.context.annotation.Bean
@@ -37,7 +37,7 @@ class WebSocketConfig {
 @Component
 class WebsocketSpringConfigurator : ServerEndpointConfig.Configurator(), ApplicationContextAware {
   companion object {
-    private var context: BeanFactory? = null
+    private lateinit var context: AutowireCapableBeanFactory
   }
 
   override fun modifyHandshake(
@@ -56,11 +56,11 @@ class WebsocketSpringConfigurator : ServerEndpointConfig.Configurator(), Applica
     return field.get(request) as HttpServletRequest
   }
 
-  override fun <T> getEndpointInstance(clazz: Class<T>): T? {
-    return context?.getBean(clazz)
+  override fun <T> getEndpointInstance(clazz: Class<T>): T {
+    return context.createBean(clazz)
   }
 
   override fun setApplicationContext(applicationContext: ApplicationContext) {
-    context = applicationContext
+    context = applicationContext.autowireCapableBeanFactory
   }
 }
