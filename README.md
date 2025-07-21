@@ -6,7 +6,8 @@ https://spotify-web-api-demo.herokuapp.com/
 Set these values when deploying (e.g., to Cloud Run) so callback URLs and API
 credentials are available at runtime:
 
-- `BASE_URL` – Public URL of the running service
+- `BASE_URL` – Public URL of the running service (used as a fallback for
+  callbacks)
 - `SPOTIFY_CLIENT_ID` – Spotify application client ID
 - `SPOTIFY_CLIENT_SECRET` – Spotify application client secret
 - `LASTFM_API_KEY` – Last.fm API key
