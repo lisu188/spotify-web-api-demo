@@ -30,6 +30,19 @@ class LastFmAuthenticationControllerTest {
   }
 
   @Test
+  fun handleCallbackMissingToken() {
+    val result = controller.handleCallback(null, mockk(relaxed = true))
+    assertEquals("redirect:/error", result)
+  }
+
+  @Test
+  fun handleCallbackNoSession() {
+    every { service.getSession("tok") } returns null
+    val result = controller.handleCallback("tok", mockk(relaxed = true))
+    assertEquals("redirect:/error", result)
+  }
+
+  @Test
   fun handleCallbackSetsCookiePath() {
     every { service.getSession("tok") } returns mapOf("session" to mapOf("key" to "v"))
     val response = mockk<HttpServletResponse>(relaxed = true)
