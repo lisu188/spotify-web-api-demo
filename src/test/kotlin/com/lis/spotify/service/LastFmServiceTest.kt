@@ -25,7 +25,7 @@ class LastFmServiceTest {
       mapOf(
         "recenttracks" to
           mapOf(
-            "totalPages" to "1",
+            "@attr" to mapOf("totalPages" to "1"),
             "track" to listOf(mapOf("artist" to mapOf("#text" to "A"), "name" to "T")),
           )
       )
@@ -46,7 +46,7 @@ class LastFmServiceTest {
       mapOf(
         "recenttracks" to
           mapOf(
-            "totalPages" to "2",
+            "@attr" to mapOf("totalPages" to "2"),
             "track" to listOf(mapOf("artist" to mapOf("#text" to "A"), "name" to "T1")),
           )
       )
@@ -54,7 +54,7 @@ class LastFmServiceTest {
       mapOf(
         "recenttracks" to
           mapOf(
-            "totalPages" to "2",
+            "@attr" to mapOf("totalPages" to "2"),
             "track" to listOf(mapOf("artist" to mapOf("#text" to "B"), "name" to "T2")),
           )
       )
@@ -124,7 +124,10 @@ class LastFmServiceTest {
     field.set(service, rest)
     val uriSlot = io.mockk.slot<java.net.URI>()
     every { rest.getForObject(capture(uriSlot), Map::class.java) } returns
-      mapOf("recenttracks" to mapOf("totalPages" to "1", "track" to emptyList<String>()))
+      mapOf(
+        "recenttracks" to
+          mapOf("@attr" to mapOf("totalPages" to "1"), "track" to emptyList<String>())
+      )
 
     service.yearlyChartlist("c", 2020, "login")
     assert(uriSlot.captured.query!!.contains("sk=sess"))
