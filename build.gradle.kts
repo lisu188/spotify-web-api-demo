@@ -31,9 +31,12 @@ dependencies {
   implementation("org.jsoup:jsoup:1.21.1")
   implementation("com.google.guava:guava:33.4.8-jre")
 
+  testImplementation("org.springframework.boot:spring-boot-starter-test")
   testImplementation("org.jetbrains.kotlin:kotlin-test")
   testImplementation("io.mockk:mockk:1.14.3")
   testImplementation("org.junit.jupiter:junit-jupiter-api:5.12.2")
+  testImplementation("org.testcontainers:junit-jupiter:1.19.7")
+  testImplementation("com.github.tomakehurst:wiremock-jre8:2.35.1")
   testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.12.2")
 }
 
@@ -44,7 +47,14 @@ tasks.withType<KotlinCompile> {
   }
 }
 
-tasks.withType<Test> { useJUnitPlatform() }
+tasks.withType<Test> {
+  useJUnitPlatform()
+  systemProperty("BASE_URL", "http://localhost")
+  systemProperty("SPOTIFY_CLIENT_ID", "id")
+  systemProperty("SPOTIFY_CLIENT_SECRET", "secret")
+  systemProperty("LASTFM_API_KEY", "key")
+  systemProperty("LASTFM_API_SECRET", "secret")
+}
 
 // Configure ktfmt to use Google Style
 ktfmt { googleStyle() }
