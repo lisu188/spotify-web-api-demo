@@ -21,7 +21,7 @@ class LastFmServiceTest {
     val field = LastFmService::class.java.getDeclaredField("rest")
     field.isAccessible = true
     field.set(service, rest)
-    val map =
+    val map1 =
       mapOf(
         "recenttracks" to
           mapOf(
@@ -29,8 +29,13 @@ class LastFmServiceTest {
             "track" to listOf(mapOf("artist" to mapOf("#text" to "A"), "name" to "T")),
           )
       )
-    every { rest.getForObject(any<java.net.URI>(), Map::class.java) } returns map
-    val songs = service.yearlyChartlist("cid", 2020, "login")
+    val map2 =
+      mapOf(
+        "recenttracks" to
+          mapOf("@attr" to mapOf("totalPages" to "1"), "track" to emptyList<String>())
+      )
+    every { rest.getForObject(any<java.net.URI>(), Map::class.java) } returnsMany listOf(map1, map2)
+    val songs = service.yearlyChartlist("cid", 2020, "login").toList()
     assertEquals(listOf(Song("A", "T")), songs)
   }
 
@@ -58,8 +63,14 @@ class LastFmServiceTest {
             "track" to listOf(mapOf("artist" to mapOf("#text" to "B"), "name" to "T2")),
           )
       )
-    every { rest.getForObject(any<java.net.URI>(), Map::class.java) } returnsMany listOf(map1, map2)
-    val songs = service.yearlyChartlist("cid", 2020, "login")
+    val map3 =
+      mapOf(
+        "recenttracks" to
+          mapOf("@attr" to mapOf("totalPages" to "2"), "track" to emptyList<String>())
+      )
+    every { rest.getForObject(any<java.net.URI>(), Map::class.java) } returnsMany
+      listOf(map1, map2, map3)
+    val songs = service.yearlyChartlist("cid", 2020, "login").toList()
     assertEquals(listOf(Song("A", "T1"), Song("B", "T2")), songs)
   }
 
@@ -87,7 +98,7 @@ class LastFmServiceTest {
       )
     every { rest.getForObject(any<java.net.URI>(), Map::class.java) } throws ex
     val thrown =
-      assertThrows(LastFmException::class.java) { service.yearlyChartlist("c", 2020, "u") }
+      assertThrows(LastFmException::class.java) { service.yearlyChartlist("c", 2020, "u").first() }
     assertEquals(29, thrown.code)
   }
 
@@ -109,7 +120,7 @@ class LastFmServiceTest {
       )
     every { rest.getForObject(any<java.net.URI>(), Map::class.java) } throws ex
     val thrown =
-      assertThrows(LastFmException::class.java) { service.yearlyChartlist("c", 2020, "u") }
+      assertThrows(LastFmException::class.java) { service.yearlyChartlist("c", 2020, "u").first() }
     assertEquals(10, thrown.code)
   }
 
@@ -129,14 +140,14 @@ class LastFmServiceTest {
           mapOf("@attr" to mapOf("totalPages" to "1"), "track" to emptyList<String>())
       )
 
-    service.yearlyChartlist("c", 2020, "login")
+    service.yearlyChartlist("c", 2020, "login").toList()
     assert(uriSlot.captured.query!!.contains("sk=sess"))
   }
 
   @Test
   fun globalChartlistDelegates() {
     val service = spyk(LastFmService(mockk(relaxed = true)))
-    every { service.yearlyChartlist("", 1970, "login") } returns listOf(Song("a", "b"))
+    every { service.yearlyChartlist("", 1970, "login") } returns sequenceOf(Song("a", "b"))
     val result = service.globalChartlist("login")
     assertEquals(listOf(Song("a", "b")), result)
   }
