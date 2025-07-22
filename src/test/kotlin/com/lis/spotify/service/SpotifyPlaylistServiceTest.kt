@@ -60,12 +60,14 @@ class SpotifyPlaylistServiceTest {
   @Test
   fun modifyPlaylistAddsAndRemoves() {
     val spied = spyk(service)
-    every { spied.getPlaylistTrackIds("id", "cid") } returnsMany
-      listOf(listOf("1", "2"), listOf("2"))
+    every { spied.getPlaylistTrackIds("id", "cid") } returns listOf("1", "2")
     every { spied.deleteTracksFromPlaylist("id", listOf("1"), "cid") } returns Unit
     every { spied.addTracksToPlaylist("id", listOf("3"), "cid") } returns Unit
     val result = spied.modifyPlaylist("id", listOf("2", "3"), "cid")
     assertEquals(mapOf("added" to listOf("3"), "removed" to listOf("1")), result)
+    verify(exactly = 1) { spied.getPlaylistTrackIds("id", "cid") }
+    verify(exactly = 1) { spied.deleteTracksFromPlaylist("id", listOf("1"), "cid") }
+    verify(exactly = 1) { spied.addTracksToPlaylist("id", listOf("3"), "cid") }
   }
 
   @Test
