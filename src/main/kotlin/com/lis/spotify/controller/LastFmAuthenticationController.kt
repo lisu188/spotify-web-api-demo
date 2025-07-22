@@ -4,9 +4,9 @@ import com.lis.spotify.service.LastFmAuthenticationService
 import jakarta.servlet.http.Cookie
 import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
+import org.springframework.stereotype.Controller
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestParam
-import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.servlet.view.RedirectView
 
 /**
@@ -16,7 +16,7 @@ import org.springframework.web.servlet.view.RedirectView
  * 1. GET /auth/lastfm - Redirects the user to Last.fm's authorization page.
  * 2. GET /auth/lastfm/callback - Receives the authentication token and exchanges it for a session.
  */
-@RestController
+@Controller
 class LastFmAuthenticationController(private val lastFmAuthService: LastFmAuthenticationService) {
 
   @GetMapping("/auth/lastfm")

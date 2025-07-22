@@ -86,12 +86,16 @@ class LastFmAuthenticationControllerIT @Autowired constructor(private val rest: 
   @Test
   fun callbackSetsCookie() {
     stubFor(post(urlPathEqualTo("/2.0/")).willReturn(okJson("""{"session":{"key":"val"}}""")))
-    val response = rest.getForEntity("/auth/lastfm/callback?token=t", String::class.java)
+    val noRedirect =
+      rest.withRequestFactorySettings {
+        it.withRedirects(ClientHttpRequestFactorySettings.Redirects.DONT_FOLLOW)
+      }
+    val response = noRedirect.getForEntity("/auth/lastfm/callback?token=t", String::class.java)
     val cookie = response.headers["Set-Cookie"]!!.first()
     assertAll(
-      { assertEquals(HttpStatus.OK, response.statusCode) },
+      { assertEquals(HttpStatus.FOUND, response.statusCode) },
       { assertTrue(cookie.contains("lastFmToken=val")) },
-      { assertTrue(response.body!!.startsWith("redirect:/")) },
+      { assertTrue(response.headers.location!!.toString().endsWith("/")) },
     )
   }
 }
