@@ -5,6 +5,7 @@ This repository uses Gradle and Kotlin.
 - Use ktfmt for formatting: run `./gradlew ktfmtFormat` before committing.
 - Run the test suite with `./gradlew test`.
 - Run `./gradlew build` to ensure the project compiles.
+- Companion objects should be at the bottom of the class.
 
 ### Logging
 - Use SLF4J with a `private val logger` per class.
@@ -27,3 +28,4 @@ using WireMock:
 - Ensure all code is formatted and tests pass.
 - Ensure at least 80% code coverage by running `./gradlew jacocoTestCoverageVerification`. Do not exclude any tests or lower the Jacoco coverage threshold. Try to add more tests to increase coverage.
 - Provide a concise summary in the PR description.
+- Always try to rebase onto main before creating PRs.
