@@ -1,6 +1,7 @@
 package com.lis.spotify.service
 
 import java.util.*
+import kotlin.math.roundToInt
 import org.springframework.scheduling.TaskScheduler
 import org.springframework.stereotype.Service
 
@@ -22,9 +23,9 @@ class JobService(
           playlistService.updateYearlyPlaylists(
             clientId,
             { (year, pct) ->
-              val base = (year - startYear) * 100 / total
-              val overall = base + pct / total
-              store.update(id, overall, "year $year")
+              val base = (year - startYear) * 100.0 / total
+              val overall = base + pct / total.toDouble()
+              store.update(id, overall.roundToInt(), "year $year")
             },
             lastFmLogin,
           )

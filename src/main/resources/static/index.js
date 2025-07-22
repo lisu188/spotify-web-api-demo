@@ -49,6 +49,7 @@ $('#lastfm').on('click', function (event) {
         data: JSON.stringify({lastFmLogin: $('#lastFmId').val()}),
         success: function (data) {
             $("#progress").show();
+            $("#progressBar")[0].style.width = '0%';
             const jobId = data.jobId;
             let interval = setInterval(function () {
                 $.get(URL + '/jobs/' + jobId + '/progress', function (p) {
@@ -56,6 +57,7 @@ $('#lastfm').on('click', function (event) {
                     if (p.status !== 'RUNNING') {
                         clearInterval(interval);
                         $("#progress").hide();
+                        $("#progressBar")[0].style.width = '0%';
                         $('#lastfm').prop('disabled', false);
                         $('#lastFmId').prop('disabled', false);
                     }
