@@ -60,6 +60,13 @@ $('#lastfm').on('click', function (event) {
                         $("#progressBar")[0].style.width = '0%';
                         $('#lastfm').prop('disabled', false);
                         $('#lastFmId').prop('disabled', false);
+                        if (p.status === 'ERROR' && p.message) {
+                            if (p.message === 'AUTH_SPOTIFY') {
+                                window.location.href = '/auth/spotify';
+                            } else if (p.message === 'AUTH_LASTFM') {
+                                window.location.href = '/auth/lastfm';
+                            }
+                        }
                     }
                 }, 'json');
             }, 2000);

@@ -46,6 +46,9 @@ class LastFmService(private val lastFmAuthService: LastFmAuthenticationService) 
     } catch (ex: HttpClientErrorException) {
       val err = parseError(ex)
       log.error("Last.fm error {} {}", err.code, err.message)
+      if (err.code == 17) {
+        throw AuthenticationRequiredException("LASTFM")
+      }
       throw err
     }
   }

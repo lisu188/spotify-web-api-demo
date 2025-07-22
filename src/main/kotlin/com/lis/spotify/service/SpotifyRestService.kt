@@ -51,9 +51,14 @@ class SpotifyRestService(
   ): U {
     return doRequest {
       logger.debug("doRequest: {} {} {} {}", url, httpMethod, params, body)
-      val result = doExchange<U>(url, httpMethod, body, clientId, params)
-      logger.debug("doRequest result for {} {} -> {}", httpMethod, url, result)
-      result
+      try {
+        val result = doExchange<U>(url, httpMethod, body, clientId, params)
+        logger.debug("doRequest result for {} {} -> {}", httpMethod, url, result)
+        result
+      } catch (e: HttpClientErrorException.Unauthorized) {
+        logger.error("Unauthorized Spotify request for clientId={}", clientId, e)
+        throw AuthenticationRequiredException("SPOTIFY")
+      }
     }
   }
 
