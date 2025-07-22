@@ -1,4 +1,4 @@
-package com.example.lastfm.controller
+package com.lis.spotify.controller
 
 import com.lis.spotify.service.LastFmAuthenticationService
 import io.mockk.CapturingSlot
