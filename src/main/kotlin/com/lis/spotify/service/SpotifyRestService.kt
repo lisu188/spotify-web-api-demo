@@ -15,9 +15,9 @@ package com.lis.spotify.service
 import org.slf4j.LoggerFactory
 import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.http.HttpEntity
-import org.springframework.http.HttpHeaders.RETRY_AFTER
 import org.springframework.http.HttpMethod
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory
+import org.springframework.retry.support.RetryTemplate
 import org.springframework.stereotype.Service
 import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestTemplate
@@ -31,6 +31,12 @@ class SpotifyRestService(
 
   val restTemplate: RestTemplate =
     restTemplateBuilder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java).build()
+  private val retryTemplate: RetryTemplate =
+    RetryTemplate.builder()
+      .maxAttempts(3)
+      .retryOn(HttpClientErrorException.TooManyRequests::class.java)
+      .exponentialBackoff(1000L, 2.0, 10000L)
+      .build()
   @PublishedApi internal val logger = LoggerFactory.getLogger(SpotifyRestService::class.java)
 
   final inline fun <reified U : Any> doRequest(
@@ -49,14 +55,7 @@ class SpotifyRestService(
   }
 
   fun <U> doRequest(task: () -> U): U {
-    try {
-      return task()
-    } catch (e: HttpClientErrorException.TooManyRequests) {
-      e.responseHeaders?.get(RETRY_AFTER)?.first()?.toInt()?.let {
-        Thread.sleep((it) * 1000L + 500L)
-      }
-      return doRequest(task)
-    }
+    return retryTemplate.execute<U, Exception> { task() }
   }
 
   final inline fun <reified U : Any> doExchange(
