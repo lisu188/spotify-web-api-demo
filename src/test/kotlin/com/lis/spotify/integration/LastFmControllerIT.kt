@@ -74,7 +74,7 @@ class LastFmControllerIT @Autowired constructor(private val rest: TestRestTempla
       get(urlPathEqualTo("/2.0/"))
         .willReturn(
           okJson(
-            """{"recenttracks":{"totalPages":"1","track":[{"artist":{"#text":"A"},"name":"B"}]}}"""
+            """{"recenttracks":{"@attr":{"totalPages":"1"},"track":[{"artist":{"#text":"A"},"name":"B"}]}}"""
           )
         )
     )
@@ -86,7 +86,7 @@ class LastFmControllerIT @Autowired constructor(private val rest: TestRestTempla
   fun verifyLoginFalse() {
     stubFor(
       get(urlPathEqualTo("/2.0/"))
-        .willReturn(okJson("""{"recenttracks":{"totalPages":"1","track":[]}}"""))
+        .willReturn(okJson("""{"recenttracks":{"@attr":{"totalPages":"1"},"track":[]}}"""))
     )
     val resp = rest.postForEntity("/verifyLastFmId/login", null, Boolean::class.java)
     assertAll({ assertEquals(HttpStatus.OK, resp.statusCode) }, { assertEquals(false, resp.body) })
