@@ -176,4 +176,56 @@ class LastFmServiceTest {
     val result = service.globalChartlist("login", 2)
     assertEquals(listOf(Song("a", "b")), result)
   }
+
+  @Test
+  fun userExistsReturnsTrue() {
+    val rest = mockk<RestTemplate>()
+    val service = LastFmService(mockk(relaxed = true))
+    val field = LastFmService::class.java.getDeclaredField("rest")
+    field.isAccessible = true
+    field.set(service, rest)
+    every { rest.getForObject(any<java.net.URI>(), Map::class.java) } returns
+      emptyMap<String, Any>()
+    val result = service.userExists("login")
+    assertEquals(true, result)
+  }
+
+  @Test
+  fun userExistsReturnsFalseOnNotFound() {
+    val rest = mockk<RestTemplate>()
+    val service = LastFmService(mockk(relaxed = true))
+    val field = LastFmService::class.java.getDeclaredField("rest")
+    field.isAccessible = true
+    field.set(service, rest)
+    val ex =
+      HttpClientErrorException.create(
+        HttpStatus.NOT_FOUND,
+        "",
+        HttpHeaders(),
+        "{\"error\":6,\"message\":\"Not found\"}".toByteArray(),
+        null,
+      )
+    every { rest.getForObject(any<java.net.URI>(), Map::class.java) } throws ex
+    val result = service.userExists("login")
+    assertEquals(false, result)
+  }
+
+  @Test
+  fun userExistsThrowsOtherErrors() {
+    val rest = mockk<RestTemplate>()
+    val service = LastFmService(mockk(relaxed = true))
+    val field = LastFmService::class.java.getDeclaredField("rest")
+    field.isAccessible = true
+    field.set(service, rest)
+    val ex =
+      HttpClientErrorException.create(
+        HttpStatus.UNAUTHORIZED,
+        "",
+        HttpHeaders(),
+        "{\"error\":17,\"message\":\"Login\"}".toByteArray(),
+        null,
+      )
+    every { rest.getForObject(any<java.net.URI>(), Map::class.java) } throws ex
+    assertThrows(LastFmException::class.java) { service.userExists("login") }
+  }
 }

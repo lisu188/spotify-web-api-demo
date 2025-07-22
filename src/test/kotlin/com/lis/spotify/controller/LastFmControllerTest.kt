@@ -12,8 +12,8 @@ class LastFmControllerTest {
 
   @Test
   fun verifyLastFmIdUsesService() {
-    every { service.globalChartlist("login") } returns listOf()
+    every { service.userExists("login") } returns true
     val result = controller.verifyLastFmId("login")
-    assertTrue(result is Boolean)
+    assertTrue(result)
   }
 }
