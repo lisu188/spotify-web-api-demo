@@ -1,6 +1,18 @@
 # spotify-web-api-demo
 https://spotify-web-api-demo.herokuapp.com/
 
+This demo shows how to access the Spotify Web API using Kotlin and Spring Boot.
+
+## Running locally
+
+Start the service with:
+
+```shell
+./gradlew bootRun
+```
+
+Ensure the required environment variables are configured before running.
+
 ## Required environment variables
 
 Set these values when deploying (e.g., to Cloud Run) so callback URLs and API
