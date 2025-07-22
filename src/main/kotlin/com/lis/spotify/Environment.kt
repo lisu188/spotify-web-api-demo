@@ -71,13 +71,13 @@ object AppEnvironment {
       get() =
         System.getenv("LASTFM_AUTHORIZE_URL")
           ?: System.getProperty("LASTFM_AUTHORIZE_URL")
-          ?: "http://www.last.fm/api/auth/"
+          ?: "https://www.last.fm/api/auth/"
 
     val API_URL: String
       get() =
         System.getenv("LASTFM_API_URL")
           ?: System.getProperty("LASTFM_API_URL")
-          ?: "http://ws.audioscrobbler.com/2.0/"
+          ?: "https://ws.audioscrobbler.com/2.0/"
   }
 }
 // CHANGE END
