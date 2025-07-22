@@ -11,6 +11,7 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory
 import org.springframework.web.client.RestTemplate
 
 class SpotifyRestServiceTest {
@@ -25,6 +26,8 @@ class SpotifyRestServiceTest {
     val restTemplate = mockk<RestTemplate>()
     val builder = mockk<RestTemplateBuilder>()
     val auth = mockk<SpotifyAuthenticationService>()
+    every { builder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java) } returns
+      builder
     every { builder.build() } returns restTemplate
     every { auth.getHeaders(any<String>()) } returns HttpHeaders()
     every {
@@ -47,6 +50,8 @@ class SpotifyRestServiceTest {
     val restTemplate = mockk<RestTemplate>()
     val builder = mockk<RestTemplateBuilder>()
     val auth = mockk<SpotifyAuthenticationService>()
+    every { builder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java) } returns
+      builder
     every { builder.build() } returns restTemplate
     every { auth.getHeaders(any<String>()) } returns HttpHeaders()
     every {

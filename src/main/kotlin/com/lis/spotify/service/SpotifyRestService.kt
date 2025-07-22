@@ -17,6 +17,7 @@ import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders.RETRY_AFTER
 import org.springframework.http.HttpMethod
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory
 import org.springframework.stereotype.Service
 import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestTemplate
@@ -28,7 +29,8 @@ class SpotifyRestService(
   val spotifyAuthenticationService: SpotifyAuthenticationService,
 ) {
 
-  val restTemplate: RestTemplate = restTemplateBuilder.build()
+  val restTemplate: RestTemplate =
+    restTemplateBuilder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java).build()
   @PublishedApi internal val logger = LoggerFactory.getLogger(SpotifyRestService::class.java)
 
   final inline fun <reified U : Any> doRequest(
