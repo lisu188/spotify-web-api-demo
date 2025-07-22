@@ -81,7 +81,12 @@ class SpotifyAuthenticationController(
       if (clientId != null) {
         authToken.clientId = clientId
         spotifyAuthenticationService.setAuthToken(authToken)
-        val cookie = Cookie("clientId", clientId).apply { path = "/" }
+        val cookie =
+          Cookie("clientId", clientId).apply {
+            path = "/"
+            isHttpOnly = true
+            secure = true
+          }
         response.addCookie(cookie)
         logger.info("Successfully set auth token for user: {}", clientId)
       } else {
