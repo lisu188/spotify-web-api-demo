@@ -1,6 +1,7 @@
 package com.lis.spotify.service
 
 import java.util.*
+import org.slf4j.LoggerFactory
 import org.springframework.scheduling.TaskScheduler
 import org.springframework.stereotype.Service
 
@@ -12,6 +13,7 @@ class JobService(
 ) {
   fun startYearlyJob(clientId: String, lastFmLogin: String): String {
     val id = UUID.randomUUID().toString()
+    logger.info("Scheduled yearly playlist job {} for {}", id, clientId)
     store.create(id)
     scheduler.schedule(
       {
@@ -28,8 +30,10 @@ class JobService(
             },
             lastFmLogin,
           )
+          logger.info("Yearly playlist job {} completed", id)
           store.complete(id)
         } catch (e: Exception) {
+          logger.error("Yearly playlist job {} failed", id, e)
           store.fail(id, e.message)
         }
       },
@@ -39,4 +43,8 @@ class JobService(
   }
 
   fun progress(id: String) = store.get(id)
+
+  companion object {
+    private val logger = LoggerFactory.getLogger(JobService::class.java)
+  }
 }

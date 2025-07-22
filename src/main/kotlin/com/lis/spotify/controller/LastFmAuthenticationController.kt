@@ -47,9 +47,11 @@ class LastFmAuthenticationController(private val lastFmAuthService: LastFmAuthen
       }
       if (!name.isNullOrEmpty() && !key.isNullOrEmpty()) {
         lastFmAuthService.setSession(name, key!!)
+        logger.info("Successfully authenticated Last.fm user: {}", name)
       }
       "redirect:/"
     } else {
+      logger.error("Failed to obtain Last.fm session for token {}", token)
       "redirect:/error"
     }
   }

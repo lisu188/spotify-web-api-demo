@@ -27,7 +27,9 @@ class SpotifyTopPlaylistsController(
   @PostMapping("/updateTopPlaylists")
   fun updateTopPlaylists(@CookieValue("clientId") clientId: String): List<String> {
     logger.debug("updateTopPlaylists for {}", clientId)
-    return spotifyTopPlaylistsService.updateTopPlaylists(clientId)
+    val result = spotifyTopPlaylistsService.updateTopPlaylists(clientId)
+    logger.info("Updated top playlists for {} -> {} playlists", clientId, result.size)
+    return result
   }
 
   companion object {

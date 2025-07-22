@@ -2,6 +2,7 @@ package com.lis.spotify.controller
 
 import com.lis.spotify.domain.JobId
 import com.lis.spotify.service.JobService
+import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -16,6 +17,7 @@ class JobsController(private val jobService: JobService) {
     @CookieValue("clientId") clientId: String,
     @RequestBody request: StartRequest,
   ): ResponseEntity<JobId> {
+    logger.info("Starting yearly job for {}", clientId)
     val id = jobService.startYearlyJob(clientId, request.lastFmLogin)
     return ResponseEntity.accepted().body(JobId(id))
   }
@@ -23,4 +25,8 @@ class JobsController(private val jobService: JobService) {
   @GetMapping("/{id}/progress")
   fun progress(@PathVariable id: String) =
     jobService.progress(id)?.let { ResponseEntity.ok(it) } ?: ResponseEntity.notFound().build()
+
+  companion object {
+    private val logger = LoggerFactory.getLogger(JobsController::class.java)
+  }
 }

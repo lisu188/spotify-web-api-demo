@@ -23,7 +23,9 @@ class LastFmController(val lastFmService: LastFmService) {
   @PostMapping("/verifyLastFmId/{lastFmLogin}")
   fun verifyLastFmId(@PathVariable("lastFmLogin") lastFmLogin: String): Boolean {
     logger.debug("verifyLastFmId for {}", lastFmLogin)
-    return lastFmService.globalChartlist(lastFmLogin).isNotEmpty()
+    val valid = lastFmService.globalChartlist(lastFmLogin).isNotEmpty()
+    logger.info("Verification for Last.fm user {} -> {}", lastFmLogin, valid)
+    return valid
   }
 
   companion object {
