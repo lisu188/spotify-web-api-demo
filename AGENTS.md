@@ -20,5 +20,5 @@ using WireMock:
 
 ### Pull request guidelines
 - Ensure all code is formatted and tests pass.
-- Ensure at least 80% code coverage by running `./gradlew jacocoTestCoverageVerification`.
+- Ensure at least 80% code coverage by running `./gradlew jacocoTestCoverageVerification`. Do not exclude any tests or lower the Jacoco coverage threshold. Try to add more tests to increase coverage.
 - Provide a concise summary in the PR description.
