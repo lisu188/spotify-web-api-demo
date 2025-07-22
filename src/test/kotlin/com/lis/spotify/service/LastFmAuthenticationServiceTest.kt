@@ -1,7 +1,9 @@
 package com.lis.spotify.service
 
+import com.lis.spotify.AppEnvironment
 import io.mockk.every
 import io.mockk.mockk
+import java.net.URLEncoder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -20,6 +22,8 @@ class LastFmAuthenticationServiceTest {
     val service = LastFmAuthenticationService()
     val url = service.getAuthorizationUrl()
     assert(url.contains("api_key"))
+    val encoded = URLEncoder.encode(AppEnvironment.LastFm.CALLBACK_URL, "UTF-8")
+    assert(url.contains("cb=$encoded"))
   }
 
   @Test
