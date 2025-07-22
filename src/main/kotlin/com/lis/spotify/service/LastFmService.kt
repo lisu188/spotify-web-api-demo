@@ -72,7 +72,9 @@ class LastFmService(private val lastFmAuthService: LastFmAuthenticationService) 
     do {
       val data = fetchRecent(lastFmLogin, from, to, page++)
       val recent = data["recenttracks"] as Map<*, *>
-      totalPages = (recent["totalPages"] as String).toInt()
+      val attr = recent["@attr"] as? Map<*, *>
+      val pages = (recent["totalPages"] as? String) ?: (attr?.get("totalPages") as? String) ?: "1"
+      totalPages = pages.toInt()
       val tracks = recent["track"] as List<*>
       for (t in tracks) {
         val m = t as Map<*, *>
