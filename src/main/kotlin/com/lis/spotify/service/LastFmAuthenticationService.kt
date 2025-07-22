@@ -59,7 +59,7 @@ class LastFmAuthenticationService {
   /**
    * Constructs the URL that the user will be redirected to in order to grant access.
    *
-   * Format: http://www.last.fm/api/auth/?api_key=xxx&cb=<redirectUri>
+   * Format: https://www.last.fm/api/auth/?api_key=xxx&cb=<redirectUri>
    */
   fun getAuthorizationUrl(): String {
     logger.debug("getAuthorizationUrl() called")
