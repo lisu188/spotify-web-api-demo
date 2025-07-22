@@ -28,6 +28,7 @@ class LastFmAuthenticationService {
 
   fun setSession(login: String, sessionKey: String) {
     sessionCache[login] = Pair(sessionKey, System.currentTimeMillis())
+    logger.info("Stored session for {}", login)
   }
 
   internal fun isTokenExpired(timestamp: Long): Boolean {
@@ -108,6 +109,7 @@ class LastFmAuthenticationService {
       val key = session?.get("key") as? String
       if (!name.isNullOrEmpty() && !key.isNullOrEmpty()) {
         setSession(name, key)
+        logger.info("Retrieved session for {}", name)
       }
       body
     } catch (ex: Exception) {

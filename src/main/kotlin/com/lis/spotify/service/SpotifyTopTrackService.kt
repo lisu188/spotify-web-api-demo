@@ -41,23 +41,29 @@ class SpotifyTopTrackService(var spotifyRestService: SpotifyRestService) {
   }
 
   fun getTopTracksLongTerm(clientId: String): List<Track> {
+    logger.info("Fetching long-term top tracks for {}", clientId)
     logger.debug("getTopTracksLongTerm {}", clientId)
     val items = getTopTracks(LONG_TERM, clientId).items
     logger.debug("getTopTracksLongTerm {} -> {} items", clientId, items.size)
+    logger.info("Fetched {} long-term tracks for {}", items.size, clientId)
     return items
   }
 
   fun getTopTracksMidTerm(clientId: String): List<Track> {
+    logger.info("Fetching mid-term top tracks for {}", clientId)
     logger.debug("getTopTracksMidTerm {}", clientId)
     val items = getTopTracks(MID_TERM, clientId).items
     logger.debug("getTopTracksMidTerm {} -> {} items", clientId, items.size)
+    logger.info("Fetched {} mid-term tracks for {}", items.size, clientId)
     return items
   }
 
   fun getTopTracksShortTerm(clientId: String): List<Track> {
+    logger.info("Fetching short-term top tracks for {}", clientId)
     logger.debug("getTopTracksShortTerm {}", clientId)
     val items = getTopTracks(SHORT_TERM, clientId).items
     logger.debug("getTopTracksShortTerm {} -> {} items", clientId, items.size)
+    logger.info("Fetched {} short-term tracks for {}", items.size, clientId)
     return items
   }
 }
