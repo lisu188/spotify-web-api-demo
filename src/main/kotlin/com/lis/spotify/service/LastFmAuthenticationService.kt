@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service
 import org.springframework.util.LinkedMultiValueMap
 import org.springframework.util.MultiValueMap
 import org.springframework.web.client.RestTemplate
+import org.springframework.web.util.UriComponentsBuilder
 
 /**
  * LastFmAuthenticationService handles building the Last.fm authorization URL and exchanging an
@@ -62,7 +63,12 @@ class LastFmAuthenticationService {
    */
   fun getAuthorizationUrl(): String {
     logger.debug("getAuthorizationUrl() called")
-    return "${LastFm.AUTHORIZE_URL}?api_key=${LastFm.API_KEY}&cb=${LastFm.CALLBACK_URL}"
+    return UriComponentsBuilder.fromHttpUrl(LastFm.AUTHORIZE_URL)
+      .queryParam("api_key", LastFm.API_KEY)
+      .queryParam("cb", "{cb}")
+      .encode()
+      .buildAndExpand(LastFm.CALLBACK_URL)
+      .toUriString()
   }
 
   /**
