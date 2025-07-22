@@ -36,7 +36,8 @@ dependencies {
   testImplementation("io.mockk:mockk:1.14.3")
   testImplementation("org.junit.jupiter:junit-jupiter-api:5.12.2")
   testImplementation("org.testcontainers:junit-jupiter:1.19.7")
-  testImplementation("com.github.tomakehurst:wiremock-jre8:2.35.1")
+  testImplementation("com.github.tomakehurst:wiremock-standalone:3.0.1")
+  testImplementation("javax.servlet:javax.servlet-api:4.0.1")
   testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.12.2")
 }
 

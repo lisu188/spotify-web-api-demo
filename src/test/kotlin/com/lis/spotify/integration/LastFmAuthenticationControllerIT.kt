@@ -1,11 +1,13 @@
 package com.lis.spotify.integration
 
+import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock.configureFor
 import com.github.tomakehurst.wiremock.client.WireMock.okJson
 import com.github.tomakehurst.wiremock.client.WireMock.post
 import com.github.tomakehurst.wiremock.client.WireMock.reset as wireMockReset
 import com.github.tomakehurst.wiremock.client.WireMock.stubFor
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertAll
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -13,25 +15,22 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.http.client.ClientHttpRequestFactorySettings
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT
 import org.springframework.boot.test.web.client.TestRestTemplate
 import org.springframework.http.HttpStatus
+import org.springframework.test.annotation.DirtiesContext
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
-import org.testcontainers.containers.GenericContainer
-import org.testcontainers.junit.jupiter.Testcontainers
-import org.testcontainers.utility.DockerImageName
 
-@Testcontainers
 @SpringBootTest(webEnvironment = RANDOM_PORT)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class LastFmAuthenticationControllerIT @Autowired constructor(private val rest: TestRestTemplate) {
   companion object {
-    val wm =
-      GenericContainer(DockerImageName.parse("wiremock/wiremock:3.5.2-alpine"))
-        .withExposedPorts(8080)
+    val wm = WireMockServer(WireMockConfiguration.options().dynamicPort())
     val baseUrl: String
-      get() = "http://localhost:${wm.getMappedPort(8080)}"
+      get() = "http://localhost:${wm.port()}"
 
     @JvmStatic
     @DynamicPropertySource
@@ -42,7 +41,7 @@ class LastFmAuthenticationControllerIT @Autowired constructor(private val rest: 
       System.setProperty("LASTFM_API_KEY", "key")
       System.setProperty("LASTFM_API_SECRET", "secret")
       wm.start()
-      configureFor("localhost", wm.getMappedPort(8080))
+      configureFor("localhost", wm.port())
       val base = baseUrl
       System.setProperty("LASTFM_API_URL", "$base/2.0/")
       System.setProperty("LASTFM_AUTHORIZE_URL", "$base/auth")
@@ -64,7 +63,11 @@ class LastFmAuthenticationControllerIT @Autowired constructor(private val rest: 
 
   @Test
   fun authenticateUserRedirects() {
-    val response = rest.getForEntity("/auth/lastfm", String::class.java)
+    val noRedirect =
+      rest.withRequestFactorySettings {
+        it.withRedirects(ClientHttpRequestFactorySettings.Redirects.DONT_FOLLOW)
+      }
+    val response = noRedirect.getForEntity("/auth/lastfm", String::class.java)
     assertAll(
       { assertEquals(HttpStatus.FOUND, response.statusCode) },
       { assertTrue(response.headers.location!!.toString().startsWith(baseUrl)) },
