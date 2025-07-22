@@ -9,6 +9,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.springframework.boot.web.client.RestTemplateBuilder
@@ -35,6 +36,24 @@ class SpotifyAuthenticationControllerTest {
       RuntimeException()
     val id = controller.getCurrentUserId(token)
     assertNull(id)
+  }
+
+  @Test
+  fun getCurrentUserIdReturnsId() {
+    every { builder.build() } returns restTemplate
+    val token = AuthToken("a", "b", "c", 0, null, "cid")
+    every { spotifyService.getHeaders(token) } returns HttpHeaders()
+    every {
+      restTemplate.exchange<User>(
+        any<String>(),
+        HttpMethod.GET,
+        any<HttpEntity<*>>(),
+        any<ParameterizedTypeReference<User>>(),
+      )
+    } returns ResponseEntity(User("uid"), HttpStatus.OK)
+
+    val id = controller.getCurrentUserId(token)
+    assertEquals("uid", id)
   }
 
   @Test

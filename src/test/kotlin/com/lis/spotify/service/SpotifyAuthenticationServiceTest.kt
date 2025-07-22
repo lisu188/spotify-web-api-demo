@@ -45,4 +45,18 @@ class SpotifyAuthenticationServiceTest {
     service.refreshToken("cid")
     assertEquals(newToken, service.getAuthToken("cid"))
   }
+
+  @Test
+  fun getHeadersMissingTokenReturnsEmpty() {
+    val headers = service.getHeaders("unknown")
+    assertTrue(headers.isEmpty())
+  }
+
+  @Test
+  fun refreshTokenWithoutRefreshTokenDoesNothing() {
+    val token = AuthToken("a", "b", "c", 0, null, "cid")
+    service.setAuthToken(token)
+    service.refreshToken("cid")
+    assertEquals(token, service.getAuthToken("cid"))
+  }
 }
