@@ -81,7 +81,8 @@ class SpotifyAuthenticationController(
       if (clientId != null) {
         authToken.clientId = clientId
         spotifyAuthenticationService.setAuthToken(authToken)
-        response.addCookie(Cookie("clientId", clientId))
+        val cookie = Cookie("clientId", clientId).apply { path = "/" }
+        response.addCookie(cookie)
         logger.info("Successfully set auth token for user: {}", clientId)
       } else {
         logger.warn("Could not retrieve client ID. Auth token not stored.")
