@@ -88,21 +88,11 @@ $('#lastFmId').on('input', function (event) {
         verifyRequest.abort()
     }
     disable();
-    verifyRequest = $.ajax({
-        type: 'post',
-        url: URL + '/verifyLastFmId/' + $('#lastFmId').val(),
-        success: function (data) {
-            if ($.parseJSON(data)) {
-                enable();
-            } else {
-                disable();
-            }
-        },
-        error: function (request) {
-            if (request.status === 401) {
-                window.location = request.getResponseHeader('Location');
-            }
-        },
-        dataType: 'json'
-    });
+    verifyRequest = $.post(URL + "/verifyLastFmId/" + $('#lastFmId').val(), function (data, status) {
+        if ($.parseJSON(data)) {
+            enable()
+        } else {
+            disable()
+        }
+    }, 'json')
 });
