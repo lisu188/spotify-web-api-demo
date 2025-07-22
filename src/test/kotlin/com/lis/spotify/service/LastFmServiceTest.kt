@@ -35,7 +35,7 @@ class LastFmServiceTest {
           mapOf("@attr" to mapOf("totalPages" to "1"), "track" to emptyList<String>())
       )
     every { rest.getForObject(any<java.net.URI>(), Map::class.java) } returnsMany listOf(map1, map2)
-    val songs = service.yearlyChartlist("cid", 2020, "login").toList()
+    val songs = service.yearlyChartlist("cid", 2020, "login")
     assertEquals(listOf(Song("A", "T")), songs)
   }
 
@@ -70,8 +70,32 @@ class LastFmServiceTest {
       )
     every { rest.getForObject(any<java.net.URI>(), Map::class.java) } returnsMany
       listOf(map1, map2, map3)
-    val songs = service.yearlyChartlist("cid", 2020, "login").toList()
+    val songs = service.yearlyChartlist("cid", 2020, "login")
     assertEquals(listOf(Song("A", "T1"), Song("B", "T2")), songs)
+  }
+
+  @Test
+  fun limitStopsPaging() {
+    val rest = mockk<RestTemplate>()
+    val auth = mockk<LastFmAuthenticationService>(relaxed = true)
+    val service = LastFmService(auth)
+    val field = LastFmService::class.java.getDeclaredField("rest")
+    field.isAccessible = true
+    field.set(service, rest)
+    val map1 =
+      mapOf(
+        "recenttracks" to
+          mapOf(
+            "@attr" to mapOf("totalPages" to "2"),
+            "track" to listOf(mapOf("artist" to mapOf("#text" to "A"), "name" to "T1")),
+          )
+      )
+    every { rest.getForObject(any<java.net.URI>(), Map::class.java) } returns map1
+
+    val songs = service.yearlyChartlist("cid", 2020, "login", 1)
+
+    assertEquals(listOf(Song("A", "T1")), songs)
+    io.mockk.verify(exactly = 1) { rest.getForObject(any<java.net.URI>(), Map::class.java) }
   }
 
   @Test
@@ -140,14 +164,14 @@ class LastFmServiceTest {
           mapOf("@attr" to mapOf("totalPages" to "1"), "track" to emptyList<String>())
       )
 
-    service.yearlyChartlist("c", 2020, "login").toList()
+    service.yearlyChartlist("c", 2020, "login")
     assert(uriSlot.captured.query!!.contains("sk=sess"))
   }
 
   @Test
   fun globalChartlistDelegates() {
     val service = spyk(LastFmService(mockk(relaxed = true)))
-    every { service.yearlyChartlist("", 1970, "login") } returns sequenceOf(Song("a", "b"))
+    every { service.yearlyChartlist("", 1970, "login") } returns listOf(Song("a", "b"))
     val result = service.globalChartlist("login")
     assertEquals(listOf(Song("a", "b")), result)
   }
