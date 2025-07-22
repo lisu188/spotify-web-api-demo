@@ -30,6 +30,7 @@ class LastFmAuthenticationService {
    * Format: http://www.last.fm/api/auth/?api_key=xxx&cb=<redirectUri>
    */
   fun getAuthorizationUrl(): String {
+    logger.debug("getAuthorizationUrl() called")
     return "${LastFm.AUTHORIZE_URL}?api_key=${LastFm.API_KEY}&cb=${LastFm.CALLBACK_URL}"
   }
 
@@ -47,6 +48,7 @@ class LastFmAuthenticationService {
    * @return A map containing session data if successful; otherwise, null.
    */
   fun getSession(token: String): Map<String, Any>? {
+    logger.debug("getSession called with token {}", token)
     val method = "auth.getSession"
     // Create signature string:
     // "api_keyYOUR_API_KEYmethodauth.getSessiontokenYOUR_TOKENYOUR_API_SECRET"

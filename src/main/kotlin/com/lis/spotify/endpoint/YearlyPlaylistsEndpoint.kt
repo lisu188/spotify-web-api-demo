@@ -17,9 +17,12 @@ import com.lis.spotify.service.SpotifyTopPlaylistsService
 import jakarta.websocket.*
 import jakarta.websocket.server.PathParam
 import jakarta.websocket.server.ServerEndpoint
+import org.slf4j.LoggerFactory
 
 @ServerEndpoint("/socket/{login}", configurator = WebsocketSpringConfigurator::class)
 class YearlyPlaylistsEndpoint(var spotifyTopPlaylistsService: SpotifyTopPlaylistsService) {
+
+  private val logger = LoggerFactory.getLogger(YearlyPlaylistsEndpoint::class.java)
 
   private lateinit var lastFmLogin: String
   private lateinit var clientId: String
@@ -27,6 +30,7 @@ class YearlyPlaylistsEndpoint(var spotifyTopPlaylistsService: SpotifyTopPlaylist
 
   @OnOpen
   fun onOpen(session: Session, config: EndpointConfig, @PathParam("login") lastFmLogin: String) {
+    logger.debug("onOpen {}", lastFmLogin)
     this.clientId = config.userProperties["clientId"] as String
     this.lastFmLogin = lastFmLogin
   }
@@ -37,6 +41,7 @@ class YearlyPlaylistsEndpoint(var spotifyTopPlaylistsService: SpotifyTopPlaylist
 
   @OnMessage
   fun onMessage(session: Session, message: String) {
+    logger.debug("onMessage {}", message)
     spotifyTopPlaylistsService.updateYearlyPlaylists(clientId, { updateProgress(it) }, lastFmLogin)
   }
 

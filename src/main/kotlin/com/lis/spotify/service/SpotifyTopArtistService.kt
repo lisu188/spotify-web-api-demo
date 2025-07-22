@@ -14,6 +14,7 @@ package com.lis.spotify.service
 
 import com.lis.spotify.domain.Artist
 import com.lis.spotify.domain.Artists
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
 @Service
@@ -24,9 +25,11 @@ class SpotifyTopArtistService(var spotifyRestService: SpotifyRestService) {
     private val SHORT_TERM = "short_term"
     private val MID_TERM = "medium_term"
     private val LONG_TERM = "long_term"
+    val logger = LoggerFactory.getLogger(SpotifyTopArtistService::class.java)
   }
 
   private fun getTopArtists(term: String, clientId: String): Artists {
+    logger.debug("getTopArtists {} {}", term, clientId)
     return spotifyRestService.doGet<Artists>(
       URL,
       params = mapOf("limit" to 10, "time_range" to term),
@@ -35,14 +38,17 @@ class SpotifyTopArtistService(var spotifyRestService: SpotifyRestService) {
   }
 
   fun getTopArtistsLongTerm(clientId: String): List<Artist> {
+    logger.debug("getTopArtistsLongTerm {}", clientId)
     return getTopArtists(LONG_TERM, clientId).items
   }
 
   fun getTopArtistsMidTerm(clientId: String): List<Artist> {
+    logger.debug("getTopArtistsMidTerm {}", clientId)
     return getTopArtists(MID_TERM, clientId).items
   }
 
   fun getTopArtistsShortTerm(clientId: String): List<Artist> {
+    logger.debug("getTopArtistsShortTerm {}", clientId)
     return getTopArtists(SHORT_TERM, clientId).items
   }
 }

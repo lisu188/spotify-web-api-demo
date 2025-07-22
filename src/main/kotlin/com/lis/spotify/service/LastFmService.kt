@@ -32,6 +32,7 @@ class LastFmService {
   }
 
   fun yearlyChartlist(spotifyClientId: String, year: Int, lastFmLogin: String): List<Song> {
+    log.debug("yearlyChartlist {} {} {}", spotifyClientId, year, lastFmLogin)
     val from = LocalDate.of(year, 1, 1).atStartOfDay().toEpochSecond(ZoneOffset.UTC)
     val to = LocalDate.of(year, 12, 31).atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC)
     val songs = mutableListOf<Song>()
@@ -53,6 +54,8 @@ class LastFmService {
     return songs
   }
 
-  fun globalChartlist(lastFmLogin: String, page: Int = 1): List<Song> =
-    yearlyChartlist("", 1970, lastFmLogin) // reuse; no date filter needed
+  fun globalChartlist(lastFmLogin: String, page: Int = 1): List<Song> {
+    log.debug("globalChartlist {} {}", lastFmLogin, page)
+    return yearlyChartlist("", 1970, lastFmLogin) // reuse; no date filter needed
+  }
 }
