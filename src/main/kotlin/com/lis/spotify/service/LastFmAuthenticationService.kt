@@ -23,16 +23,34 @@ import org.springframework.web.client.RestTemplate
 class LastFmAuthenticationService {
 
   private val restTemplate = RestTemplate()
-  val sessionCache: MutableMap<String, String> = mutableMapOf()
+  val sessionCache: MutableMap<String, Pair<String, Long>> = mutableMapOf()
 
   fun setSession(login: String, sessionKey: String) {
-    sessionCache[login] = sessionKey
+    sessionCache[login] = Pair(sessionKey, System.currentTimeMillis())
   }
 
-  fun getSessionKey(login: String): String? = sessionCache[login]
+  internal fun isTokenExpired(timestamp: Long): Boolean {
+    return System.currentTimeMillis() - timestamp > EXPIRATION_MS
+  }
+
+  private fun removeExpiredSessions() {
+    val it = sessionCache.iterator()
+    while (it.hasNext()) {
+      val entry = it.next()
+      if (isTokenExpired(entry.value.second)) {
+        it.remove()
+      }
+    }
+  }
+
+  fun getSessionKey(login: String): String? {
+    removeExpiredSessions()
+    return sessionCache[login]?.first
+  }
 
   fun isAuthorized(sessionKey: String): Boolean {
-    return sessionKey.isNotEmpty() && sessionCache.values.any { it == sessionKey }
+    removeExpiredSessions()
+    return sessionKey.isNotEmpty() && sessionCache.values.any { it.first == sessionKey }
   }
 
   /**
@@ -112,5 +130,7 @@ class LastFmAuthenticationService {
 
   companion object {
     private val logger = LoggerFactory.getLogger(LastFmAuthenticationService::class.java)
+    // Session entries older than five minutes are considered expired
+    private const val EXPIRATION_MS = 5 * 60 * 1000L
   }
 }
