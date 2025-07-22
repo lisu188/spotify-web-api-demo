@@ -2,6 +2,8 @@ package com.lis.spotify.service
 
 import com.lis.spotify.AppEnvironment.LastFm
 import java.math.BigInteger
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpEntity
@@ -11,6 +13,7 @@ import org.springframework.stereotype.Service
 import org.springframework.util.LinkedMultiValueMap
 import org.springframework.util.MultiValueMap
 import org.springframework.web.client.RestTemplate
+import org.springframework.web.util.UriComponentsBuilder
 
 /**
  * LastFmAuthenticationService handles building the Last.fm authorization URL and exchanging an
@@ -60,7 +63,11 @@ class LastFmAuthenticationService {
    */
   fun getAuthorizationUrl(): String {
     logger.debug("getAuthorizationUrl() called")
-    return "${LastFm.AUTHORIZE_URL}?api_key=${LastFm.API_KEY}&cb=${LastFm.CALLBACK_URL}"
+    return UriComponentsBuilder.fromHttpUrl(LastFm.AUTHORIZE_URL)
+      .queryParam("api_key", LastFm.API_KEY)
+      .queryParam("cb", URLEncoder.encode(LastFm.CALLBACK_URL, StandardCharsets.UTF_8))
+      .build(true)
+      .toUriString()
   }
 
   /**

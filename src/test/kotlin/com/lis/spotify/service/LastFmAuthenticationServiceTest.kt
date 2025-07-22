@@ -1,7 +1,10 @@
 package com.lis.spotify.service
 
+import com.lis.spotify.AppEnvironment.LastFm
 import io.mockk.every
 import io.mockk.mockk
+import java.net.URI
+import java.nio.charset.StandardCharsets
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpEntity
@@ -9,6 +12,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.util.MultiValueMap
 import org.springframework.web.client.RestTemplate
+import org.springframework.web.util.UriComponentsBuilder
 
 class LastFmAuthenticationServiceTest {
   @Test
@@ -16,6 +20,18 @@ class LastFmAuthenticationServiceTest {
     val service = LastFmAuthenticationService()
     val url = service.getAuthorizationUrl()
     assert(url.contains("api_key"))
+  }
+
+  @Test
+  fun callbackParameterIsEncoded() {
+    val service = LastFmAuthenticationService()
+    val url = service.getAuthorizationUrl()
+    val uri = URI(url)
+    val params = UriComponentsBuilder.fromUri(uri).build().queryParams
+    val cb = params.getFirst("cb")
+    val decoded = java.net.URLDecoder.decode(cb, StandardCharsets.UTF_8)
+    assertEquals(LastFm.CALLBACK_URL, decoded)
+    assert(cb != LastFm.CALLBACK_URL)
   }
 
   @Test
