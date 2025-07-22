@@ -10,8 +10,11 @@ import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
 import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.http.HttpEntity
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
+import org.springframework.http.MediaType
 import org.springframework.stereotype.Controller
+import org.springframework.util.LinkedMultiValueMap
 import org.springframework.web.bind.annotation.CookieValue
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.client.exchange
@@ -57,20 +60,21 @@ class SpotifyAuthenticationController(
   @GetMapping(Spotify.CALLBACK_PATH)
   fun callback(request: HttpServletRequest, code: String, response: HttpServletResponse): String {
     logger.info("Received callback from Spotify with code: {}", code)
-    val tokenUrl =
-      UriComponentsBuilder.fromHttpUrl(Spotify.TOKEN_URL)
-        .queryParam("grant_type", "authorization_code")
-        .queryParam("code", code)
-        .queryParam("redirect_uri", callbackUrl(request))
-        .build()
-        .toUri()
+    val headers = HttpHeaders().apply { contentType = MediaType.APPLICATION_FORM_URLENCODED }
+    val body =
+      LinkedMultiValueMap<String, String>().apply {
+        add("grant_type", "authorization_code")
+        add("code", code)
+        add("redirect_uri", callbackUrl(request))
+      }
+    val entity = HttpEntity(body, headers)
 
     return try {
       val authToken =
         restTemplateBuilder
           .basicAuthentication(Spotify.CLIENT_ID, Spotify.CLIENT_SECRET)
           .build()
-          .postForObject<AuthToken>(tokenUrl)
+          .postForObject<AuthToken>(Spotify.TOKEN_URL, entity)
       logger.debug("Received AuthToken from Spotify (access token redacted).")
       val clientId = getCurrentUserId(authToken)
       if (clientId != null) {
