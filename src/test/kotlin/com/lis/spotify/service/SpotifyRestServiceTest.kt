@@ -84,6 +84,30 @@ class SpotifyRestServiceTest {
   }
 
   @Test
+  fun postReturnsUnitWhenBodyIsNull() {
+    val restTemplate = mockk<RestTemplate>()
+    val builder = mockk<RestTemplateBuilder>()
+    val auth = mockk<SpotifyAuthenticationService>()
+    every { builder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java) } returns
+      builder
+    every { builder.build() } returns restTemplate
+    every { auth.getHeaders(any<String>()) } returns HttpHeaders()
+    every {
+      restTemplate.exchange<Unit>(
+        any(),
+        HttpMethod.POST,
+        any(),
+        any<ParameterizedTypeReference<Unit>>(),
+        any<Map<String, *>>(),
+      )
+    } returns ResponseEntity(null, HttpStatus.NO_CONTENT)
+
+    val service = SpotifyRestService(builder, auth)
+    val result = service.doPost<Unit>("http://test", clientId = "cid")
+    assertEquals(Unit, result)
+  }
+
+  @Test
   fun retriesOnTooManyRequests() {
     val restTemplate = mockk<RestTemplate>()
     val builder = mockk<RestTemplateBuilder>()
