@@ -71,6 +71,7 @@ class LastFmAuthenticationService {
 
     return try {
       val response = restTemplate.postForEntity(LastFm.API_URL, request, Map::class.java)
+      logger.debug("getSession received status {}", response.statusCode)
       response.body as? Map<String, Any>
     } catch (ex: Exception) {
       logger.error("Error getting session for token $token", ex)

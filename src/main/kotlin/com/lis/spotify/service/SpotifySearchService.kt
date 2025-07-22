@@ -28,11 +28,14 @@ class SpotifySearchService(val spotifyRestService: SpotifyRestService) {
 
   fun doSearch(song: Song, clientId: String): SearchResult? {
     logger.debug("doSearch single {} {}", song, clientId)
-    return spotifyRestService.doGet(
-      SEARCH_URL,
-      params = mapOf("q" to "track:${song.title} artist:${song.artist}", "type" to "track"),
-      clientId = clientId,
-    )
+    val result =
+      spotifyRestService.doGet<SearchResult>(
+        SEARCH_URL,
+        params = mapOf("q" to "track:${song.title} artist:${song.artist}", "type" to "track"),
+        clientId = clientId,
+      )
+    logger.debug("doSearch single result {}", result != null)
+    return result
   }
 
   fun doSearch(values: List<Song>, clientId: String, progress: () -> Unit = {}): List<String> {
@@ -53,6 +56,7 @@ class SpotifySearchService(val spotifyRestService: SpotifyRestService) {
           .map { it.id }
           .distinct()
     }
+    logger.debug("doSearch batch result {} items", retVal.size)
     logger.info("doSearch: {} {} took: {}", clientId, values.size, time)
     return retVal
   }

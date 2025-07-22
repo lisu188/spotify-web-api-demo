@@ -67,11 +67,14 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
   fun setAuthToken(token: AuthToken) {
     logger.info("Storing AuthToken in cache for clientId={}", token.clientId)
     tokenCache[token.clientId!!] = token
+    logger.debug("AuthToken cached for {}", token.clientId)
   }
 
   fun getAuthToken(clientId: String): AuthToken? {
     logger.debug("Attempting to retrieve AuthToken from cache for clientId={}", clientId)
-    return tokenCache[clientId]
+    val token = tokenCache[clientId]
+    logger.debug("getAuthToken {} found={}", clientId, token != null)
+    return token
   }
 
   fun refreshToken(clientId: String) {
@@ -104,6 +107,7 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
 
       logger.info("Successfully refreshed token (access token redacted) for clientId={}", clientId)
       setAuthToken(authToken)
+      logger.debug("refreshToken {} new token stored", clientId)
     } catch (ex: Exception) {
       logger.error("Error while refreshing token for clientId={}", clientId, ex)
     }
@@ -111,7 +115,9 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
 
   fun isAuthorized(clientId: String): Boolean {
     logger.debug("Checking if clientId={} is authorized", clientId)
-    return clientId.isNotEmpty() && getAuthToken(clientId) != null
+    val authorized = clientId.isNotEmpty() && getAuthToken(clientId) != null
+    logger.debug("isAuthorized {} -> {}", clientId, authorized)
+    return authorized
   }
 
   companion object {

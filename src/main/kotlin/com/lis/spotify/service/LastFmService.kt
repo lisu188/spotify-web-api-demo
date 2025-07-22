@@ -51,6 +51,7 @@ class LastFmService {
       }
     } while (page <= totalPages)
     log.info("yearlyChartlist {} {} => {}", lastFmLogin, year, songs.size)
+    log.debug("yearlyChartlist {} {} fetched {} pages", lastFmLogin, year, totalPages)
     return songs
   }
 
