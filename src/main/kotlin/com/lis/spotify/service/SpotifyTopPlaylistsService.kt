@@ -13,6 +13,7 @@
 package com.lis.spotify.service
 
 import java.util.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
@@ -104,7 +105,7 @@ class SpotifyTopPlaylistsService(
       val chartlists =
         years
           .map { year ->
-            async {
+            async(Dispatchers.IO) {
               year to lastFmService.yearlyChartlist(clientId, year, lastFmLogin, YEARLY_LIMIT)
             }
           }
@@ -113,7 +114,7 @@ class SpotifyTopPlaylistsService(
 
       years
         .map { year: Int ->
-          async {
+          async(Dispatchers.IO) {
             progressUpdater(Pair(year, 0))
             val chartlist = chartlists[year].orEmpty()
 
