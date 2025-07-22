@@ -22,6 +22,8 @@ import org.springframework.stereotype.Service
 @Service
 class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
 
+  private fun isUri(id: String) = id.startsWith("spotify:track:")
+
   fun getCurrentUserPlaylists(clientId: String): MutableList<Playlist> {
     logger.debug("getCurrentUserPlaylists {}", clientId)
     logger.info("getCurrentUserPlaylists: {}", clientId)
@@ -61,13 +63,19 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
   }
 
   fun deleteTracksFromPlaylist(playlistId: String, tracks: List<String>, clientId: String) {
+    require(tracks.isNotEmpty()) { "Track list must not be empty" }
+    tracks.forEach { require(!it.startsWith("spotify:") || isUri(it)) { "Invalid track URI: $it" } }
+
     logger.debug("deleteTracksFromPlaylist {} {} {}", playlistId, clientId, tracks.size)
     logger.info("deleteTracksFromPlaylist: {} {} {}", playlistId, clientId, tracks)
 
-    tracks.chunked(100).map {
+    tracks.chunked(100).map { chunk ->
+      val payload =
+        mapOf("tracks" to chunk.map { mapOf("uri" to if (isUri(it)) it else "spotify:track:$it") })
+      logger.debug("delete payload {}", payload)
       spotifyRestService.doDelete<Any>(
         PLAYLIST_TRACKS_URL,
-        body = mapOf("tracks" to it.map { mapOf("uri" to "spotify:track:$it") }),
+        body = payload,
         params = mapOf("id" to playlistId),
         clientId = clientId,
       )

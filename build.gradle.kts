@@ -30,6 +30,7 @@ dependencies {
   implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
   implementation("org.jsoup:jsoup:1.21.1")
   implementation("com.google.guava:guava:33.4.8-jre")
+  implementation("org.apache.httpcomponents.client5:httpclient5")
 
   testImplementation("org.springframework.boot:spring-boot-starter-test")
   testImplementation("org.jetbrains.kotlin:kotlin-test")

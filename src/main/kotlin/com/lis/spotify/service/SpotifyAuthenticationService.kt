@@ -50,6 +50,7 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
     return HttpHeaders().apply {
       this[HttpHeaders.AUTHORIZATION] = "Bearer ${token.access_token}"
       this[HttpHeaders.ACCEPT] = "application/json"
+      this[HttpHeaders.CONTENT_TYPE] = MediaType.APPLICATION_JSON_VALUE
     }
   }
 
