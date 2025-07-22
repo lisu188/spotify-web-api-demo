@@ -17,6 +17,8 @@ import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpMethod
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory
+import org.springframework.retry.backoff.Sleeper
+import org.springframework.retry.backoff.ThreadWaitSleeper
 import org.springframework.retry.support.RetryTemplate
 import org.springframework.stereotype.Service
 import org.springframework.web.client.HttpClientErrorException
@@ -27,6 +29,7 @@ import org.springframework.web.client.exchange
 class SpotifyRestService(
   restTemplateBuilder: RestTemplateBuilder,
   val spotifyAuthenticationService: SpotifyAuthenticationService,
+  private val sleeper: Sleeper = ThreadWaitSleeper(),
 ) {
 
   val restTemplate: RestTemplate =
@@ -35,7 +38,7 @@ class SpotifyRestService(
     RetryTemplate.builder()
       .maxAttempts(3)
       .retryOn(HttpClientErrorException.TooManyRequests::class.java)
-      .exponentialBackoff(1000L, 2.0, 10000L)
+      .customBackoff(RetryAfterHeaderBackOffPolicy(sleeper))
       .build()
   @PublishedApi internal val logger = LoggerFactory.getLogger(SpotifyRestService::class.java)
 
