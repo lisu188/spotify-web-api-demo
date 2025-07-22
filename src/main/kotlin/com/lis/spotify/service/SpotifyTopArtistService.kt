@@ -30,25 +30,34 @@ class SpotifyTopArtistService(var spotifyRestService: SpotifyRestService) {
 
   private fun getTopArtists(term: String, clientId: String): Artists {
     logger.debug("getTopArtists {} {}", term, clientId)
-    return spotifyRestService.doGet<Artists>(
-      URL,
-      params = mapOf("limit" to 10, "time_range" to term),
-      clientId = clientId,
-    )
+    val artists =
+      spotifyRestService.doGet<Artists>(
+        URL,
+        params = mapOf("limit" to 10, "time_range" to term),
+        clientId = clientId,
+      )
+    logger.debug("getTopArtists {} {} -> {} items", term, clientId, artists.items.size)
+    return artists
   }
 
   fun getTopArtistsLongTerm(clientId: String): List<Artist> {
     logger.debug("getTopArtistsLongTerm {}", clientId)
-    return getTopArtists(LONG_TERM, clientId).items
+    val items = getTopArtists(LONG_TERM, clientId).items
+    logger.debug("getTopArtistsLongTerm {} -> {} items", clientId, items.size)
+    return items
   }
 
   fun getTopArtistsMidTerm(clientId: String): List<Artist> {
     logger.debug("getTopArtistsMidTerm {}", clientId)
-    return getTopArtists(MID_TERM, clientId).items
+    val items = getTopArtists(MID_TERM, clientId).items
+    logger.debug("getTopArtistsMidTerm {} -> {} items", clientId, items.size)
+    return items
   }
 
   fun getTopArtistsShortTerm(clientId: String): List<Artist> {
     logger.debug("getTopArtistsShortTerm {}", clientId)
-    return getTopArtists(SHORT_TERM, clientId).items
+    val items = getTopArtists(SHORT_TERM, clientId).items
+    logger.debug("getTopArtistsShortTerm {} -> {} items", clientId, items.size)
+    return items
   }
 }

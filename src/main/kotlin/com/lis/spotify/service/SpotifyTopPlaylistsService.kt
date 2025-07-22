@@ -72,7 +72,9 @@ class SpotifyTopPlaylistsService(
 
       spotifyPlaylistService.modifyPlaylist(mixedTermId, trackList1, clientId)
 
-      listOf(shortTermId, midTermId, longTermId, mixedTermId)
+      val result = listOf(shortTermId, midTermId, longTermId, mixedTermId)
+      logger.debug("updateTopPlaylists {} -> {}", clientId, result)
+      result
     }
   }
 
@@ -97,6 +99,7 @@ class SpotifyTopPlaylistsService(
         spotifyPlaylistService.modifyPlaylist(id, trackList, clientId)
       }
     }
+    logger.debug("updateYearlyPlaylists {} completed", clientId)
   }
 
   private fun getYear() = Calendar.getInstance().get(Calendar.YEAR)

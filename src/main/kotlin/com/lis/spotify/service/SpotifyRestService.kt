@@ -40,7 +40,9 @@ class SpotifyRestService(
   ): U {
     return doRequest {
       logger.debug("doRequest: {} {} {} {}", url, httpMethod, params, body)
-      doExchange<U>(url, httpMethod, body, clientId, params)
+      val result = doExchange<U>(url, httpMethod, body, clientId, params)
+      logger.debug("doRequest result for {} {} -> {}", httpMethod, url, result)
+      result
     }
   }
 
@@ -62,14 +64,15 @@ class SpotifyRestService(
     clientId: String,
     params: Map<String, Any>,
   ): U {
-    return restTemplate
-      .exchange<U>(
+    val response =
+      restTemplate.exchange<U>(
         url,
         httpMethod,
         HttpEntity(body, spotifyAuthenticationService.getHeaders(clientId)),
         params,
       )
-      .body ?: throw Exception() // TODO:
+    logger.debug("doExchange response from {} {} -> {}", httpMethod, url, response.statusCode)
+    return response.body ?: throw Exception() // TODO:
   }
 
   final inline fun <reified U : Any> doGet(

@@ -34,7 +34,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
 
       url = playlists.next.orEmpty()
     } while (!playlists.next.isNullOrEmpty())
-
+    logger.debug("getCurrentUserPlaylists {} -> {} playlists", clientId, playlistList.size)
     return playlistList
   }
 
@@ -51,6 +51,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
 
       url = tracks.next.orEmpty()
     } while (!tracks.next.isNullOrEmpty())
+    logger.debug("getPlaylistTracks {} {} -> {} tracks", id, clientId, trackList.size)
     return trackList
   }
 
@@ -71,6 +72,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
         clientId = clientId,
       )
     }
+    logger.debug("deleteTracksFromPlaylist {} {} -> removed {}", playlistId, clientId, tracks.size)
   }
 
   fun addTracksToPlaylist(playlistId: String, tracks: List<String>, clientId: String) {
@@ -85,6 +87,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
         clientId = clientId,
       )
     }
+    logger.debug("addTracksToPlaylist {} {} -> added {}", playlistId, clientId, tracks.size)
   }
 
   private fun getDiff(old: List<String>, new: List<String>): ArrayList<String> {
@@ -119,7 +122,15 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
       val tracksToAdd = getDiff(new, old)
       addTracksToPlaylist(id, tracksToAdd, clientId)
 
-      return mapOf("added" to tracksToAdd, "removed" to tracksToRemove)
+      val result = mapOf("added" to tracksToAdd, "removed" to tracksToRemove)
+      logger.debug(
+        "modifyPlaylist {} {} -> added {} removed {}",
+        id,
+        clientId,
+        tracksToAdd.size,
+        tracksToRemove.size,
+      )
+      return result
     }
 
     return mapOf("added" to emptyList(), "removed" to emptyList())
