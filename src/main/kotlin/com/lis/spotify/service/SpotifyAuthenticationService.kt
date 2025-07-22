@@ -29,6 +29,7 @@ package com.lis.spotify.service
 
 import com.lis.spotify.AppEnvironment.Spotify
 import com.lis.spotify.domain.AuthToken
+import java.util.concurrent.ConcurrentHashMap
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.boot.web.client.RestTemplateBuilder
@@ -43,7 +44,7 @@ import org.springframework.web.util.UriComponentsBuilder
 @Service
 class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplateBuilder) {
 
-  val tokenCache: MutableMap<String, AuthToken> = mutableMapOf()
+  val tokenCache = ConcurrentHashMap<String, AuthToken>()
 
   fun getHeaders(token: AuthToken): HttpHeaders {
     logger.debug("Creating headers with Bearer token for clientId={}", token.clientId)

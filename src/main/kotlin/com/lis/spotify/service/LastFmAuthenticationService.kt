@@ -3,6 +3,7 @@ package com.lis.spotify.service
 import com.lis.spotify.AppEnvironment.LastFm
 import java.math.BigInteger
 import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
@@ -23,7 +24,7 @@ import org.springframework.web.client.RestTemplate
 class LastFmAuthenticationService {
 
   private val restTemplate = RestTemplate()
-  val sessionCache: MutableMap<String, Pair<String, Long>> = mutableMapOf()
+  val sessionCache = ConcurrentHashMap<String, Pair<String, Long>>()
 
   fun setSession(login: String, sessionKey: String) {
     sessionCache[login] = Pair(sessionKey, System.currentTimeMillis())
