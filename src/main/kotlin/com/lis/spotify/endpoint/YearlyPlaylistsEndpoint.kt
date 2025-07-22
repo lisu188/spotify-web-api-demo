@@ -14,9 +14,9 @@ package com.lis.spotify.endpoint
 
 import com.lis.spotify.config.WebsocketSpringConfigurator
 import com.lis.spotify.service.SpotifyTopPlaylistsService
-import javax.websocket.*
-import javax.websocket.server.PathParam
-import javax.websocket.server.ServerEndpoint
+import jakarta.websocket.*
+import jakarta.websocket.server.PathParam
+import jakarta.websocket.server.ServerEndpoint
 
 @ServerEndpoint("/socket/{login}", configurator = WebsocketSpringConfigurator::class)
 class YearlyPlaylistsEndpoint(var spotifyTopPlaylistsService: SpotifyTopPlaylistsService) {

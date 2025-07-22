@@ -1,8 +1,8 @@
 package com.example.lastfm.controller
 
 import com.lis.spotify.service.LastFmAuthenticationService
-import javax.servlet.http.Cookie
-import javax.servlet.http.HttpServletResponse
+import jakarta.servlet.http.Cookie
+import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestParam

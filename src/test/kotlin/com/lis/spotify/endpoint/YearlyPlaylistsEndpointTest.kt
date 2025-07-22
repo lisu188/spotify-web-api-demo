@@ -4,8 +4,8 @@ import com.lis.spotify.service.SpotifyTopPlaylistsService
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import javax.websocket.EndpointConfig
-import javax.websocket.Session
+import jakarta.websocket.EndpointConfig
+import jakarta.websocket.Session
 import org.junit.jupiter.api.Test
 
 class YearlyPlaylistsEndpointTest {
