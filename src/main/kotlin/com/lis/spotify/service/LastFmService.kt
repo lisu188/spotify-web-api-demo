@@ -1,11 +1,14 @@
 package com.lis.spotify.service
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.lis.spotify.AppEnvironment.LastFm
 import com.lis.spotify.domain.Song
+import java.net.URI
 import java.time.LocalDate
 import java.time.ZoneOffset
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestTemplate
 import org.springframework.web.util.UriComponentsBuilder
 
@@ -14,25 +17,49 @@ class LastFmService {
 
   private val rest = RestTemplate()
   private val log = LoggerFactory.getLogger(LastFmService::class.java)
+  private val mapper = jacksonObjectMapper()
 
-  private fun fetchRecent(user: String, from: Long, to: Long, page: Int): Map<String, Any> {
-    val uri =
+  private fun buildUri(method: String, params: Map<String, Any>): URI {
+    var b =
       UriComponentsBuilder.fromHttpUrl(LastFm.API_URL)
-        .queryParam("method", "user.getrecenttracks")
-        .queryParam("user", user)
-        .queryParam("from", from)
-        .queryParam("to", to)
-        .queryParam("page", page)
-        .queryParam("limit", 200)
+        .queryParam("method", method)
         .queryParam("api_key", LastFm.API_KEY)
         .queryParam("format", "json")
-        .build()
-        .toUri()
-    return rest.getForObject(uri, Map::class.java) as Map<String, Any>
+    params.forEach { (k, v) -> b = b.queryParam(k, v) }
+    return b.build().toUri()
+  }
+
+  private fun fetchRecent(user: String, from: Long, to: Long, page: Int): Map<String, Any> {
+    if (user.isBlank()) throw LastFmException(400, "user is required")
+    require(from <= to) { "from must be <= to" }
+    val uri =
+      buildUri(
+        "user.getRecentTracks",
+        mapOf("user" to user, "from" to from, "to" to to, "page" to page, "limit" to 200),
+      )
+    return try {
+      rest.getForObject(uri, Map::class.java) as Map<String, Any>
+    } catch (ex: HttpClientErrorException) {
+      val err = parseError(ex)
+      log.error("Last.fm error {} {}", err.code, err.message)
+      throw err
+    }
+  }
+
+  private fun parseError(ex: HttpClientErrorException): LastFmException {
+    return try {
+      val body = mapper.readValue(ex.responseBodyAsString, Map::class.java) as Map<*, *>
+      val code = (body["error"] as? Int) ?: ex.statusCode.value()
+      val msg = body["message"] as? String ?: ex.message
+      LastFmException(code, msg ?: "error")
+    } catch (e: Exception) {
+      LastFmException(ex.statusCode.value(), ex.message ?: "error")
+    }
   }
 
   fun yearlyChartlist(spotifyClientId: String, year: Int, lastFmLogin: String): List<Song> {
     log.debug("yearlyChartlist {} {} {}", spotifyClientId, year, lastFmLogin)
+    if (lastFmLogin.isBlank()) throw LastFmException(400, "user is required")
     val from = LocalDate.of(year, 1, 1).atStartOfDay().toEpochSecond(ZoneOffset.UTC)
     val to = LocalDate.of(year, 12, 31).atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC)
     val songs = mutableListOf<Song>()
@@ -60,3 +87,5 @@ class LastFmService {
     return yearlyChartlist("", 1970, lastFmLogin) // reuse; no date filter needed
   }
 }
+
+class LastFmException(val code: Int, override val message: String) : RuntimeException(message)
