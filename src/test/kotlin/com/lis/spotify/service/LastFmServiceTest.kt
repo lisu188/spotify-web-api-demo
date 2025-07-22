@@ -15,7 +15,8 @@ class LastFmServiceTest {
   @Test
   fun yearlyChartlistParsesSongs() {
     val rest = mockk<RestTemplate>()
-    val service = LastFmService()
+    val auth = mockk<LastFmAuthenticationService>(relaxed = true)
+    val service = LastFmService(auth)
     val field = LastFmService::class.java.getDeclaredField("rest")
     field.isAccessible = true
     field.set(service, rest)
@@ -35,7 +36,8 @@ class LastFmServiceTest {
   @Test
   fun pagingReturnsAllSongs() {
     val rest = mockk<RestTemplate>()
-    val service = LastFmService()
+    val auth = mockk<LastFmAuthenticationService>(relaxed = true)
+    val service = LastFmService(auth)
     val field = LastFmService::class.java.getDeclaredField("rest")
     field.isAccessible = true
     field.set(service, rest)
@@ -62,14 +64,15 @@ class LastFmServiceTest {
 
   @Test
   fun missingUserThrows400() {
-    val service = LastFmService()
+    val service = LastFmService(mockk(relaxed = true))
     assertThrows(LastFmException::class.java) { service.yearlyChartlist("c", 2020, "") }
   }
 
   @Test
   fun rateLimitExceptionParsed() {
     val rest = mockk<RestTemplate>()
-    val service = LastFmService()
+    val auth = mockk<LastFmAuthenticationService>(relaxed = true)
+    val service = LastFmService(auth)
     val field = LastFmService::class.java.getDeclaredField("rest")
     field.isAccessible = true
     field.set(service, rest)
@@ -90,7 +93,8 @@ class LastFmServiceTest {
   @Test
   fun invalidApiKeyExceptionParsed() {
     val rest = mockk<RestTemplate>()
-    val service = LastFmService()
+    val auth = mockk<LastFmAuthenticationService>(relaxed = true)
+    val service = LastFmService(auth)
     val field = LastFmService::class.java.getDeclaredField("rest")
     field.isAccessible = true
     field.set(service, rest)
@@ -106,5 +110,22 @@ class LastFmServiceTest {
     val thrown =
       assertThrows(LastFmException::class.java) { service.yearlyChartlist("c", 2020, "u") }
     assertEquals(10, thrown.code)
+  }
+
+  @Test
+  fun sessionKeyAddedToRequest() {
+    val rest = mockk<RestTemplate>()
+    val auth = mockk<LastFmAuthenticationService>()
+    every { auth.getSessionKey("login") } returns "sess"
+    val service = LastFmService(auth)
+    val field = LastFmService::class.java.getDeclaredField("rest")
+    field.isAccessible = true
+    field.set(service, rest)
+    val uriSlot = io.mockk.slot<java.net.URI>()
+    every { rest.getForObject(capture(uriSlot), Map::class.java) } returns
+      mapOf("recenttracks" to mapOf("totalPages" to "1", "track" to emptyList<String>()))
+
+    service.yearlyChartlist("c", 2020, "login")
+    assert(uriSlot.captured.query!!.contains("sk=sess"))
   }
 }

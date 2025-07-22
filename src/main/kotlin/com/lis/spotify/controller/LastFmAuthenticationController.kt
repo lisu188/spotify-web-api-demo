@@ -37,11 +37,16 @@ class LastFmAuthenticationController(private val lastFmAuthService: LastFmAuthen
     val sessionData = lastFmAuthService.getSession(token)
     logger.debug("Session data received: {}", sessionData != null)
     return if (sessionData != null) {
-      val key = ((sessionData["session"] as? Map<*, *>)?.get("key") as? String)
+      val session = sessionData["session"] as? Map<*, *>
+      val key = session?.get("key") as? String
+      val name = session?.get("name") as? String
       if (!key.isNullOrEmpty()) {
         val cookie = Cookie("lastFmToken", key)
         cookie.path = "/"
         response.addCookie(cookie)
+      }
+      if (!name.isNullOrEmpty() && !key.isNullOrEmpty()) {
+        lastFmAuthService.setSession(name, key!!)
       }
       "redirect:/"
     } else {
