@@ -21,6 +21,7 @@ class LastFmAuthenticationController(private val lastFmAuthService: LastFmAuthen
 
   @GetMapping("/auth/lastfm")
   fun authenticateUser(): RedirectView {
+    logger.debug("authenticateUser() called")
     val authUrl = lastFmAuthService.getAuthorizationUrl()
     logger.info("Redirecting user to Last.fm auth URL: $authUrl")
     return RedirectView(authUrl)
@@ -28,11 +29,13 @@ class LastFmAuthenticationController(private val lastFmAuthService: LastFmAuthen
 
   @GetMapping("/auth/lastfm/callback")
   fun handleCallback(@RequestParam token: String?, response: HttpServletResponse): String {
+    logger.debug("handleCallback token={}", token)
     if (token.isNullOrEmpty()) {
       logger.warn("Token is missing in Last.fm callback")
       return "redirect:/error"
     }
     val sessionData = lastFmAuthService.getSession(token)
+    logger.debug("Session data received: {}", sessionData != null)
     return if (sessionData != null) {
       val key = ((sessionData["session"] as? Map<*, *>)?.get("key") as? String)
       if (!key.isNullOrEmpty()) {

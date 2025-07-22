@@ -13,6 +13,7 @@
 package com.lis.spotify.controller
 
 import com.lis.spotify.service.LastFmService
+import org.slf4j.LoggerFactory
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RestController
@@ -21,6 +22,11 @@ import org.springframework.web.bind.annotation.RestController
 class LastFmController(val lastFmService: LastFmService) {
   @PostMapping("/verifyLastFmId/{lastFmLogin}")
   fun verifyLastFmId(@PathVariable("lastFmLogin") lastFmLogin: String): Boolean {
+    logger.debug("verifyLastFmId for {}", lastFmLogin)
     return lastFmService.globalChartlist(lastFmLogin).isNotEmpty()
+  }
+
+  companion object {
+    private val logger = LoggerFactory.getLogger(LastFmController::class.java)
   }
 }

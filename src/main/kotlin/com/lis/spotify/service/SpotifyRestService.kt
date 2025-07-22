@@ -29,6 +29,7 @@ class SpotifyRestService(
 ) {
 
   val restTemplate: RestTemplate = restTemplateBuilder.build()
+  @PublishedApi internal val logger = LoggerFactory.getLogger(SpotifyRestService::class.java)
 
   final inline fun <reified U : Any> doRequest(
     url: String,
@@ -38,8 +39,7 @@ class SpotifyRestService(
     clientId: String,
   ): U {
     return doRequest {
-      LoggerFactory.getLogger(javaClass)
-        .debug("doRequest: {} {} {} {}", url, httpMethod, params, body)
+      logger.debug("doRequest: {} {} {} {}", url, httpMethod, params, body)
       doExchange<U>(url, httpMethod, body, clientId, params)
     }
   }

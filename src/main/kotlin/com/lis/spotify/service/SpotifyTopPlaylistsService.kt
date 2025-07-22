@@ -26,8 +26,11 @@ class SpotifyTopPlaylistsService(
   var spotifySearchService: SpotifySearchService,
 ) {
 
+  private val logger = LoggerFactory.getLogger(SpotifyTopPlaylistsService::class.java)
+
   fun updateTopPlaylists(clientId: String): List<String> {
-    LoggerFactory.getLogger(javaClass).info("updateTopPlaylists: {}", clientId)
+    logger.debug("updateTopPlaylists {}", clientId)
+    logger.info("updateTopPlaylists: {}", clientId)
 
     return runBlocking {
       val shortTerm =
@@ -78,7 +81,8 @@ class SpotifyTopPlaylistsService(
     progressUpdater: (Pair<Int, Int>) -> Unit = {},
     lastFmLogin: String,
   ) {
-    LoggerFactory.getLogger(javaClass).info("updateYearlyPlaylists: {}", clientId)
+    logger.debug("updateYearlyPlaylists {} {}", clientId, lastFmLogin)
+    logger.info("updateYearlyPlaylists: {}", clientId)
     (2005..getYear()).map { year: Int ->
       var progress = AtomicInteger()
       progressUpdater(Pair(year, progress.get()))

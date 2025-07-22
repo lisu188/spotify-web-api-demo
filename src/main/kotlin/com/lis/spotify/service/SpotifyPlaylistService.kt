@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service
 class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
 
   fun getCurrentUserPlaylists(clientId: String): MutableList<Playlist> {
+    logger.debug("getCurrentUserPlaylists {}", clientId)
     logger.info("getCurrentUserPlaylists: {}", clientId)
 
     val playlistList: MutableList<Playlist> = ArrayList()
@@ -38,6 +39,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
   }
 
   fun getPlaylistTracks(id: String, clientId: String): List<Track>? {
+    logger.debug("getPlaylistTracks {} {}", id, clientId)
     logger.info("getPlaylistTracks: {} {}", id, clientId)
 
     val trackList: MutableList<Track> = ArrayList()
@@ -53,10 +55,12 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
   }
 
   fun getPlaylistTrackIds(id: String, clientId: String): List<String>? {
+    logger.debug("getPlaylistTrackIds {} {}", id, clientId)
     return getPlaylistTracks(id, clientId = clientId)?.map { it.id }
   }
 
   fun deleteTracksFromPlaylist(playlistId: String, tracks: List<String>, clientId: String) {
+    logger.debug("deleteTracksFromPlaylist {} {} {}", playlistId, clientId, tracks.size)
     logger.info("deleteTracksFromPlaylist: {} {} {}", playlistId, clientId, tracks)
 
     tracks.chunked(100).map {
@@ -70,6 +74,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
   }
 
   fun addTracksToPlaylist(playlistId: String, tracks: List<String>, clientId: String) {
+    logger.debug("addTracksToPlaylist {} {} {}", playlistId, clientId, tracks.size)
     logger.info("addTracksToPlaylist: {} {} {}", playlistId, clientId, tracks)
 
     tracks.chunked(100).map {
@@ -98,6 +103,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
     trackList: List<String>,
     clientId: String,
   ): Map<String, List<String>> {
+    logger.debug("modifyPlaylist {} {} {}", id, clientId, trackList.size)
     logger.info("modifyPlaylist: {} {} {}", id, clientId, trackList.size)
 
     if (trackList.isNotEmpty()) {
@@ -120,6 +126,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
   }
 
   fun createPlaylist(name: String, clientId: String): Playlist {
+    logger.debug("createPlaylist {} {}", name, clientId)
     logger.info("createPlaylist: {} {}", name, clientId)
 
     return spotifyRestService.doPost<Playlist>(
@@ -130,6 +137,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
   }
 
   fun getOrCreatePlaylist(playlistName: String, clientId: String): Playlist {
+    logger.debug("getOrCreatePlaylist {} {}", playlistName, clientId)
     logger.info("getOrCreatePlaylist: {} {}", playlistName, clientId)
 
     val findAny =

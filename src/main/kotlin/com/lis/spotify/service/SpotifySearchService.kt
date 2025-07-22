@@ -24,7 +24,10 @@ class SpotifySearchService(val spotifyRestService: SpotifyRestService) {
     val SEARCH_URL = "https://api.spotify.com/v1/search?q={q}&type={type}"
   }
 
+  private val logger = LoggerFactory.getLogger(SpotifySearchService::class.java)
+
   fun doSearch(song: Song, clientId: String): SearchResult? {
+    logger.debug("doSearch single {} {}", song, clientId)
     return spotifyRestService.doGet(
       SEARCH_URL,
       params = mapOf("q" to "track:${song.title} artist:${song.artist}", "type" to "track"),
@@ -33,7 +36,8 @@ class SpotifySearchService(val spotifyRestService: SpotifyRestService) {
   }
 
   fun doSearch(values: List<Song>, clientId: String, progress: () -> Unit = {}): List<String> {
-    LoggerFactory.getLogger(javaClass).info("doSearch: {} {}", clientId, values.size)
+    logger.debug("doSearch batch {} {}", clientId, values.size)
+    logger.info("doSearch: {} {}", clientId, values.size)
     lateinit var retVal: List<String>
     val time = measureTimeMillis {
       retVal =
@@ -49,7 +53,7 @@ class SpotifySearchService(val spotifyRestService: SpotifyRestService) {
           .map { it.id }
           .distinct()
     }
-    LoggerFactory.getLogger(javaClass).info("doSearch: {} {} took: {}", clientId, values.size, time)
+    logger.info("doSearch: {} {} took: {}", clientId, values.size, time)
     return retVal
   }
 }

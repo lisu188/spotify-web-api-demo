@@ -59,6 +59,7 @@ class SpotifyAuthenticationController(
 
   @GetMapping(Spotify.CALLBACK_PATH)
   fun callback(request: HttpServletRequest, code: String, response: HttpServletResponse): String {
+    logger.debug("callback with code {}", code)
     logger.info("Received callback from Spotify with code: {}", code)
     val headers = HttpHeaders().apply { contentType = MediaType.APPLICATION_FORM_URLENCODED }
     val body =
@@ -99,6 +100,7 @@ class SpotifyAuthenticationController(
     response: HttpServletResponse,
     @CookieValue("clientId", defaultValue = "") clientId: String,
   ): String {
+    logger.debug("authorize with clientId {}", clientId)
     logger.info("Authorize endpoint called. Current clientId from cookie: {}", clientId)
     val builder =
       UriComponentsBuilder.fromHttpUrl(Spotify.AUTH_URL)
