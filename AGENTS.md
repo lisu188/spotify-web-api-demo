@@ -6,6 +6,8 @@ This repository uses Gradle and Kotlin.
 - Run the test suite with `./gradlew test`.
 - Run `./gradlew build` to ensure the project compiles.
 - Companion objects should be at the bottom of the class.
+- Update `README.md` with any relevant changes or instructions when modifying
+  the code.
 
 ### Logging
 - Use SLF4J with a `private val logger` per class.
