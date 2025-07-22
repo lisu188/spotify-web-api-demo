@@ -32,8 +32,11 @@ import com.lis.spotify.domain.AuthToken
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.boot.web.client.RestTemplateBuilder
+import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
+import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
+import org.springframework.util.LinkedMultiValueMap
 import org.springframework.web.client.postForObject
 import org.springframework.web.util.UriComponentsBuilder
 
@@ -80,19 +83,21 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
       return
     }
 
-    val tokenUrl =
-      UriComponentsBuilder.fromHttpUrl(Spotify.TOKEN_URL)
-        .queryParam("grant_type", "refresh_token")
-        .queryParam("refresh_token", refreshTokenValue)
-        .build()
-        .toUri()
+    val headers = HttpHeaders().apply { contentType = MediaType.APPLICATION_FORM_URLENCODED }
+    val body =
+      LinkedMultiValueMap<String, String>().apply {
+        add("grant_type", "refresh_token")
+        add("refresh_token", refreshTokenValue)
+      }
+    val tokenUrl = UriComponentsBuilder.fromHttpUrl(Spotify.TOKEN_URL).build().toUri()
+    val entity = HttpEntity(body, headers)
 
     try {
       val authToken =
         restTemplateBuilder
           .basicAuthentication(Spotify.CLIENT_ID, Spotify.CLIENT_SECRET)
           .build()
-          .postForObject<AuthToken>(tokenUrl)
+          .postForObject<AuthToken>(tokenUrl, entity)
       // Preserve the existing refresh token.
       authToken.clientId = clientId
       authToken.refresh_token = refreshTokenValue
