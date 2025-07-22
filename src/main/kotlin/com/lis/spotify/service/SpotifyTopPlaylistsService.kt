@@ -13,7 +13,6 @@
 package com.lis.spotify.service
 
 import java.util.*
-import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
@@ -90,17 +89,23 @@ class SpotifyTopPlaylistsService(
     logger.debug("updateYearlyPlaylists {} {}", clientId, lastFmLogin)
     logger.info("updateYearlyPlaylists: {}", clientId)
     runBlocking {
-      (2005..getYear())
+      val years = (2005..getYear()).toList()
+
+      val chartlists =
+        years.associateWith { year ->
+          lastFmService.yearlyChartlist(clientId, year, lastFmLogin).toList()
+        }
+
+      years
         .map { year: Int ->
           async {
-            var progress = AtomicInteger()
-            progressUpdater(Pair(year, progress.get()))
-            val chartlist = lastFmService.yearlyChartlist(clientId, year, lastFmLogin)
             val trackList = mutableListOf<String>()
-            for (song in chartlist) {
+            progressUpdater(Pair(year, 0))
+            val chartlist = chartlists[year].orEmpty()
+            for ((idx, song) in chartlist.withIndex()) {
               val result = spotifySearchService.doSearch(song, clientId)
-              progressUpdater(Pair(year, progress.incrementAndGet() * 100 / YEARLY_LIMIT))
               result?.tracks?.items?.stream()?.findFirst()?.orElse(null)?.let { trackList += it.id }
+              progressUpdater(Pair(year, (idx + 1) * 100 / YEARLY_LIMIT))
               if (trackList.size >= YEARLY_LIMIT) break
             }
             progressUpdater(Pair(year, 100))
