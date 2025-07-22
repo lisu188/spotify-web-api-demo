@@ -89,10 +89,13 @@ class SpotifyTopPlaylistsService(
       var progress = AtomicInteger()
       progressUpdater(Pair(year, progress.get()))
       val chartlist = lastFmService.yearlyChartlist(clientId, year, lastFmLogin)
-      var trackList =
-        spotifySearchService.doSearch(chartlist, clientId) {
-          progressUpdater(Pair(year, progress.incrementAndGet() * 100 / chartlist.size))
-        }
+      val trackList = mutableListOf<String>()
+      for (song in chartlist) {
+        val result = spotifySearchService.doSearch(song, clientId)
+        progressUpdater(Pair(year, progress.incrementAndGet() * 100 / chartlist.size))
+        result?.tracks?.items?.stream()?.findFirst()?.orElse(null)?.let { trackList += it.id }
+        if (trackList.size >= 250) break
+      }
       progressUpdater(Pair(year, 100))
       if (trackList.isNotEmpty()) {
         val id = spotifyPlaylistService.getOrCreatePlaylist("LAST.FM $year", clientId).id
