@@ -5,6 +5,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.core.ParameterizedTypeReference
@@ -171,5 +172,38 @@ class SpotifyRestServiceTest {
     val result = service.doGet<String>("http://test", clientId = "cid")
     assertEquals("ok", result)
     verify(exactly = 1) { sleeper.sleep(2000L) }
+  }
+
+  @Test
+  fun unauthorizedThrowsAuthException() {
+    val restTemplate = mockk<RestTemplate>()
+    val builder = mockk<RestTemplateBuilder>()
+    val auth = mockk<SpotifyAuthenticationService>()
+    every { builder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java) } returns
+      builder
+    every { builder.build() } returns restTemplate
+    every { auth.getHeaders(any<String>()) } returns HttpHeaders()
+    val ex =
+      HttpClientErrorException.create(
+        HttpStatus.UNAUTHORIZED,
+        "",
+        HttpHeaders(),
+        ByteArray(0),
+        null,
+      )
+    every {
+      restTemplate.exchange<String>(
+        any(),
+        HttpMethod.GET,
+        any(),
+        any<ParameterizedTypeReference<String>>(),
+        any<Map<String, *>>(),
+      )
+    } throws ex
+
+    val service = SpotifyRestService(builder, auth)
+    assertThrows(AuthenticationRequiredException::class.java) {
+      service.doGet<String>("http://test", clientId = "cid")
+    }
   }
 }

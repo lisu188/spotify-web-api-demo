@@ -1,5 +1,6 @@
 package com.lis.spotify.service
 
+import com.lis.spotify.domain.JobStatus
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -59,5 +60,25 @@ class JobServiceTest {
     val total = endYear - startYear + 1
     val expected = (((endYear - 2005) * 100.0 / total) + 50 / total.toDouble()).roundToInt()
     verify { store.update(any(), expected, "year 2005") }
+  }
+
+  @Test
+  fun authFailureStored() {
+    val playlistService = mockk<SpotifyTopPlaylistsService>()
+    val scheduler = mockk<TaskScheduler>()
+    val store = ProgressStore()
+    val runnable = slot<Runnable>()
+    every { scheduler.schedule(capture(runnable), any<java.util.Date>()) } answers
+      {
+        runnable.captured.run()
+        mockk<java.util.concurrent.ScheduledFuture<*>>(relaxed = true)
+      }
+    every { playlistService.updateYearlyPlaylists(any(), any(), any()) } throws
+      AuthenticationRequiredException("SPOTIFY")
+    val service = JobService(playlistService, scheduler, store)
+    val id = service.startYearlyJob("c", "l")
+    val progress = service.progress(id)!!
+    assertEquals(JobStatus.ERROR, progress.status)
+    assertEquals("AUTH_SPOTIFY", progress.message)
   }
 }

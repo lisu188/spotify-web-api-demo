@@ -38,7 +38,11 @@ class JobService(
             lastFmLogin,
           )
           store.complete(id)
+        } catch (e: AuthenticationRequiredException) {
+          logger.error("Authentication required during yearly job {}", id, e)
+          store.fail(id, "AUTH_${e.provider}")
         } catch (e: Exception) {
+          logger.error("Yearly playlist update failed for job {}", id, e)
           store.fail(id, e.message)
         }
       },
