@@ -57,7 +57,7 @@ class JobServiceTest {
     val startYear = 2005
     val endYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
     val total = endYear - startYear + 1
-    val expected = (((2005 - startYear) * 100.0 / total) + 50 / total.toDouble()).roundToInt()
+    val expected = (((endYear - 2005) * 100.0 / total) + 50 / total.toDouble()).roundToInt()
     verify { store.update(any(), expected, "year 2005") }
   }
 }

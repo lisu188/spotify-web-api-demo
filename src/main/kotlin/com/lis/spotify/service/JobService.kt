@@ -31,7 +31,7 @@ class JobService(
           playlistService.updateYearlyPlaylists(
             clientId,
             { (year, pct) ->
-              val base = (year - startYear) * 100.0 / total
+              val base = (endYear - year) * 100.0 / total
               val overall = base + pct / total.toDouble()
               store.update(id, overall.roundToInt(), "year $year")
             },
