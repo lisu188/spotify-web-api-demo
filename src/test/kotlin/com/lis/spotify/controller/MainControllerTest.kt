@@ -16,6 +16,7 @@ class MainControllerTest {
   @Test
   fun redirectsToIndexWhenAuthorized() {
     every { spotifyService.getAuthToken("abc") } returns mockk()
+    every { lastfmService.isAuthorized("token") } returns true
     val result = controller.main("abc", "token")
     assertEquals("forward:/index.html", result)
     verify { spotifyService.refreshToken("abc") }
@@ -26,5 +27,13 @@ class MainControllerTest {
     every { spotifyService.getAuthToken("abc") } returns null
     val result = controller.main("abc", "token")
     assertEquals("redirect:/auth/spotify", result)
+  }
+
+  @Test
+  fun redirectsToLastFmWhenInvalid() {
+    every { spotifyService.getAuthToken("abc") } returns mockk()
+    every { lastfmService.isAuthorized("bad") } returns false
+    val result = controller.main("abc", "bad")
+    assertEquals("redirect:/auth/lastfm", result)
   }
 }

@@ -16,7 +16,7 @@ class ExceptionLoggingAdvice {
   fun handleLastFm(ex: LastFmException): ResponseEntity<Void> {
     logger.warn("Last.fm exception {} {}", ex.code, ex.message)
     return if (ex.code == 17) {
-      ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT)
+      ResponseEntity.status(HttpStatus.UNAUTHORIZED)
         .header(HttpHeaders.LOCATION, "/auth/lastfm")
         .build()
     } else {

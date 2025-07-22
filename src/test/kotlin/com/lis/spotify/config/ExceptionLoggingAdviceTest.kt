@@ -10,7 +10,7 @@ class ExceptionLoggingAdviceTest {
   fun lastFmError17Redirects() {
     val advice = ExceptionLoggingAdvice()
     val result = advice.handleLastFm(LastFmException(17, "Login"))
-    assertEquals(HttpStatus.TEMPORARY_REDIRECT, result.statusCode)
+    assertEquals(HttpStatus.UNAUTHORIZED, result.statusCode)
     assertEquals("/auth/lastfm", result.headers.location.toString())
   }
 }
