@@ -23,7 +23,7 @@ class MainController(
 
     val spotifyAuthorized =
       clientId.isNotEmpty() && spotifyAuthenticationService.getAuthToken(clientId) != null
-    val lastFmAuthorized = lastFmToken.isNotEmpty()
+    val lastFmAuthorized = lastFmAuthenticationService.isAuthorized(lastFmToken)
 
     return if (spotifyAuthorized && lastFmAuthorized) {
       logger.info(
@@ -37,7 +37,7 @@ class MainController(
         logger.warn("Spotify token missing or invalid; redirecting to /auth/spotify.")
         "redirect:/auth/spotify"
       } else {
-        logger.warn("Last.fm token missing; redirecting to /auth/lastfm.")
+        logger.warn("Last.fm token missing or invalid; redirecting to /auth/lastfm.")
         "redirect:/auth/lastfm"
       }
     }

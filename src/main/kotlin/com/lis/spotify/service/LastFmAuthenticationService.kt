@@ -31,6 +31,10 @@ class LastFmAuthenticationService {
 
   fun getSessionKey(login: String): String? = sessionCache[login]
 
+  fun isAuthorized(sessionKey: String): Boolean {
+    return sessionKey.isNotEmpty() && sessionCache.values.any { it == sessionKey }
+  }
+
   /**
    * Constructs the URL that the user will be redirected to in order to grant access.
    *

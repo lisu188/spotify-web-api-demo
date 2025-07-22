@@ -37,4 +37,12 @@ class LastFmAuthenticationServiceTest {
     assertEquals(expected, result)
     assertEquals("val", service.getSessionKey("user"))
   }
+
+  @Test
+  fun isAuthorizedChecksCache() {
+    val service = LastFmAuthenticationService()
+    service.setSession("user", "val")
+    assertEquals(true, service.isAuthorized("val"))
+    assertEquals(false, service.isAuthorized("other"))
+  }
 }
