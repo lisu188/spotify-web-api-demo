@@ -45,4 +45,23 @@ class SpotifyTopPlaylistsServiceTest {
     assertEquals(4, ids.size)
     verify(exactly = 4) { playlistService.modifyPlaylist(any(), any(), any()) }
   }
+
+  @Test
+  fun noTracksSkipsPlaylistCreation() {
+    val playlistService = mockk<SpotifyPlaylistService>(relaxed = true)
+    val trackService = mockk<SpotifyTopTrackService>()
+    val lastFmService = mockk<LastFmService>()
+    val searchService = mockk<SpotifySearchService>()
+
+    every { trackService.getTopTracksShortTerm(any()) } returns emptyList()
+    every { trackService.getTopTracksMidTerm(any()) } returns emptyList()
+    every { trackService.getTopTracksLongTerm(any()) } returns emptyList()
+
+    val service =
+      SpotifyTopPlaylistsService(playlistService, trackService, lastFmService, searchService)
+    val ids = service.updateTopPlaylists("cid")
+    assertEquals(emptyList<String>(), ids)
+    verify(exactly = 0) { playlistService.getOrCreatePlaylist(any(), any()) }
+    verify(exactly = 0) { playlistService.modifyPlaylist(any(), any(), any()) }
+  }
 }

@@ -54,28 +54,38 @@ class SpotifyTopPlaylistsService(
           .map { it.id }
           .toCollection(arrayListOf())
 
-      val shortTermId = spotifyPlaylistService.getOrCreatePlaylist("Short Term", clientId).id
+      val ids = mutableListOf<String>()
 
-      val midTermId = spotifyPlaylistService.getOrCreatePlaylist("Mid Term", clientId).id
+      if (shortTerm.isNotEmpty()) {
+        val shortTermId = spotifyPlaylistService.getOrCreatePlaylist("Short Term", clientId).id
+        spotifyPlaylistService.modifyPlaylist(shortTermId, shortTerm, clientId)
+        ids += shortTermId
+      }
 
-      val longTermId = spotifyPlaylistService.getOrCreatePlaylist("Long Term", clientId).id
+      if (midTerm.isNotEmpty()) {
+        val midTermId = spotifyPlaylistService.getOrCreatePlaylist("Mid Term", clientId).id
+        spotifyPlaylistService.modifyPlaylist(midTermId, midTerm, clientId)
+        ids += midTermId
+      }
 
-      val mixedTermId = spotifyPlaylistService.getOrCreatePlaylist("Mixed Term", clientId).id
-
-      spotifyPlaylistService.modifyPlaylist(shortTermId, shortTerm, clientId)
-
-      spotifyPlaylistService.modifyPlaylist(midTermId, midTerm, clientId)
-
-      spotifyPlaylistService.modifyPlaylist(longTermId, longTerm, clientId)
+      if (longTerm.isNotEmpty()) {
+        val longTermId = spotifyPlaylistService.getOrCreatePlaylist("Long Term", clientId).id
+        spotifyPlaylistService.modifyPlaylist(longTermId, longTerm, clientId)
+        ids += longTermId
+      }
 
       val trackList1: List<String> =
         (shortTerm.asIterable() + midTerm.asIterable() + longTerm.asIterable())
           .toCollection(arrayListOf())
           .distinct()
 
-      spotifyPlaylistService.modifyPlaylist(mixedTermId, trackList1, clientId)
+      if (trackList1.isNotEmpty()) {
+        val mixedTermId = spotifyPlaylistService.getOrCreatePlaylist("Mixed Term", clientId).id
+        spotifyPlaylistService.modifyPlaylist(mixedTermId, trackList1, clientId)
+        ids += mixedTermId
+      }
 
-      val result = listOf(shortTermId, midTermId, longTermId, mixedTermId)
+      val result = ids.toList()
       logger.debug("updateTopPlaylists {} -> {}", clientId, result)
       result
     }
@@ -106,29 +116,19 @@ class SpotifyTopPlaylistsService(
           async {
             progressUpdater(Pair(year, 0))
             val chartlist = chartlists[year].orEmpty()
-            val playlistId =
-              spotifyPlaylistService.getOrCreatePlaylist("LAST.FM $year", clientId).id
-            spotifyPlaylistService.modifyPlaylist(playlistId, emptyList(), clientId)
 
             val trackList = mutableListOf<String>()
-            val batch = mutableListOf<String>()
             for ((idx, song) in chartlist.withIndex()) {
               val result = spotifySearchService.doSearch(song, clientId)
-              result?.tracks?.items?.stream()?.findFirst()?.orElse(null)?.let {
-                trackList += it.id
-                batch += it.id
-              }
-              if (batch.size >= 50) {
-                spotifyPlaylistService.addTracksToPlaylist(playlistId, batch.toList(), clientId)
-                batch.clear()
-              }
+              result?.tracks?.items?.stream()?.findFirst()?.orElse(null)?.let { trackList += it.id }
               progressUpdater(Pair(year, (idx + 1) * 100 / YEARLY_LIMIT))
               if (idx + 1 >= YEARLY_LIMIT) break
             }
-            if (batch.isNotEmpty()) {
-              spotifyPlaylistService.addTracksToPlaylist(playlistId, batch.toList(), clientId)
+            if (trackList.isNotEmpty()) {
+              val playlistId =
+                spotifyPlaylistService.getOrCreatePlaylist("LAST.FM $year", clientId).id
+              spotifyPlaylistService.modifyPlaylist(playlistId, trackList, clientId)
             }
-            spotifyPlaylistService.modifyPlaylist(playlistId, trackList, clientId)
             progressUpdater(Pair(year, 100))
           }
         }
