@@ -23,6 +23,13 @@ import org.springframework.web.client.RestTemplate
 class LastFmAuthenticationService {
 
   private val restTemplate = RestTemplate()
+  val sessionCache: MutableMap<String, String> = mutableMapOf()
+
+  fun setSession(login: String, sessionKey: String) {
+    sessionCache[login] = sessionKey
+  }
+
+  fun getSessionKey(login: String): String? = sessionCache[login]
 
   /**
    * Constructs the URL that the user will be redirected to in order to grant access.
@@ -72,7 +79,14 @@ class LastFmAuthenticationService {
     return try {
       val response = restTemplate.postForEntity(LastFm.API_URL, request, Map::class.java)
       logger.debug("getSession received status {}", response.statusCode)
-      response.body as? Map<String, Any>
+      val body = response.body as? Map<String, Any>
+      val session = body?.get("session") as? Map<*, *>
+      val name = session?.get("name") as? String
+      val key = session?.get("key") as? String
+      if (!name.isNullOrEmpty() && !key.isNullOrEmpty()) {
+        setSession(name, key)
+      }
+      body
     } catch (ex: Exception) {
       logger.error("Error getting session for token $token", ex)
       null

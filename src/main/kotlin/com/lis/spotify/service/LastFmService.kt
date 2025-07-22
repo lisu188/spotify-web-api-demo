@@ -13,18 +13,21 @@ import org.springframework.web.client.RestTemplate
 import org.springframework.web.util.UriComponentsBuilder
 
 @Service
-class LastFmService {
+class LastFmService(private val lastFmAuthService: LastFmAuthenticationService) {
 
   private val rest = RestTemplate()
   private val log = LoggerFactory.getLogger(LastFmService::class.java)
   private val mapper = jacksonObjectMapper()
 
-  private fun buildUri(method: String, params: Map<String, Any>): URI {
+  private fun buildUri(method: String, params: Map<String, Any>, sessionKey: String?): URI {
     var b =
       UriComponentsBuilder.fromHttpUrl(LastFm.API_URL)
         .queryParam("method", method)
         .queryParam("api_key", LastFm.API_KEY)
         .queryParam("format", "json")
+    if (!sessionKey.isNullOrBlank()) {
+      b = b.queryParam("sk", sessionKey)
+    }
     params.forEach { (k, v) -> b = b.queryParam(k, v) }
     return b.build().toUri()
   }
@@ -36,6 +39,7 @@ class LastFmService {
       buildUri(
         "user.getRecentTracks",
         mapOf("user" to user, "from" to from, "to" to to, "page" to page, "limit" to 200),
+        lastFmAuthService.getSessionKey(user),
       )
     return try {
       rest.getForObject(uri, Map::class.java) as Map<String, Any>

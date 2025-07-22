@@ -25,7 +25,7 @@ class LastFmAuthenticationServiceTest {
     val field = LastFmAuthenticationService::class.java.getDeclaredField("restTemplate")
     field.isAccessible = true
     field.set(service, rest)
-    val expected = mapOf<String, Any>("session" to mapOf("name" to "val"))
+    val expected = mapOf<String, Any>("session" to mapOf("name" to "user", "key" to "val"))
     every {
       rest.postForEntity(
         any<String>(),
@@ -35,5 +35,6 @@ class LastFmAuthenticationServiceTest {
     } returns ResponseEntity(expected, HttpStatus.OK)
     val result = service.getSession("token")
     assertEquals(expected, result)
+    assertEquals("val", service.getSessionKey("user"))
   }
 }
