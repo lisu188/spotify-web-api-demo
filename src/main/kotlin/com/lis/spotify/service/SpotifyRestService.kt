@@ -12,6 +12,8 @@
 
 package com.lis.spotify.service
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.http.HttpEntity
@@ -69,12 +71,14 @@ class SpotifyRestService(
     params: Map<String, Any>,
   ): U {
     val response =
-      restTemplate.exchange<U>(
-        url,
-        httpMethod,
-        HttpEntity(body, spotifyAuthenticationService.getHeaders(clientId)),
-        params,
-      )
+      runBlocking(Dispatchers.IO) {
+        restTemplate.exchange<U>(
+          url,
+          httpMethod,
+          HttpEntity(body, spotifyAuthenticationService.getHeaders(clientId)),
+          params,
+        )
+      }
     logger.debug("doExchange response from {} {} -> {}", httpMethod, url, response.statusCode)
     return response.body ?: throw Exception() // TODO:
   }

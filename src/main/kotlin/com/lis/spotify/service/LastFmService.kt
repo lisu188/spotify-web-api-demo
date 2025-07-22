@@ -6,6 +6,8 @@ import com.lis.spotify.domain.Song
 import java.net.URI
 import java.time.LocalDate
 import java.time.ZoneOffset
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.web.client.HttpClientErrorException
@@ -42,7 +44,7 @@ class LastFmService(private val lastFmAuthService: LastFmAuthenticationService) 
         lastFmAuthService.getSessionKey(user),
       )
     return try {
-      rest.getForObject(uri, Map::class.java) as Map<String, Any>
+      runBlocking(Dispatchers.IO) { rest.getForObject(uri, Map::class.java) as Map<String, Any> }
     } catch (ex: HttpClientErrorException) {
       val err = parseError(ex)
       log.error("Last.fm error {} {}", err.code, err.message)

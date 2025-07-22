@@ -29,6 +29,8 @@ package com.lis.spotify.service
 
 import com.lis.spotify.AppEnvironment.Spotify
 import com.lis.spotify.domain.AuthToken
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.boot.web.client.RestTemplateBuilder
@@ -98,10 +100,12 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
 
     try {
       val authToken =
-        restTemplateBuilder
-          .basicAuthentication(Spotify.CLIENT_ID, Spotify.CLIENT_SECRET)
-          .build()
-          .postForObject<AuthToken>(tokenUrl, entity)
+        runBlocking(Dispatchers.IO) {
+          restTemplateBuilder
+            .basicAuthentication(Spotify.CLIENT_ID, Spotify.CLIENT_SECRET)
+            .build()
+            .postForObject<AuthToken>(tokenUrl, entity)
+        }
       // Preserve the existing refresh token.
       authToken.clientId = clientId
       authToken.refresh_token = refreshTokenValue

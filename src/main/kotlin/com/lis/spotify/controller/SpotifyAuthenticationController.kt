@@ -7,6 +7,8 @@ import com.lis.spotify.service.SpotifyAuthenticationService
 import jakarta.servlet.http.Cookie
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.http.HttpEntity
@@ -42,13 +44,15 @@ class SpotifyAuthenticationController(
     logger.debug("Attempting to retrieve current user ID using provided AuthToken.")
     return try {
       val response =
-        restTemplateBuilder
-          .build()
-          .exchange<User>(
-            "https://api.spotify.com/v1/me",
-            HttpMethod.GET,
-            HttpEntity(null, spotifyAuthenticationService.getHeaders(token)),
-          )
+        runBlocking(Dispatchers.IO) {
+          restTemplateBuilder
+            .build()
+            .exchange<User>(
+              "https://api.spotify.com/v1/me",
+              HttpMethod.GET,
+              HttpEntity(null, spotifyAuthenticationService.getHeaders(token)),
+            )
+        }
       logger.info("Successfully retrieved user info from Spotify.")
       response.body?.id
     } catch (ex: Exception) {
@@ -72,10 +76,12 @@ class SpotifyAuthenticationController(
 
     return try {
       val authToken =
-        restTemplateBuilder
-          .basicAuthentication(Spotify.CLIENT_ID, Spotify.CLIENT_SECRET)
-          .build()
-          .postForObject<AuthToken>(Spotify.TOKEN_URL, entity)
+        runBlocking(Dispatchers.IO) {
+          restTemplateBuilder
+            .basicAuthentication(Spotify.CLIENT_ID, Spotify.CLIENT_SECRET)
+            .build()
+            .postForObject<AuthToken>(Spotify.TOKEN_URL, entity)
+        }
       logger.debug("Received AuthToken from Spotify (access token redacted).")
       val clientId = getCurrentUserId(authToken)
       if (clientId != null) {

@@ -3,6 +3,8 @@ package com.lis.spotify.service
 import com.lis.spotify.AppEnvironment.LastFm
 import java.math.BigInteger
 import java.security.MessageDigest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
@@ -99,7 +101,10 @@ class LastFmAuthenticationService {
     val request = HttpEntity<MultiValueMap<String, String>>(body, headers)
 
     return try {
-      val response = restTemplate.postForEntity(LastFm.API_URL, request, Map::class.java)
+      val response =
+        runBlocking(Dispatchers.IO) {
+          restTemplate.postForEntity(LastFm.API_URL, request, Map::class.java)
+        }
       logger.debug("getSession received status {}", response.statusCode)
       val body = response.body as? Map<String, Any>
       val session = body?.get("session") as? Map<*, *>
