@@ -28,7 +28,9 @@ class SpotifyTopPlaylistsController(
   fun updateTopPlaylists(@CookieValue("clientId") clientId: String): List<String> {
     logger.info("Updating top playlists for {}", clientId)
     logger.debug("updateTopPlaylists for {}", clientId)
-    return spotifyTopPlaylistsService.updateTopPlaylists(clientId)
+    val result = spotifyTopPlaylistsService.updateTopPlaylists(clientId)
+    logger.info("UpdateTopPlaylists result for {} -> {}", clientId, result)
+    return result
   }
 
   companion object {

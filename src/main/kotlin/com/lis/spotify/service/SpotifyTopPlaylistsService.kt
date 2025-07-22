@@ -88,6 +88,7 @@ class SpotifyTopPlaylistsService(
 
       val result = ids.toList()
       logger.debug("updateTopPlaylists {} -> {}", clientId, result)
+      logger.info("Updated top playlists for {} -> {}", clientId, result)
       result
     }
   }
@@ -136,7 +137,7 @@ class SpotifyTopPlaylistsService(
         }
         .awaitAll()
     }
-    logger.debug("updateYearlyPlaylists {} completed", clientId)
+    logger.info("updateYearlyPlaylists {} completed", clientId)
   }
 
   private fun getYear() = Calendar.getInstance().get(Calendar.YEAR)

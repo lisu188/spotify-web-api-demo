@@ -6,6 +6,11 @@ This repository uses Gradle and Kotlin.
 - Run the test suite with `./gradlew test`.
 - Run `./gradlew build` to ensure the project compiles.
 
+### Logging
+- Use SLF4J with a `private val logger` per class.
+- Default log level is INFO.
+- Use INFO for high-level events, DEBUG for details, WARN for recoverable problems, and ERROR for failures.
+
 ### Integration tests
 Integration tests live under `src/test/kotlin/.../integration`. They should start
 the application with `@SpringBootTest(webEnvironment = RANDOM_PORT)` and use
