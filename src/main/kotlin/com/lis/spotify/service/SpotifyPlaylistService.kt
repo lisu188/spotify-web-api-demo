@@ -99,14 +99,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
   }
 
   private fun getDiff(old: List<String>, new: List<String>): ArrayList<String> {
-    val ret = ArrayList<String>()
-    old.forEach {
-      if (it in new) {} else {
-
-        ret += it
-      }
-    }
-    return ret
+    return ArrayList(old.toSet() - new.toSet())
   }
 
   fun modifyPlaylist(
@@ -118,16 +111,14 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
     logger.info("modifyPlaylist: {} {} {}", id, clientId, trackList.size)
 
     if (trackList.isNotEmpty()) {
-      var old = getPlaylistTrackIds(id, clientId).orEmpty()
-      val new = trackList
+      val old = getPlaylistTrackIds(id, clientId).orEmpty()
+      val oldSet = old.toSet()
+      val newSet = trackList.toSet()
 
-      val tracksToRemove = getDiff(old, new)
-
+      val tracksToRemove = (oldSet - newSet).toList()
       deleteTracksFromPlaylist(id, tracksToRemove, clientId)
 
-      old = getPlaylistTrackIds(id, clientId).orEmpty()
-
-      val tracksToAdd = getDiff(new, old)
+      val tracksToAdd = (newSet - oldSet).toList()
       addTracksToPlaylist(id, tracksToAdd, clientId)
 
       val result = mapOf("added" to tracksToAdd, "removed" to tracksToRemove)
