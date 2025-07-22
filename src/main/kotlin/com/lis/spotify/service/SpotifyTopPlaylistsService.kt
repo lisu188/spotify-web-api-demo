@@ -92,27 +92,44 @@ class SpotifyTopPlaylistsService(
       val years = (2005..getYear()).toList()
 
       val chartlists =
-        years.associateWith { year ->
-          lastFmService.yearlyChartlist(clientId, year, lastFmLogin).toList()
-        }
+        years
+          .map { year ->
+            async {
+              year to lastFmService.yearlyChartlist(clientId, year, lastFmLogin, YEARLY_LIMIT)
+            }
+          }
+          .awaitAll()
+          .toMap()
 
       years
         .map { year: Int ->
           async {
-            val trackList = mutableListOf<String>()
             progressUpdater(Pair(year, 0))
             val chartlist = chartlists[year].orEmpty()
+            val playlistId =
+              spotifyPlaylistService.getOrCreatePlaylist("LAST.FM $year", clientId).id
+            spotifyPlaylistService.modifyPlaylist(playlistId, emptyList(), clientId)
+
+            val trackList = mutableListOf<String>()
+            val batch = mutableListOf<String>()
             for ((idx, song) in chartlist.withIndex()) {
               val result = spotifySearchService.doSearch(song, clientId)
-              result?.tracks?.items?.stream()?.findFirst()?.orElse(null)?.let { trackList += it.id }
+              result?.tracks?.items?.stream()?.findFirst()?.orElse(null)?.let {
+                trackList += it.id
+                batch += it.id
+              }
+              if (batch.size >= 50) {
+                spotifyPlaylistService.addTracksToPlaylist(playlistId, batch.toList(), clientId)
+                batch.clear()
+              }
               progressUpdater(Pair(year, (idx + 1) * 100 / YEARLY_LIMIT))
-              if (trackList.size >= YEARLY_LIMIT) break
+              if (idx + 1 >= YEARLY_LIMIT) break
             }
+            if (batch.isNotEmpty()) {
+              spotifyPlaylistService.addTracksToPlaylist(playlistId, batch.toList(), clientId)
+            }
+            spotifyPlaylistService.modifyPlaylist(playlistId, trackList, clientId)
             progressUpdater(Pair(year, 100))
-            if (trackList.isNotEmpty()) {
-              val id = spotifyPlaylistService.getOrCreatePlaylist("LAST.FM $year", clientId).id
-              spotifyPlaylistService.modifyPlaylist(id, trackList, clientId)
-            }
           }
         }
         .awaitAll()

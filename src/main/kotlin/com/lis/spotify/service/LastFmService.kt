@@ -61,35 +61,41 @@ class LastFmService(private val lastFmAuthService: LastFmAuthenticationService) 
     }
   }
 
-  fun yearlyChartlist(spotifyClientId: String, year: Int, lastFmLogin: String): Sequence<Song> {
+  fun yearlyChartlist(
+    spotifyClientId: String,
+    year: Int,
+    lastFmLogin: String,
+    limit: Int = Int.MAX_VALUE,
+  ): List<Song> {
     log.debug("yearlyChartlist {} {} {}", spotifyClientId, year, lastFmLogin)
     if (lastFmLogin.isBlank()) throw LastFmException(400, "user is required")
     val from = LocalDate.of(year, 1, 1).atStartOfDay().toEpochSecond(ZoneOffset.UTC)
     val to = LocalDate.of(year, 12, 31).atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC)
 
-    return sequence {
-      var page = 1
-      var fetched = 0
-      while (true) {
-        val data = fetchRecent(lastFmLogin, from, to, page++)
-        val recent = data["recenttracks"] as Map<*, *>
-        val tracks = recent["track"] as List<*>
-        if (tracks.isEmpty()) break
-        for (t in tracks) {
-          val m = t as Map<*, *>
-          val artist = (m["artist"] as Map<*, *>)["#text"] as String
-          val title = m["name"] as String
-          yield(Song(artist = artist, title = title))
-        }
-        fetched++
+    val result = mutableListOf<Song>()
+    var page = 1
+    var fetched = 0
+    while (result.size < limit) {
+      val data = fetchRecent(lastFmLogin, from, to, page++)
+      val recent = data["recenttracks"] as Map<*, *>
+      val tracks = recent["track"] as List<*>
+      if (tracks.isEmpty()) break
+      for (t in tracks) {
+        val m = t as Map<*, *>
+        val artist = (m["artist"] as Map<*, *>)["#text"] as String
+        val title = m["name"] as String
+        result += Song(artist = artist, title = title)
+        if (result.size >= limit) break
       }
-      log.debug("yearlyChartlist {} {} fetched {} pages", lastFmLogin, year, fetched)
+      fetched++
     }
+    log.debug("yearlyChartlist {} {} fetched {} pages", lastFmLogin, year, fetched)
+    return result
   }
 
   fun globalChartlist(lastFmLogin: String, page: Int = 1): List<Song> {
     log.debug("globalChartlist {} {}", lastFmLogin, page)
-    return yearlyChartlist("", 1970, lastFmLogin).toList() // reuse; no date filter needed
+    return yearlyChartlist("", 1970, lastFmLogin) // reuse; no date filter needed
   }
 }
 
