@@ -10,21 +10,10 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-// Dynamically determine the HTTP and WS origins
-const ORIGIN = window.location.origin; // e.g., http://localhost:8080 or https://example.com
+// Dynamically determine the HTTP origin
+const ORIGIN = window.location.origin;
 
-// Helper function to transform http:// -> ws:// and https:// -> wss://
-function buildWebSocketUrl(origin) {
-    if (origin.startsWith("https://")) {
-        return origin.replace("https://", "wss://");
-    } else if (origin.startsWith("http://")) {
-        return origin.replace("http://", "ws://");
-    }
-    return origin; // Fallback, though normally won't happen for a valid http/https origin
-}
-
-const URL = ORIGIN; // For all your standard AJAX calls
-const WS_URL = buildWebSocketUrl(ORIGIN); // For WebSocket connections
+const URL = ORIGIN;
 
 function buildPlayButtonUrl(id) {
     return "https://open.spotify.com/embed/playlist/" + id
@@ -51,26 +40,32 @@ $('#top').on('click', function (event) {
 });
 
 $('#lastfm').on('click', function (event) {
-    var socket = new WebSocket(WS_URL + "/socket/" + $('#lastFmId').val());
-    socket.onopen = function (ev) {
-        $("#progress").show();
-        $('#lastfm').prop('disabled', true);
-        $('#lastFmId').prop('disabled', true)
-
-        socket.send("BEGIN")
-    };
-    socket.onmessage = function (message) {
-        $("#progressBar")[0].style.width = $.parseJSON(message.data) + '%';
-    };
-    socket.onclose = function (ev) {
-        $("#progress").hide();
-        $('#lastfm').prop('disabled', false);
-        $('#lastFmId').prop('disabled', false)
-        $('#top').prop('aria-pressed', false);
-    };
-    socket.onerror = function (ev) {
-        console.log(ev)
-    }
+    $('#lastfm').prop('disabled', true);
+    $('#lastFmId').prop('disabled', true);
+    $.ajax({
+        type: 'post',
+        url: URL + '/jobs',
+        contentType: 'application/json',
+        data: JSON.stringify({lastFmLogin: $('#lastFmId').val()}),
+        success: function (data) {
+            $("#progress").show();
+            const jobId = data.jobId;
+            let interval = setInterval(function () {
+                $.get(URL + '/jobs/' + jobId + '/progress', function (p) {
+                    $("#progressBar")[0].style.width = p.percent + '%';
+                    if (p.status !== 'RUNNING') {
+                        clearInterval(interval);
+                        $("#progress").hide();
+                        $('#lastfm').prop('disabled', false);
+                        $('#lastFmId').prop('disabled', false);
+                    }
+                }, 'json');
+            }, 2000);
+        }, error: function () {
+            $('#lastfm').prop('disabled', false);
+            $('#lastFmId').prop('disabled', false);
+        }
+    });
 });
 
 

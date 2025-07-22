@@ -19,10 +19,8 @@ import org.springframework.context.annotation.Bean
 import org.springframework.scheduling.TaskScheduler
 import org.springframework.scheduling.annotation.EnableScheduling
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler
-import org.springframework.web.socket.config.annotation.EnableWebSocket
 
 @SpringBootApplication
-@EnableWebSocket
 @EnableScheduling
 class Application {
   private val log = LoggerFactory.getLogger(Application::class.java)

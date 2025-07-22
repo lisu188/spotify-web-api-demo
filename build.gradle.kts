@@ -23,7 +23,6 @@ repositories { mavenCentral() }
 
 dependencies {
   implementation("org.springframework.boot:spring-boot-starter-web")
-  implementation("org.springframework.boot:spring-boot-starter-websocket")
   implementation("org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion")
   implementation("org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion")
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
@@ -71,7 +70,14 @@ tasks.jacocoTestReport {
 
 tasks.jacocoTestCoverageVerification {
   dependsOn(tasks.jacocoTestReport)
-  violationRules { rule { limit { minimum = "0.80".toBigDecimal() } } }
+  violationRules {
+    rule {
+      limit {
+        counter = "LINE"
+        minimum = "0.80".toBigDecimal()
+      }
+    }
+  }
 }
 
 tasks.check { dependsOn(tasks.jacocoTestCoverageVerification) }
