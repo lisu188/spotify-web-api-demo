@@ -24,7 +24,7 @@ class LastFmController(val lastFmService: LastFmService) {
   fun verifyLastFmId(@PathVariable("lastFmLogin") lastFmLogin: String): Boolean {
     logger.info("Verifying Last.fm ID {}", lastFmLogin)
     logger.debug("verifyLastFmId for {}", lastFmLogin)
-    val result = lastFmService.globalChartlist(lastFmLogin).isNotEmpty()
+    val result = lastFmService.userExists(lastFmLogin)
     logger.info("Verification result for {} -> {}", lastFmLogin, result)
     return result
   }

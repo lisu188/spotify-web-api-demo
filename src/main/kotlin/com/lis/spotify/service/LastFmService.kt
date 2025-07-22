@@ -61,6 +61,26 @@ class LastFmService(private val lastFmAuthService: LastFmAuthenticationService) 
     }
   }
 
+  fun userExists(lastFmLogin: String): Boolean {
+    log.info("Checking Last.fm user {}", lastFmLogin)
+    log.debug("userExists {}", lastFmLogin)
+    if (lastFmLogin.isBlank()) throw LastFmException(400, "user is required")
+    val uri = buildUri("user.getInfo", mapOf("user" to lastFmLogin), null)
+    return try {
+      rest.getForObject(uri, Map::class.java)
+      true
+    } catch (ex: HttpClientErrorException) {
+      val err = parseError(ex)
+      return if (err.code == 6) {
+        log.info("User {} not found", lastFmLogin)
+        false
+      } else {
+        log.error("Last.fm error {} {}", err.code, err.message)
+        throw err
+      }
+    }
+  }
+
   fun yearlyChartlist(
     spotifyClientId: String,
     year: Int,

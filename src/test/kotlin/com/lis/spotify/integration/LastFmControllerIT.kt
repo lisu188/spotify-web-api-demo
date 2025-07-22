@@ -75,17 +75,9 @@ class LastFmControllerIT @Autowired constructor(private val rest: TestRestTempla
   fun verifyLoginTrue() {
     stubFor(
       get(urlPathEqualTo("/2.0/"))
-        .withQueryParam("page", equalTo("1"))
-        .willReturn(
-          okJson(
-            """{"recenttracks":{"@attr":{"totalPages":"1"},"track":[{"artist":{"#text":"A"},"name":"B"}]}}"""
-          )
-        )
-    )
-    stubFor(
-      get(urlPathEqualTo("/2.0/"))
-        .withQueryParam("page", equalTo("2"))
-        .willReturn(okJson("""{"recenttracks":{"@attr":{"totalPages":"1"},"track":[]}}"""))
+        .withQueryParam("method", equalTo("user.getInfo"))
+        .withQueryParam("user", equalTo("login"))
+        .willReturn(okJson("""{"user":{"name":"login"}}"""))
     )
     val resp = rest.postForEntity("/verifyLastFmId/login", null, Boolean::class.java)
     assertAll({ assertEquals(HttpStatus.OK, resp.statusCode) }, { assertEquals(true, resp.body) })
@@ -95,8 +87,11 @@ class LastFmControllerIT @Autowired constructor(private val rest: TestRestTempla
   fun verifyLoginFalse() {
     stubFor(
       get(urlPathEqualTo("/2.0/"))
-        .withQueryParam("page", equalTo("1"))
-        .willReturn(okJson("""{"recenttracks":{"@attr":{"totalPages":"1"},"track":[]}}"""))
+        .withQueryParam("method", equalTo("user.getInfo"))
+        .withQueryParam("user", equalTo("login"))
+        .willReturn(
+          aResponse().withStatus(404).withBody("""{"error":6,"message":"User not found"}""")
+        )
     )
     val resp = rest.postForEntity("/verifyLastFmId/login", null, Boolean::class.java)
     assertAll({ assertEquals(HttpStatus.OK, resp.statusCode) }, { assertEquals(false, resp.body) })
@@ -106,6 +101,8 @@ class LastFmControllerIT @Autowired constructor(private val rest: TestRestTempla
   fun verifyLoginUnauthorized() {
     stubFor(
       get(urlPathEqualTo("/2.0/"))
+        .withQueryParam("method", equalTo("user.getInfo"))
+        .withQueryParam("user", equalTo("login"))
         .willReturn(aResponse().withStatus(401).withBody("""{"error":17,"message":"Login"}"""))
     )
     val noRedirect =
