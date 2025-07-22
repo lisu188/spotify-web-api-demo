@@ -4,9 +4,9 @@ import com.lis.spotify.AppEnvironment.Spotify
 import com.lis.spotify.domain.AuthToken
 import com.lis.spotify.domain.User
 import com.lis.spotify.service.SpotifyAuthenticationService
-import javax.servlet.http.Cookie
-import javax.servlet.http.HttpServletRequest
-import javax.servlet.http.HttpServletResponse
+import jakarta.servlet.http.Cookie
+import jakarta.servlet.http.HttpServletRequest
+import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
 import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.http.HttpEntity

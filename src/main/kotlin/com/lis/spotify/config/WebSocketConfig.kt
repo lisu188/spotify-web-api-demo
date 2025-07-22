@@ -12,12 +12,12 @@
 
 package com.lis.spotify.config
 
+import jakarta.servlet.http.Cookie
+import jakarta.servlet.http.HttpServletRequest
+import jakarta.websocket.HandshakeResponse
+import jakarta.websocket.server.HandshakeRequest
+import jakarta.websocket.server.ServerEndpointConfig
 import java.lang.reflect.Field
-import javax.servlet.http.Cookie
-import javax.servlet.http.HttpServletRequest
-import javax.websocket.HandshakeResponse
-import javax.websocket.server.HandshakeRequest
-import javax.websocket.server.ServerEndpointConfig
 import org.springframework.beans.factory.config.AutowireCapableBeanFactory
 import org.springframework.context.ApplicationContext
 import org.springframework.context.ApplicationContextAware
