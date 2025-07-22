@@ -4,6 +4,10 @@ import com.lis.spotify.domain.AuthToken
 import io.mockk.every
 import io.mockk.mockk
 import java.net.URI
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -58,5 +62,19 @@ class SpotifyAuthenticationServiceTest {
     service.setAuthToken(token)
     service.refreshToken("cid")
     assertEquals(token, service.getAuthToken("cid"))
+  }
+
+  @Test
+  fun concurrentReadWriteDoesNotThrow() = runBlocking {
+    coroutineScope {
+      repeat(50) {
+        launch(Dispatchers.Default) {
+          val id = "c$it"
+          val token = AuthToken("a$id", "type", "", 0, "r", id)
+          service.setAuthToken(token)
+          service.getAuthToken(id)
+        }
+      }
+    }
   }
 }

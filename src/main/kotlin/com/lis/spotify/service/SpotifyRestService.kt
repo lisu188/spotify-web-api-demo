@@ -80,7 +80,15 @@ class SpotifyRestService(
         )
       }
     logger.debug("doExchange response from {} {} -> {}", httpMethod, url, response.statusCode)
-    return response.body ?: throw Exception() // TODO:
+    val result = response.body
+    if (result != null) {
+      return result
+    }
+    if (U::class == Unit::class) {
+      @Suppress("UNCHECKED_CAST")
+      return Unit as U
+    }
+    throw IllegalStateException("Received null body for ${httpMethod.name()} $url")
   }
 
   final inline fun <reified U : Any> doGet(

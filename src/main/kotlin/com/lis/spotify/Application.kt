@@ -32,5 +32,6 @@ class Application {
 }
 
 fun main(args: Array<String>) {
+  LoggerFactory.getLogger(Application::class.java).info("Starting application")
   runApplication<Application>(*args)
 }

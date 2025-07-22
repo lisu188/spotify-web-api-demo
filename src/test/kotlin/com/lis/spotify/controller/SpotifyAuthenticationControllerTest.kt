@@ -94,6 +94,10 @@ class SpotifyAuthenticationControllerTest {
 
     controller.callback(request, "code", response)
 
-    verify { response.addCookie(match { it.name == "clientId" && it.path == "/" }) }
+    verify {
+      response.addCookie(
+        match { it.name == "clientId" && it.path == "/" && it.isHttpOnly && it.secure }
+      )
+    }
   }
 }

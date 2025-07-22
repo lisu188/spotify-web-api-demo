@@ -52,5 +52,7 @@ class LastFmAuthenticationControllerTest {
     controller.handleCallback("tok", response)
 
     assertEquals("/", cookieSlot.captured.path)
+    assertTrue(cookieSlot.captured.isHttpOnly)
+    assertTrue(cookieSlot.captured.secure)
   }
 }
