@@ -5,6 +5,10 @@ import io.mockk.every
 import io.mockk.mockk
 import java.net.URI
 import java.nio.charset.StandardCharsets
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpEntity
@@ -70,5 +74,21 @@ class LastFmAuthenticationServiceTest {
 
     assertEquals(false, service.isAuthorized("val"))
     assertEquals(null, service.getSessionKey("user"))
+  }
+
+  @Test
+  fun concurrentReadWriteDoesNotThrow() = runBlocking {
+    val service = LastFmAuthenticationService()
+    coroutineScope {
+      repeat(50) {
+        launch(Dispatchers.Default) {
+          val login = "u$it"
+          val session = "s$it"
+          service.setSession(login, session)
+          service.isAuthorized(session)
+          service.getSessionKey(login)
+        }
+      }
+    }
   }
 }
