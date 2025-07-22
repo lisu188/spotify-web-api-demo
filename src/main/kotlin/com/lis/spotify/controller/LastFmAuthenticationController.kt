@@ -43,6 +43,8 @@ class LastFmAuthenticationController(private val lastFmAuthService: LastFmAuthen
       if (!key.isNullOrEmpty()) {
         val cookie = Cookie("lastFmToken", key)
         cookie.path = "/"
+        cookie.isHttpOnly = true
+        cookie.secure = true
         response.addCookie(cookie)
       }
       if (!name.isNullOrEmpty() && !key.isNullOrEmpty()) {
