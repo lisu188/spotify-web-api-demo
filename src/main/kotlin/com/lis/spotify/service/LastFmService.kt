@@ -66,6 +66,7 @@ class LastFmService(private val lastFmAuthService: LastFmAuthenticationService) 
     year: Int,
     lastFmLogin: String,
     limit: Int = Int.MAX_VALUE,
+    startPage: Int = 1,
   ): List<Song> {
     log.debug("yearlyChartlist {} {} {}", spotifyClientId, year, lastFmLogin)
     if (lastFmLogin.isBlank()) throw LastFmException(400, "user is required")
@@ -73,7 +74,7 @@ class LastFmService(private val lastFmAuthService: LastFmAuthenticationService) 
     val to = LocalDate.of(year, 12, 31).atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC)
 
     val result = mutableListOf<Song>()
-    var page = 1
+    var page = startPage
     var fetched = 0
     while (result.size < limit) {
       val data = fetchRecent(lastFmLogin, from, to, page++)
@@ -95,7 +96,7 @@ class LastFmService(private val lastFmAuthService: LastFmAuthenticationService) 
 
   fun globalChartlist(lastFmLogin: String, page: Int = 1): List<Song> {
     log.debug("globalChartlist {} {}", lastFmLogin, page)
-    return yearlyChartlist("", 1970, lastFmLogin) // reuse; no date filter needed
+    return yearlyChartlist("", 1970, lastFmLogin, startPage = page)
   }
 }
 
