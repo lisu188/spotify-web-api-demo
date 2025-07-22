@@ -36,7 +36,7 @@ class SpotifyTopPlaylistsService(
     logger.debug("updateTopPlaylists {}", clientId)
     logger.info("updateTopPlaylists: {}", clientId)
 
-    return runBlocking {
+    return runBlocking(Dispatchers.IO) {
       val shortTerm =
         spotifyTopTrackService
           .getTopTracksShortTerm(clientId)
@@ -100,7 +100,7 @@ class SpotifyTopPlaylistsService(
   ) {
     logger.debug("updateYearlyPlaylists {} {}", clientId, lastFmLogin)
     logger.info("updateYearlyPlaylists: {}", clientId)
-    runBlocking {
+    runBlocking(Dispatchers.IO) {
       val years = (2005..getYear()).toList()
 
       val chartlists =
