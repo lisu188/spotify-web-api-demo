@@ -3,6 +3,7 @@ package com.lis.spotify.integration
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
 import com.github.tomakehurst.wiremock.client.WireMock.configureFor
+import com.github.tomakehurst.wiremock.client.WireMock.equalTo
 import com.github.tomakehurst.wiremock.client.WireMock.get
 import com.github.tomakehurst.wiremock.client.WireMock.okJson
 import com.github.tomakehurst.wiremock.client.WireMock.reset as wireMockReset
@@ -74,11 +75,17 @@ class LastFmControllerIT @Autowired constructor(private val rest: TestRestTempla
   fun verifyLoginTrue() {
     stubFor(
       get(urlPathEqualTo("/2.0/"))
+        .withQueryParam("page", equalTo("1"))
         .willReturn(
           okJson(
             """{"recenttracks":{"@attr":{"totalPages":"1"},"track":[{"artist":{"#text":"A"},"name":"B"}]}}"""
           )
         )
+    )
+    stubFor(
+      get(urlPathEqualTo("/2.0/"))
+        .withQueryParam("page", equalTo("2"))
+        .willReturn(okJson("""{"recenttracks":{"@attr":{"totalPages":"1"},"track":[]}}"""))
     )
     val resp = rest.postForEntity("/verifyLastFmId/login", null, Boolean::class.java)
     assertAll({ assertEquals(HttpStatus.OK, resp.statusCode) }, { assertEquals(true, resp.body) })
@@ -88,6 +95,7 @@ class LastFmControllerIT @Autowired constructor(private val rest: TestRestTempla
   fun verifyLoginFalse() {
     stubFor(
       get(urlPathEqualTo("/2.0/"))
+        .withQueryParam("page", equalTo("1"))
         .willReturn(okJson("""{"recenttracks":{"@attr":{"totalPages":"1"},"track":[]}}"""))
     )
     val resp = rest.postForEntity("/verifyLastFmId/login", null, Boolean::class.java)

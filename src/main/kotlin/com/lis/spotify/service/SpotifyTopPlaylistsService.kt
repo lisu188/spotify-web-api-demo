@@ -26,6 +26,8 @@ class SpotifyTopPlaylistsService(
   var spotifySearchService: SpotifySearchService,
 ) {
 
+  private val YEARLY_LIMIT = 250
+
   private val logger = LoggerFactory.getLogger(SpotifyTopPlaylistsService::class.java)
 
   fun updateTopPlaylists(clientId: String): List<String> {
@@ -92,9 +94,9 @@ class SpotifyTopPlaylistsService(
       val trackList = mutableListOf<String>()
       for (song in chartlist) {
         val result = spotifySearchService.doSearch(song, clientId)
-        progressUpdater(Pair(year, progress.incrementAndGet() * 100 / chartlist.size))
+        progressUpdater(Pair(year, progress.incrementAndGet() * 100 / YEARLY_LIMIT))
         result?.tracks?.items?.stream()?.findFirst()?.orElse(null)?.let { trackList += it.id }
-        if (trackList.size >= 250) break
+        if (trackList.size >= YEARLY_LIMIT) break
       }
       progressUpdater(Pair(year, 100))
       if (trackList.isNotEmpty()) {
