@@ -92,7 +92,7 @@ class LastFmServiceTest {
       )
     every { rest.getForObject(any<java.net.URI>(), Map::class.java) } returns map1
 
-    val songs = service.yearlyChartlist("cid", 2020, "login", 1)
+    val songs = service.yearlyChartlist("cid", 2020, "login", limit = 1)
 
     assertEquals(listOf(Song("A", "T1")), songs)
     io.mockk.verify(exactly = 1) { rest.getForObject(any<java.net.URI>(), Map::class.java) }
@@ -169,10 +169,11 @@ class LastFmServiceTest {
   }
 
   @Test
-  fun globalChartlistDelegates() {
+  fun globalChartlistForwardsPage() {
     val service = spyk(LastFmService(mockk(relaxed = true)))
-    every { service.yearlyChartlist("", 1970, "login") } returns listOf(Song("a", "b"))
-    val result = service.globalChartlist("login")
+    every { service.yearlyChartlist("", 1970, "login", startPage = 2) } returns
+      listOf(Song("a", "b"))
+    val result = service.globalChartlist("login", 2)
     assertEquals(listOf(Song("a", "b")), result)
   }
 }
