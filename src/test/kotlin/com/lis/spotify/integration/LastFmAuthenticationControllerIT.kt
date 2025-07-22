@@ -35,14 +35,23 @@ class LastFmAuthenticationControllerIT @Autowired constructor(private val rest: 
     @JvmStatic
     @DynamicPropertySource
     fun properties(registry: DynamicPropertyRegistry) {
+      wm.start()
+      configureFor("localhost", wm.port())
+      val base = baseUrl
+      registry.add("BASE_URL") { "http://localhost" }
+      registry.add("SPOTIFY_CLIENT_ID") { "id" }
+      registry.add("SPOTIFY_CLIENT_SECRET") { "secret" }
+      registry.add("LASTFM_API_KEY") { "key" }
+      registry.add("LASTFM_API_SECRET") { "secret" }
+      registry.add("LASTFM_API_URL") { "$base/2.0/" }
+      registry.add("LASTFM_AUTHORIZE_URL") { "$base/auth" }
+      registry.add("SPOTIFY_AUTH_URL") { "$base/s-auth" }
+      registry.add("SPOTIFY_TOKEN_URL") { "$base/s-token" }
       System.setProperty("BASE_URL", "http://localhost")
       System.setProperty("SPOTIFY_CLIENT_ID", "id")
       System.setProperty("SPOTIFY_CLIENT_SECRET", "secret")
       System.setProperty("LASTFM_API_KEY", "key")
       System.setProperty("LASTFM_API_SECRET", "secret")
-      wm.start()
-      configureFor("localhost", wm.port())
-      val base = baseUrl
       System.setProperty("LASTFM_API_URL", "$base/2.0/")
       System.setProperty("LASTFM_AUTHORIZE_URL", "$base/auth")
       System.setProperty("SPOTIFY_AUTH_URL", "$base/s-auth")
