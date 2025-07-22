@@ -3,6 +3,7 @@ package com.lis.spotify.service
 import com.lis.spotify.domain.Song
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.spyk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
@@ -127,5 +128,13 @@ class LastFmServiceTest {
 
     service.yearlyChartlist("c", 2020, "login")
     assert(uriSlot.captured.query!!.contains("sk=sess"))
+  }
+
+  @Test
+  fun globalChartlistDelegates() {
+    val service = spyk(LastFmService(mockk(relaxed = true)))
+    every { service.yearlyChartlist("", 1970, "login") } returns listOf(Song("a", "b"))
+    val result = service.globalChartlist("login")
+    assertEquals(listOf(Song("a", "b")), result)
   }
 }
