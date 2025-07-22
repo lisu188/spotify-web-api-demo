@@ -128,7 +128,8 @@ class SpotifyTopPlaylistsService(
             if (trackList.isNotEmpty()) {
               val playlistId =
                 spotifyPlaylistService.getOrCreatePlaylist("LAST.FM $year", clientId).id
-              spotifyPlaylistService.modifyPlaylist(playlistId, trackList, clientId)
+              spotifyPlaylistService.modifyPlaylist(playlistId, trackList.distinct(), clientId)
+              spotifyPlaylistService.deduplicatePlaylist(playlistId, clientId)
             }
             progressUpdater(Pair(year, 100))
           }

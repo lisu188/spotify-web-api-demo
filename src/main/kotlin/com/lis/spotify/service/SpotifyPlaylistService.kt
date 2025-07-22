@@ -102,6 +102,27 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
     return ArrayList(old.toSet() - new.toSet())
   }
 
+  fun replacePlaylistTracks(id: String, trackList: List<String>, clientId: String) {
+    logger.debug("replacePlaylistTracks {} {} {}", id, clientId, trackList.size)
+    logger.info("replacePlaylistTracks: {} {} {}", id, clientId, trackList.size)
+
+    spotifyRestService.doPut<Any>(
+      PLAYLIST_TRACKS_URL,
+      body = mapOf("uris" to trackList.map { "spotify:track:$it" }),
+      params = mapOf("id" to id),
+      clientId = clientId,
+    )
+    logger.debug("replacePlaylistTracks {} {} -> replaced {}", id, clientId, trackList.size)
+  }
+
+  fun deduplicatePlaylist(id: String, clientId: String) {
+    val tracks = getPlaylistTrackIds(id, clientId).orEmpty()
+    val distinct = tracks.distinct()
+    if (tracks.size != distinct.size) {
+      replacePlaylistTracks(id, distinct, clientId)
+    }
+  }
+
   fun modifyPlaylist(
     id: String,
     trackList: List<String>,

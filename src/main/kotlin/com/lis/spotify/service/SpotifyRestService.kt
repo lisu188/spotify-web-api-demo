@@ -102,4 +102,13 @@ class SpotifyRestService(
   ): U {
     return doRequest(url, HttpMethod.POST, params, body, clientId)
   }
+
+  final inline fun <reified U : Any> doPut(
+    url: String,
+    params: Map<String, Any> = HashMap(),
+    body: Any? = null,
+    clientId: String,
+  ): U {
+    return doRequest(url, HttpMethod.PUT, params, body, clientId)
+  }
 }

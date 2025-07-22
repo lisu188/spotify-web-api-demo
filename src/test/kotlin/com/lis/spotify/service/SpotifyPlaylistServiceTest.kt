@@ -98,4 +98,25 @@ class SpotifyPlaylistServiceTest {
     assertEquals(emptyList<String>(), result["added"])
     assertEquals(emptyList<String>(), result["removed"])
   }
+
+  @Test
+  fun deduplicatePlaylistRemovesDuplicates() {
+    val spied = spyk(service)
+    every { spied.getPlaylistTrackIds("pl", "cid") } returns listOf("1", "1", "2")
+    every { spied.replacePlaylistTracks("pl", listOf("1", "2"), "cid") } returns Unit
+
+    spied.deduplicatePlaylist("pl", "cid")
+
+    verify(exactly = 1) { spied.replacePlaylistTracks("pl", listOf("1", "2"), "cid") }
+  }
+
+  @Test
+  fun deduplicatePlaylistNoDuplicates() {
+    val spied = spyk(service)
+    every { spied.getPlaylistTrackIds("pl", "cid") } returns listOf("1", "2")
+
+    spied.deduplicatePlaylist("pl", "cid")
+
+    verify(exactly = 0) { spied.replacePlaylistTracks(any(), any(), any()) }
+  }
 }
