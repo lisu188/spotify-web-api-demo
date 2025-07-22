@@ -12,8 +12,11 @@
 
 package com.lis.spotify.service
 
+import com.google.common.cache.Cache
+import com.google.common.cache.CacheBuilder
 import com.lis.spotify.domain.SearchResult
 import com.lis.spotify.domain.Song
+import java.util.concurrent.TimeUnit
 import kotlin.system.measureTimeMillis
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -25,15 +28,24 @@ class SpotifySearchService(val spotifyRestService: SpotifyRestService) {
   }
 
   private val logger = LoggerFactory.getLogger(SpotifySearchService::class.java)
+  private val searchCache: Cache<Song, SearchResult> =
+    CacheBuilder.newBuilder().expireAfterWrite(10, TimeUnit.MINUTES).build()
 
   fun doSearch(song: Song, clientId: String): SearchResult? {
     logger.debug("doSearch single {} {}", song, clientId)
+    val cached = searchCache.getIfPresent(song)
+    if (cached != null) {
+      logger.debug("doSearch cache hit {} {}", song, clientId)
+      return cached
+    }
+
     val result =
       spotifyRestService.doGet<SearchResult>(
         SEARCH_URL,
         params = mapOf("q" to "track:${song.title} artist:${song.artist}", "type" to "track"),
         clientId = clientId,
       )
+    searchCache.put(song, result)
     logger.debug("doSearch single result {}", result != null)
     return result
   }

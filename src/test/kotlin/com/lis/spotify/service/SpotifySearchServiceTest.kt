@@ -8,6 +8,7 @@ import com.lis.spotify.domain.Song
 import com.lis.spotify.domain.Track
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
@@ -28,5 +29,19 @@ class SpotifySearchServiceTest {
     every { rest.doRequest(any<() -> Any>()) } returns result
     val ids = service.doSearch(listOf(Song("a", "t")), "cid")
     assertEquals(listOf("1"), ids)
+  }
+
+  @Test
+  fun searchUsesCache() {
+    val rest = mockk<SpotifyRestService>()
+    val service = SpotifySearchService(rest)
+    val track = Track("1", "t", listOf(Artist("2", "a")), Album("3", "al", emptyList()))
+    val result = SearchResult(SearchResultInternal(listOf(track)))
+    every { rest.doRequest(any<() -> Any>()) } returns result
+
+    val song = Song("a", "t")
+    service.doSearch(song, "cid1")
+    service.doSearch(song, "cid2")
+    verify(exactly = 1) { rest.doRequest(any<() -> Any>()) }
   }
 }
