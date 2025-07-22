@@ -22,8 +22,11 @@ import org.springframework.web.bind.annotation.RestController
 class LastFmController(val lastFmService: LastFmService) {
   @PostMapping("/verifyLastFmId/{lastFmLogin}")
   fun verifyLastFmId(@PathVariable("lastFmLogin") lastFmLogin: String): Boolean {
+    logger.info("Verifying Last.fm ID {}", lastFmLogin)
     logger.debug("verifyLastFmId for {}", lastFmLogin)
-    return lastFmService.globalChartlist(lastFmLogin).isNotEmpty()
+    val result = lastFmService.globalChartlist(lastFmLogin).isNotEmpty()
+    logger.info("Verification result for {} -> {}", lastFmLogin, result)
+    return result
   }
 
   companion object {

@@ -2,6 +2,7 @@ package com.lis.spotify.service
 
 import java.util.*
 import kotlin.math.roundToInt
+import org.slf4j.LoggerFactory
 import org.springframework.scheduling.TaskScheduler
 import org.springframework.stereotype.Service
 
@@ -11,8 +12,15 @@ class JobService(
   private val scheduler: TaskScheduler,
   private val store: ProgressStore,
 ) {
+  private val logger = LoggerFactory.getLogger(JobService::class.java)
+
   fun startYearlyJob(clientId: String, lastFmLogin: String): String {
     val id = UUID.randomUUID().toString()
+    logger.info(
+      "Scheduling yearly playlist update for clientId={} lastFmLogin={}",
+      clientId,
+      lastFmLogin,
+    )
     store.create(id)
     scheduler.schedule(
       {
@@ -36,6 +44,7 @@ class JobService(
       },
       Date(),
     )
+    logger.info("Yearly playlist update job {} scheduled", id)
     return id
   }
 
