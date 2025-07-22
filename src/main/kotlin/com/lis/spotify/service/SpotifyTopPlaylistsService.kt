@@ -14,6 +14,8 @@ package com.lis.spotify.service
 
 import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -87,22 +89,28 @@ class SpotifyTopPlaylistsService(
   ) {
     logger.debug("updateYearlyPlaylists {} {}", clientId, lastFmLogin)
     logger.info("updateYearlyPlaylists: {}", clientId)
-    (2005..getYear()).map { year: Int ->
-      var progress = AtomicInteger()
-      progressUpdater(Pair(year, progress.get()))
-      val chartlist = lastFmService.yearlyChartlist(clientId, year, lastFmLogin)
-      val trackList = mutableListOf<String>()
-      for (song in chartlist) {
-        val result = spotifySearchService.doSearch(song, clientId)
-        progressUpdater(Pair(year, progress.incrementAndGet() * 100 / YEARLY_LIMIT))
-        result?.tracks?.items?.stream()?.findFirst()?.orElse(null)?.let { trackList += it.id }
-        if (trackList.size >= YEARLY_LIMIT) break
-      }
-      progressUpdater(Pair(year, 100))
-      if (trackList.isNotEmpty()) {
-        val id = spotifyPlaylistService.getOrCreatePlaylist("LAST.FM $year", clientId).id
-        spotifyPlaylistService.modifyPlaylist(id, trackList, clientId)
-      }
+    runBlocking {
+      (2005..getYear())
+        .map { year: Int ->
+          async {
+            var progress = AtomicInteger()
+            progressUpdater(Pair(year, progress.get()))
+            val chartlist = lastFmService.yearlyChartlist(clientId, year, lastFmLogin)
+            val trackList = mutableListOf<String>()
+            for (song in chartlist) {
+              val result = spotifySearchService.doSearch(song, clientId)
+              progressUpdater(Pair(year, progress.incrementAndGet() * 100 / YEARLY_LIMIT))
+              result?.tracks?.items?.stream()?.findFirst()?.orElse(null)?.let { trackList += it.id }
+              if (trackList.size >= YEARLY_LIMIT) break
+            }
+            progressUpdater(Pair(year, 100))
+            if (trackList.isNotEmpty()) {
+              val id = spotifyPlaylistService.getOrCreatePlaylist("LAST.FM $year", clientId).id
+              spotifyPlaylistService.modifyPlaylist(id, trackList, clientId)
+            }
+          }
+        }
+        .awaitAll()
     }
     logger.debug("updateYearlyPlaylists {} completed", clientId)
   }
