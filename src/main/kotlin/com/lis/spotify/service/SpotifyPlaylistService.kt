@@ -137,7 +137,9 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
       val newSet = trackList.toSet()
 
       val tracksToRemove = (oldSet - newSet).toList()
-      deleteTracksFromPlaylist(id, tracksToRemove, clientId)
+      if (tracksToRemove.isNotEmpty()) {
+        deleteTracksFromPlaylist(id, tracksToRemove, clientId)
+      }
 
       val tracksToAdd = (newSet - oldSet).toList()
       addTracksToPlaylist(id, tracksToAdd, clientId)
