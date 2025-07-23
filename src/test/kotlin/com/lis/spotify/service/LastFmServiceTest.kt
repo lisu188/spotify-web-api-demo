@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.web.client.HttpClientErrorException
+import org.springframework.web.client.ResourceAccessException
 import org.springframework.web.client.RestTemplate
 
 class LastFmServiceTest {
@@ -227,5 +228,19 @@ class LastFmServiceTest {
       )
     every { rest.getForObject(any<java.net.URI>(), Map::class.java) } throws ex
     assertThrows(LastFmException::class.java) { service.userExists("login") }
+  }
+
+  @Test
+  fun networkErrorsAreWrapped() {
+    val rest = mockk<RestTemplate>()
+    val service = LastFmService(mockk(relaxed = true))
+    val field = LastFmService::class.java.getDeclaredField("rest")
+    field.isAccessible = true
+    field.set(service, rest)
+    every { rest.getForObject(any<java.net.URI>(), Map::class.java) } throws
+      ResourceAccessException("boom")
+
+    val ex = assertThrows(LastFmException::class.java) { service.userExists("u") }
+    assertEquals(503, ex.code)
   }
 }

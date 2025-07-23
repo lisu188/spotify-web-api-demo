@@ -9,6 +9,7 @@ import java.time.ZoneOffset
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.web.client.HttpClientErrorException
+import org.springframework.web.client.ResourceAccessException
 import org.springframework.web.client.RestTemplate
 import org.springframework.web.util.UriComponentsBuilder
 
@@ -50,6 +51,9 @@ class LastFmService(private val lastFmAuthService: LastFmAuthenticationService) 
         throw AuthenticationRequiredException("LASTFM")
       }
       throw err
+    } catch (ex: ResourceAccessException) {
+      log.error("Last.fm network error", ex)
+      throw LastFmException(503, ex.message ?: "I/O error")
     }
   }
 
@@ -81,6 +85,9 @@ class LastFmService(private val lastFmAuthService: LastFmAuthenticationService) 
         log.error("Last.fm error {} {}", err.code, err.message)
         throw err
       }
+    } catch (ex: ResourceAccessException) {
+      log.error("Last.fm network error", ex)
+      throw LastFmException(503, ex.message ?: "I/O error")
     }
   }
 
