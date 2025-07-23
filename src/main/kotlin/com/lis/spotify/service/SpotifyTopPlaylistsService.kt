@@ -100,18 +100,9 @@ class SpotifyTopPlaylistsService(
       val years = (2005..getYear()).toList().sortedDescending()
       val total = years.size
 
-      val chartlists =
-        years
-          .associateWith { year ->
-            async(Dispatchers.IO) {
-              lastFmService.yearlyChartlist(clientId, year, lastFmLogin, YEARLY_LIMIT)
-            }
-          }
-          .mapValues { it.value.await() }
-
       years.forEachIndexed { idx, year ->
         logger.info("Processing year {} ({}/{})", year, idx + 1, total)
-        val chartlist = chartlists[year].orEmpty()
+        val chartlist = lastFmService.yearlyChartlist(clientId, year, lastFmLogin, YEARLY_LIMIT)
 
         val deferred =
           chartlist.take(YEARLY_LIMIT).map { song ->
