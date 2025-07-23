@@ -47,32 +47,12 @@ $('#lastfm').on('click', function (event) {
         url: URL + '/jobs',
         contentType: 'application/json',
         data: JSON.stringify({lastFmLogin: $('#lastFmId').val()}),
-        success: function (data) {
-            $("#progress").show();
-            $("#progressBar")[0].style.width = '0%';
-            const jobId = data.jobId;
-            let interval = setInterval(function () {
-                $.get(URL + '/jobs/' + jobId + '/progress', function (p) {
-                    $("#progressBar")[0].style.width = p.percent + '%';
-                    if (p.status !== 'RUNNING') {
-                        clearInterval(interval);
-                        $("#progress").hide();
-                        $("#progressBar")[0].style.width = '0%';
-                        $('#lastfm').prop('disabled', false);
-                        $('#lastFmId').prop('disabled', false);
-                        if (p.status === 'ERROR' && p.message) {
-                            if (p.message === 'AUTH_SPOTIFY') {
-                                window.location.href = '/auth/spotify';
-                            } else if (p.message === 'AUTH_LASTFM') {
-                                window.location.href = '/auth/lastfm';
-                            }
-                        }
-                    }
-                }, 'json');
-            }, 2000);
-        }, error: function () {
+        complete: function (xhr) {
             $('#lastfm').prop('disabled', false);
             $('#lastFmId').prop('disabled', false);
+            if (xhr.status === 302 && xhr.getResponseHeader('Location')) {
+                window.location.href = xhr.getResponseHeader('Location');
+            }
         }
     });
 });

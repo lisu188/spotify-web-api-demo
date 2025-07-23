@@ -93,15 +93,12 @@ class SpotifyTopPlaylistsService(
     }
   }
 
-  fun updateYearlyPlaylists(
-    clientId: String,
-    progressUpdater: (Pair<Int, Int>) -> Unit = {},
-    lastFmLogin: String,
-  ) {
+  fun updateYearlyPlaylists(clientId: String, lastFmLogin: String) {
     logger.debug("updateYearlyPlaylists {} {}", clientId, lastFmLogin)
     logger.info("updateYearlyPlaylists: {}", clientId)
     runBlocking(Dispatchers.IO) {
       val years = (2005..getYear()).toList().sortedDescending()
+      val total = years.size
 
       val chartlists =
         years
@@ -112,16 +109,21 @@ class SpotifyTopPlaylistsService(
           }
           .mapValues { it.value.await() }
 
-      for (year in years) {
-        progressUpdater(Pair(year, 0))
+      years.forEachIndexed { idx, year ->
+        logger.info("Processing year {} ({}/{})", year, idx + 1, total)
         val chartlist = chartlists[year].orEmpty()
 
         val deferred =
-          chartlist.take(YEARLY_LIMIT).mapIndexed { idx, song ->
+          chartlist.take(YEARLY_LIMIT).map { song ->
             async(Dispatchers.IO) {
-              val result = spotifySearchService.doSearch(song, clientId)
-              progressUpdater(Pair(year, (idx + 1) * 100 / YEARLY_LIMIT))
-              result?.tracks?.items?.stream()?.findFirst()?.orElse(null)?.id
+              spotifySearchService
+                .doSearch(song, clientId)
+                ?.tracks
+                ?.items
+                ?.stream()
+                ?.findFirst()
+                ?.orElse(null)
+                ?.id
             }
           }
 
@@ -131,7 +133,7 @@ class SpotifyTopPlaylistsService(
           spotifyPlaylistService.modifyPlaylist(playlistId, trackList, clientId)
           spotifyPlaylistService.deduplicatePlaylist(playlistId, clientId)
         }
-        progressUpdater(Pair(year, 100))
+        logger.info("Year {} completed: {}%", year, ((idx + 1) * 100) / total)
       }
     }
     logger.info("updateYearlyPlaylists {} completed", clientId)

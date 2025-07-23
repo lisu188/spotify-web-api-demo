@@ -67,20 +67,14 @@ class JobsControllerIT @Autowired constructor(private val rest: TestRestTemplate
     headers.add(HttpHeaders.COOKIE, "clientId=cid")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
     val resp = rest.postForEntity("/jobs", req, Map::class.java)
-    val id = resp.body!!["jobId"] as String
-    val progress = rest.getForEntity("/jobs/$id/progress", Map::class.java)
-    assertEquals(100, (progress.body!!["percent"] as Number).toInt())
+    assertEquals(HttpStatus.ACCEPTED, resp.statusCode)
   }
 
   class Config {
     @Bean
     fun playlistService(taskScheduler: TaskScheduler): SpotifyTopPlaylistsService {
       val svc = mockk<SpotifyTopPlaylistsService>()
-      every { svc.updateYearlyPlaylists(any(), any(), any()) } answers
-        {
-          val cb = secondArg<(Pair<Int, Int>) -> Unit>()
-          cb(Pair(2005, 100))
-        }
+      every { svc.updateYearlyPlaylists(any(), any()) } returns Unit
       every { svc.updateTopPlaylists(any()) } returns emptyList()
       return svc
     }
