@@ -31,4 +31,5 @@ credentials are available at runtime:
 
 Enter your Last.fm login on the main page and click **LAST.FM** to refresh yearly
 playlists. The refresh runs in the background and logs progress to the
-application console.
+application console. To avoid overwhelming Last.fm, yearly charts are fetched
+sequentially rather than all at once.
