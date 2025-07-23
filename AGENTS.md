@@ -31,3 +31,5 @@ using WireMock:
 - Ensure at least 80% code coverage by running `./gradlew jacocoTestCoverageVerification`. Do not exclude any tests or lower the Jacoco coverage threshold. Try to add more tests to increase coverage.
 - Provide a concise summary in the PR description.
 - Always try to rebase onto main before creating PRs.
+- Sync your branch with the latest main branch before opening a PR to avoid
+  merge conflicts.
