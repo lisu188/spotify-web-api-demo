@@ -26,11 +26,4 @@ class JobsController(private val jobService: JobService) {
     logger.info("Yearly job {} scheduled", id)
     return ResponseEntity.accepted().body(JobId(id))
   }
-
-  @GetMapping("/{id}/progress")
-  fun progress(@PathVariable id: String) =
-    jobService.progress(id)?.let {
-      logger.info("Progress requested for job {}", id)
-      ResponseEntity.ok(it)
-    } ?: ResponseEntity.notFound().build()
 }

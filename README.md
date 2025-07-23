@@ -26,3 +26,9 @@ credentials are available at runtime:
 - `LASTFM_API_SECRET` – Last.fm API secret
 - Last.fm endpoints default to HTTPS. Override `LASTFM_API_URL` and
   `LASTFM_AUTHORIZE_URL` only if custom values are required.
+
+## Yearly playlists
+
+Enter your Last.fm login on the main page and click **LAST.FM** to refresh yearly
+playlists. The refresh runs in the background and logs progress to the
+application console.
