@@ -132,4 +132,19 @@ class SpotifyPlaylistServiceTest {
 
     verify(exactly = 0) { spied.replacePlaylistTracks(any(), any(), any()) }
   }
+
+  @Test
+  fun deduplicatePlaylistLarge() {
+    val spied = spyk(service)
+    val tracks = (1..105).map { it.toString() } + listOf("1", "2")
+    every { spied.getPlaylistTrackIds("pl", "cid") } returns tracks
+    every { spied.replacePlaylistTracks(any(), any(), any()) } returns Unit
+    every { spied.addTracksToPlaylist(any(), any(), any()) } returns Unit
+
+    spied.deduplicatePlaylist("pl", "cid")
+
+    val distinct = tracks.distinct()
+    verify(exactly = 1) { spied.replacePlaylistTracks("pl", distinct.take(100), "cid") }
+    verify(exactly = 1) { spied.addTracksToPlaylist("pl", distinct.drop(100), "cid") }
+  }
 }

@@ -119,7 +119,12 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
     val tracks = getPlaylistTrackIds(id, clientId).orEmpty()
     val distinct = tracks.distinct()
     if (tracks.size != distinct.size) {
-      replacePlaylistTracks(id, distinct, clientId)
+      if (distinct.size <= 100) {
+        replacePlaylistTracks(id, distinct, clientId)
+      } else {
+        replacePlaylistTracks(id, distinct.take(100), clientId)
+        addTracksToPlaylist(id, distinct.drop(100), clientId)
+      }
     }
   }
 
