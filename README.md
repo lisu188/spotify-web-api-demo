@@ -11,9 +11,28 @@ Start the service with:
 ./gradlew bootRun
 ```
 
-This project targets Java 17. If you use a different JDK manager or path, update
-`gradle.properties` to point `org.gradle.java.home` at your Java 17
-installation.
+## Running with Docker
+
+Build the image:
+
+```shell
+docker build -t spotify-web-api-demo .
+```
+
+Run the container (replace the environment variables as needed):
+
+```shell
+docker run --rm -p 8080:8080 \
+  -e BASE_URL="http://localhost:8080" \
+  -e SPOTIFY_CLIENT_ID="your-id" \
+  -e SPOTIFY_CLIENT_SECRET="your-secret" \
+  -e LASTFM_API_KEY="your-key" \
+  -e LASTFM_API_SECRET="your-secret" \
+  spotify-web-api-demo
+```
+
+This project targets Java 17 and uses the Gradle toolchain to provision it when
+needed.
 
 Ensure the required environment variables are configured before running.
 
