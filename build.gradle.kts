@@ -61,6 +61,10 @@ tasks.withType<Test> {
   systemProperty("LASTFM_API_SECRET", "secret")
 }
 
+tasks.bootJar { archiveFileName.set("spotify-web-api-demo.jar") }
+
+tasks.jar { enabled = false }
+
 // Configure ktfmt to use Google Style
 ktfmt { googleStyle() }
 

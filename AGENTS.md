@@ -15,6 +15,8 @@ This repository uses Gradle and Kotlin.
 - Compile and package the application with `./gradlew build`.
 - Build the Docker image with `docker build -t spotify-web-api-demo .`.
 - Run the Docker image with `docker run --rm -p 8080:8080 spotify-web-api-demo`.
+- Verify the container by visiting `http://localhost:8080` or running
+  `curl http://localhost:8080` after the container starts.
 
 ### Logging
 - Use SLF4J with a `private val logger` per class.
