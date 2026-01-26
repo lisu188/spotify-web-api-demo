@@ -9,6 +9,13 @@ This repository uses Gradle and Kotlin.
 - Update `README.md` with any relevant changes or instructions when modifying
   the code.
 
+### Testing, building, and Docker
+- Run unit and integration tests with `./gradlew test`.
+- Verify code coverage with `./gradlew jacocoTestCoverageVerification`.
+- Compile and package the application with `./gradlew build`.
+- Build the Docker image with `docker build -t spotify-web-api-demo .`.
+- Run the Docker image with `docker run --rm -p 8080:8080 spotify-web-api-demo`.
+
 ### Logging
 - Use SLF4J with a `private val logger` per class.
 - Default log level is INFO.
