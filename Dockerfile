@@ -9,7 +9,7 @@ RUN chmod +x gradlew && \
 FROM eclipse-temurin:17-jre-alpine
 RUN apk add --no-cache tomcat-native
 WORKDIR /app
-COPY --from=builder /app/build/libs/*.jar spotify-web-api-demo.jar
+COPY --from=builder /app/build/libs/spotify-web-api-demo.jar spotify-web-api-demo.jar
 
 # Create a non-root user and switch to it
 RUN addgroup -S spring && adduser -S spring -G spring

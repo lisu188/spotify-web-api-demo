@@ -31,6 +31,12 @@ docker run --rm -p 8080:8080 \
   spotify-web-api-demo
 ```
 
+Verify the container is responding:
+
+```shell
+curl http://localhost:8080
+```
+
 This project targets Java 17 and uses the Gradle toolchain to provision it when
 needed.
 
