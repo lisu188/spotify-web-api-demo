@@ -11,6 +11,10 @@ Start the service with:
 ./gradlew bootRun
 ```
 
+This project targets Java 17. If you use a different JDK manager or path, update
+`gradle.properties` to point `org.gradle.java.home` at your Java 17
+installation.
+
 Ensure the required environment variables are configured before running.
 
 ## Required environment variables
@@ -33,3 +37,6 @@ Enter your Last.fm login on the main page and click **LAST.FM** to refresh yearl
 playlists. The refresh runs in the background and logs progress to the
 application console. To avoid overwhelming Last.fm, yearly charts are fetched
 sequentially rather than all at once.
+
+If you want to use Spotify-only features, click **Skip Last.fm** on the main
+page. This disables Last.fm UI controls until you re-enable them.

@@ -40,6 +40,9 @@ $('#top').on('click', function (event) {
 });
 
 $('#lastfm').on('click', function (event) {
+    if (isLastfmSkipped()) {
+        return;
+    }
     $('#lastfm').prop('disabled', true);
     $('#lastFmId').prop('disabled', true);
     $.ajax({
@@ -57,6 +60,20 @@ $('#lastfm').on('click', function (event) {
     });
 });
 
+const LASTFM_SKIP_KEY = 'lastfmSkipped';
+var lastFmIdValid = false;
+
+function isLastfmSkipped() {
+    return window.localStorage.getItem(LASTFM_SKIP_KEY) === 'true';
+}
+
+function setLastfmSkipped(skipped) {
+    if (skipped) {
+        window.localStorage.setItem(LASTFM_SKIP_KEY, 'true');
+    } else {
+        window.localStorage.removeItem(LASTFM_SKIP_KEY);
+    }
+}
 
 function enable() {
     $('#lastfm').prop('disabled', false);
@@ -70,18 +87,55 @@ function disable() {
     $('#lastfm').addClass('btn-secondary');
 }
 
+function applyLastfmState() {
+    if (isLastfmSkipped()) {
+        $('#lastFmId').prop('disabled', true);
+        disable();
+        $('#skipLastfm').addClass('d-none');
+        $('#enableLastfm').removeClass('d-none');
+        $('#lastfmStatus')
+            .text('Last.fm features are disabled. Enable Last.fm to refresh yearly playlists.')
+            .removeClass('d-none');
+        return;
+    }
+
+    $('#lastFmId').prop('disabled', false);
+    $('#skipLastfm').removeClass('d-none');
+    $('#enableLastfm').addClass('d-none');
+    $('#lastfmStatus').addClass('d-none').text('');
+    if (lastFmIdValid) {
+        enable();
+    } else {
+        disable();
+    }
+}
+
 var verifyRequest;
 
 $('#lastFmId').on('input', function (event) {
+    if (isLastfmSkipped()) {
+        return;
+    }
     if (verifyRequest) {
         verifyRequest.abort()
     }
+    lastFmIdValid = false;
     disable();
     verifyRequest = $.post(URL + "/verifyLastFmId/" + $('#lastFmId').val(), function (data, status) {
-        if ($.parseJSON(data)) {
-            enable()
-        } else {
-            disable()
-        }
+        lastFmIdValid = $.parseJSON(data);
+        applyLastfmState();
     }, 'json')
 });
+
+$('#skipLastfm').on('click', function () {
+    setLastfmSkipped(true);
+    applyLastfmState();
+});
+
+$('#enableLastfm').on('click', function () {
+    setLastfmSkipped(false);
+    applyLastfmState();
+    $('#lastFmId').trigger('input');
+});
+
+applyLastfmState();

@@ -25,21 +25,22 @@ class MainController(
       clientId.isNotEmpty() && spotifyAuthenticationService.getAuthToken(clientId) != null
     val lastFmAuthorized = lastFmAuthenticationService.isAuthorized(lastFmToken)
 
-    return if (spotifyAuthorized && lastFmAuthorized) {
-      logger.info(
-        "Both Spotify and Last.fm are authenticated; refreshing token for clientId='{}'.",
-        clientId,
-      )
+    return if (!spotifyAuthorized) {
+      logger.warn("Spotify token missing or invalid; redirecting to /auth/spotify.")
+      "redirect:/auth/spotify"
+    } else {
+      if (lastFmAuthorized) {
+        logger.info(
+          "Both Spotify and Last.fm are authenticated; refreshing token for clientId='{}'.",
+          clientId,
+        )
+      } else {
+        logger.info(
+          "Spotify is authenticated, but Last.fm is not; continuing without Last.fm features."
+        )
+      }
       spotifyAuthenticationService.refreshToken(clientId)
       "forward:/index.html"
-    } else {
-      if (!spotifyAuthorized) {
-        logger.warn("Spotify token missing or invalid; redirecting to /auth/spotify.")
-        "redirect:/auth/spotify"
-      } else {
-        logger.warn("Last.fm token missing or invalid; redirecting to /auth/lastfm.")
-        "redirect:/auth/lastfm"
-      }
     }
   }
 
