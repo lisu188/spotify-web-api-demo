@@ -31,8 +31,15 @@
     <button class="btn btn-primary btn-lg" id="top" type="button">SPOTIFY
     </button>
 </div>
-<button class="btn btn-secondary btn-lg" disabled id="lastfm" type="button">LAST.FM</button>
-<input class="form-control" id="lastFmId" placeholder="Enter last.fm login..." type="text"/>
+<div id="lastFmSection">
+    <button class="btn btn-secondary btn-lg" disabled id="lastfm" type="button">LAST.FM</button>
+    <input class="form-control" id="lastFmId" placeholder="Enter last.fm login..." type="text"/>
+    <div class="mt-2">
+        <button class="btn btn-link p-0" id="skipLastfm" type="button">Skip Last.fm</button>
+        <button class="btn btn-link p-0 d-none" id="enableLastfm" type="button">Enable Last.fm</button>
+        <div class="text-muted small mt-1 d-none" id="lastfmStatus"></div>
+    </div>
+</div>
 
 
 <!-- Optional JavaScript -->

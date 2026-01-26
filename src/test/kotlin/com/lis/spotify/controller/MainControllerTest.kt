@@ -30,10 +30,11 @@ class MainControllerTest {
   }
 
   @Test
-  fun redirectsToLastFmWhenInvalid() {
+  fun rendersIndexWhenLastFmMissing() {
     every { spotifyService.getAuthToken("abc") } returns mockk()
     every { lastfmService.isAuthorized("bad") } returns false
     val result = controller.main("abc", "bad")
-    assertEquals("redirect:/auth/lastfm", result)
+    assertEquals("forward:/index.html", result)
+    verify { spotifyService.refreshToken("abc") }
   }
 }
