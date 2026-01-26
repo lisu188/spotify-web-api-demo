@@ -25,6 +25,42 @@ function appendPlayButton(div, playlistId) {
     }).appendTo('#' + div);
 }
 
+function parseBandNames() {
+    return $('#bandNames')
+        .val()
+        .split(',')
+        .map(function (name) {
+            return name.trim();
+        })
+        .filter(function (name) {
+            return name.length > 0;
+        });
+}
+
+function setBandStatus(message) {
+    if (message) {
+        $('#bandStatus').text(message).removeClass('d-none');
+    } else {
+        $('#bandStatus').addClass('d-none').text('');
+    }
+}
+
+function updateBandButtonState() {
+    var bands = parseBandNames();
+    var uniqueBands = Array.from(new Set(bands.map(function (name) {
+        return name.toLowerCase();
+    })));
+    var isValid = uniqueBands.length >= 2;
+    $('#bandPlaylist').prop('disabled', !isValid);
+    if (!isValid && bands.length > 0) {
+        setBandStatus('Enter at least two band names to build a playlist.');
+    } else if (bands.length === 0) {
+        setBandStatus('Enter band names separated by commas to enable the band mix.');
+    } else {
+        setBandStatus('');
+    }
+}
+
 $('#top').on('click', function (event) {
     $('#top').prop('disabled', true)
     $.ajax({
@@ -138,4 +174,43 @@ $('#enableLastfm').on('click', function () {
     $('#lastFmId').trigger('input');
 });
 
+$('#bandNames').on('input', function () {
+    updateBandButtonState();
+});
+
+$('#bandPlaylist').on('click', function () {
+    var bands = parseBandNames();
+    var uniqueBands = Array.from(new Set(bands.map(function (name) {
+        return name.toLowerCase();
+    })));
+    if (uniqueBands.length < 2) {
+        setBandStatus('Enter at least two band names to build a playlist.');
+        return;
+    }
+
+    $('#bandPlaylist').prop('disabled', true);
+    setBandStatus('Building your band mix playlist...');
+    $.ajax({
+        type: 'post',
+        url: URL + '/bandPlaylist',
+        contentType: 'application/json',
+        data: JSON.stringify({bands: bands}),
+        success: function (data) {
+            $('#bandPlaylists').empty();
+            appendPlayButton('bandPlaylists', data);
+            setBandStatus('Playlist ready!');
+            updateBandButtonState();
+        },
+        error: function (xhr) {
+            if (xhr.status === 404) {
+                setBandStatus('No matching tracks found. Try different band names.');
+            } else {
+                setBandStatus('Unable to create playlist right now.');
+            }
+            updateBandButtonState();
+        }
+    });
+});
+
 applyLastfmState();
+updateBandButtonState();

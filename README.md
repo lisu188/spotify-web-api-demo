@@ -34,6 +34,10 @@ docker run --rm -p 8080:8080 \
 This project targets Java 17 and uses the Gradle toolchain to provision it when
 needed.
 
+If Gradle fails to configure when running with newer Java versions, set
+`JAVA_HOME` to a Java 17 install or update `org.gradle.java.home` in
+`gradle.properties` to point at a Java 17 runtime.
+
 Ensure the required environment variables are configured before running.
 
 ## Required environment variables
@@ -59,3 +63,9 @@ sequentially rather than all at once.
 
 If you want to use Spotify-only features, click **Skip Last.fm** on the main
 page. This disables Last.fm UI controls until you re-enable them.
+
+## Band mix playlists
+
+Use **BAND MIX** on the main page to generate a playlist from multiple band
+names. Enter at least two bands separated by commas, then click **BAND MIX** to
+create a playlist containing top tracks from each band.
