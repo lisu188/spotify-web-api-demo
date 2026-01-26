@@ -36,4 +36,8 @@ class Playlists(var items: List<Playlist>, var next: String?)
 
 class Artists(var items: List<Artist>, var next: String?)
 
+class ArtistSearchResult(var artists: Artists)
+
+class ArtistTopTracks(var tracks: List<Track>)
+
 class LastFmLogin(val spotifyClientId: String, val lastFmLogin: String)

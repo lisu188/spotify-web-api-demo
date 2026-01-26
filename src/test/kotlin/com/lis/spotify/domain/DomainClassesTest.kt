@@ -26,6 +26,12 @@ class DomainClassesTest {
   }
 
   @Test
+  fun bandPlaylistRequestStoresValues() {
+    val request = BandPlaylistRequest(listOf("Band A", "Band B"))
+    assertEquals(listOf("Band A", "Band B"), request.bands)
+  }
+
+  @Test
   fun allDomainClassesInstantiate() {
     val artist = Artist("1", "a")
     val album = Album("2", "al", listOf(artist))
@@ -37,12 +43,17 @@ class DomainClassesTest {
     val tracks = Tracks(listOf(track))
     val srInt = SearchResultInternal(listOf(track))
     val sr = SearchResult(srInt)
+    val artists = Artists(listOf(artist), null)
+    val artistSearch = ArtistSearchResult(artists)
+    val topTracks = ArtistTopTracks(listOf(track))
     val user = User("u")
     val login = LastFmLogin("cid", "l")
     assertEquals("u", user.id)
     assertEquals("l", login.lastFmLogin)
     assertEquals(listOf(track), tracks.items)
     assertEquals(srInt, sr.tracks)
+    assertEquals(artists, artistSearch.artists)
+    assertEquals(listOf(track), topTracks.tracks)
     assertEquals(playlist, playlists.items.first())
     assertEquals(playlistTrack, playlistTracks.items.first())
   }
