@@ -1,12 +1,14 @@
+ARG JAVA_VERSION=17
+
 # Build stage
-FROM gradle:8.10-jdk17 AS builder
+FROM gradle:8.10-jdk${JAVA_VERSION} AS builder
 WORKDIR /app
 COPY . .
 RUN chmod +x gradlew && \
     ./gradlew bootJar
 
 # Runtime stage
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:${JAVA_VERSION}-jre-alpine
 RUN apk add --no-cache tomcat-native
 WORKDIR /app
 COPY --from=builder /app/build/libs/spotify-web-api-demo.jar spotify-web-api-demo.jar

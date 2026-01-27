@@ -44,6 +44,10 @@ If Gradle fails to configure when running with newer Java versions, set
 `JAVA_HOME` to a Java 17 install or update `org.gradle.java.home` in
 `gradle.properties` to point at a Java 17 runtime.
 
+The Java version is centralized in `gradle.properties` (`javaVersion`) and the
+Docker image build uses the same version via the `JAVA_VERSION` build arg. Keep
+these values aligned if you update Java versions.
+
 Ensure the required environment variables are configured before running.
 
 ## Required environment variables
