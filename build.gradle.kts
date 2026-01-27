@@ -1,6 +1,7 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 val kotlinVersion = "2.2.0"
+val javaVersion = (project.findProperty("javaVersion") as String?)?.toInt() ?: 17
 
 plugins {
   id("org.springframework.boot") version "3.5.3"
@@ -18,8 +19,8 @@ group = "com.lis"
 version = "1.0.0-SNAPSHOT"
 
 java {
-  sourceCompatibility = JavaVersion.VERSION_17
-  toolchain { languageVersion.set(JavaLanguageVersion.of(17)) }
+  sourceCompatibility = JavaVersion.toVersion(javaVersion)
+  toolchain { languageVersion.set(JavaLanguageVersion.of(javaVersion)) }
 }
 
 repositories { mavenCentral() }
@@ -48,7 +49,7 @@ dependencies {
 tasks.withType<KotlinCompile> {
   compilerOptions {
     freeCompilerArgs.add("-Xjsr305=strict")
-    jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(javaVersion.toString()))
   }
 }
 
