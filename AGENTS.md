@@ -1,44 +1,24 @@
-This repository uses Gradle and Kotlin.
+# Repository Guidelines
 
-### Development guidelines
-- Indent Kotlin code with 2 spaces.
-- Use ktfmt for formatting: run `./gradlew ktfmtFormat` before committing.
-- Run the test suite with `./gradlew test`.
-- Run `./gradlew build` to ensure the project compiles.
-- Companion objects should be at the bottom of the class.
-- Update `README.md` with any relevant changes or instructions when modifying
-  the code.
+## Project Structure & Module Organization
+This Gradle-based Kotlin/Spring Boot service keeps production sources in `src/main/kotlin` and views/static assets in `src/main/resources`. Tests live in `src/test/kotlin`, with HTTP-focused suites under `.../integration`. Docker, Cloud Build, and infra templates sit at the repo root, while `build.gradle.kts`, `settings.gradle`, and `gradle.properties` track dependencies, Java toolchains, and shared configuration.
 
-### Testing, building, and Docker
-- Run unit and integration tests with `./gradlew test`.
-- Verify code coverage with `./gradlew jacocoTestCoverageVerification`.
-- Compile and package the application with `./gradlew build`.
-- Build the Docker image with `docker build -t spotify-web-api-demo .`.
-- Run the Docker image with `docker run --rm -p 8080:8080 spotify-web-api-demo`.
-- Verify the container by visiting `http://localhost:8080` or running
-  `curl http://localhost:8080` after the container starts.
+## Build, Test, and Development Commands
+- `./gradlew ktfmtFormat` — format Kotlin sources using the enforced style.
+- `./gradlew build` — compile, run all tests, and assemble production artifacts.
+- `./gradlew test` — execute unit and integration tests locally.
+- `./gradlew jacocoTestCoverageVerification` — ensure ≥80% coverage before merging.
+- `./gradlew bootRun` — start the API with dev settings.
+- `docker build -t spotify-web-api-demo .` / `docker run --rm -p 8080:8080 spotify-web-api-demo` — package and run the image; verify via `curl http://localhost:8080`.
 
-### Logging
-- Use SLF4J with a `private val logger` per class.
-- Default log level is INFO.
-- Use INFO for high-level events, DEBUG for details, WARN for recoverable problems, and ERROR for failures.
+## Coding Style & Naming Conventions
+Indent Kotlin code with two spaces, keep companion objects at the bottom of their class, and prefer expressive, camelCase identifiers (`LastFmClient`, `refreshYearlyCharts`). Each class should expose `private val logger = LoggerFactory.getLogger(...)` and use INFO for lifecycle events, DEBUG for details, WARN for recoverable errors, and ERROR for failures. Run ktfmt before committing.
 
-### Integration tests
-Integration tests live under `src/test/kotlin/.../integration`. They should start
-the application with `@SpringBootTest(webEnvironment = RANDOM_PORT)` and use
-`TestRestTemplate` for HTTP requests. External HTTP services must be stubbed
-using WireMock:
+## Testing Guidelines
+JUnit 5 and Spring Boot Test power the suite. Place slice or integration tests in `src/test/kotlin/.../integration`, boot the app via `@SpringBootTest(webEnvironment = RANDOM_PORT)`, and interact through `TestRestTemplate`. Stub external APIs with WireMock using a dynamically bound port published through `@DynamicPropertySource`, call `wireMockReset()` in `@BeforeEach`, and stop the server in `@AfterAll`. Test names should describe behavior (`shouldReturnTopTracksForArtist`). Always hit the Jacoco verification target and add coverage when touching new logic.
 
-- Create a `WireMockServer` with a dynamic port in a `companion object` and
-  expose its URL via `DynamicPropertySource` so the application uses the stub
-  endpoints.
-- Call `wireMockReset()` in `@BeforeEach` to clear stubs and stop the server in
-  an `@AfterAll` method.
+## Commit & Pull Request Guidelines
+Work on topic branches (e.g., `feature/add-band-mix-filter`), keep commits scoped and written in the imperative mood (“Add Last.fm auth fallback”), and rebase onto `main` before pushing. Pull requests must summarize what changed, why, and how it was validated (tests, ktfmt, docker run). Link tracking issues when available and mention remaining limitations or follow-ups. Never merge with failing checks or less than required coverage.
 
-### Pull request guidelines
-- Ensure all code is formatted and tests pass.
-- Ensure at least 80% code coverage by running `./gradlew jacocoTestCoverageVerification`. Do not exclude any tests or lower the Jacoco coverage threshold. Try to add more tests to increase coverage.
-- Provide a concise summary in the PR description.
-- Always try to rebase onto main before creating PRs.
-- Sync your branch with the latest main branch before opening a PR to avoid
-  merge conflicts.
+## Configuration & Security Tips
+`BASE_URL`, `SPOTIFY_CLIENT_ID/SECRET`, and Last.fm keys must be present before running locally or in Docker; use `.envrc` or your shell profile to export them. Keep Java 17 aligned across `gradle.properties` and the Dockerfile `JAVA_VERSION` build arg. Treat credentials as secrets—do not hardcode them in tests or logs.
