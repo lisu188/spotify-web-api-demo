@@ -39,7 +39,7 @@ class JobService(
           updateJob(id, JobState.COMPLETED, 100, "Yearly playlists refreshed")
         } catch (e: AuthenticationRequiredException) {
           logger.error("Authentication required during yearly job {}", id, e)
-          updateJob(id, JobState.FAILED, currentProgress(id), "Last.fm authentication required")
+          updateJob(id, JobState.FAILED, currentProgress(id), "Last.fm authentication required", "/auth/lastfm")
         } catch (e: Exception) {
           logger.error("Yearly playlist update failed for job {}", id, e)
           updateJob(id, JobState.FAILED, currentProgress(id), "Yearly playlist refresh failed")
@@ -60,6 +60,7 @@ class JobService(
     state: JobState,
     progressPercent: Int,
     message: String,
+    redirectUrl: String? = null,
   ): JobStatus {
     val status =
       JobStatus(
@@ -67,6 +68,7 @@ class JobService(
         state = state,
         progressPercent = progressPercent.coerceIn(0, 100),
         message = message,
+        redirectUrl = redirectUrl,
       )
     jobs[jobId] = status
     logger.info(

@@ -14,4 +14,5 @@ data class JobStatus(
   val state: JobState,
   val progressPercent: Int,
   val message: String,
+  val redirectUrl: String? = null,
 )

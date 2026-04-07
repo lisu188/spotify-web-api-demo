@@ -118,6 +118,14 @@ function stopLastfmPolling() {
 
 function pollLastfmJob(jobId) {
     $.getJSON(URL + '/jobs/' + jobId, function (job) {
+        if (job.redirectUrl) {
+            stopLastfmPolling();
+            lastFmJobRunning = false;
+            updateLastfmButtonState();
+            window.location.href = job.redirectUrl;
+            return;
+        }
+
         renderLastfmProgress(job);
         if (job.state === 'QUEUED' || job.state === 'RUNNING') {
             lastFmProgressPoll = window.setTimeout(function () {
