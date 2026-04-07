@@ -55,13 +55,12 @@ class LastFmAuthenticationServiceTest {
   }
 
   @Test
-  fun expiredSessionIsRemoved() {
+  fun sessionDoesNotExpirePrematurely() {
     val service = LastFmAuthenticationService()
-    // Use a timestamp far in the past so the entry is expired
-    service.sessionCache["user"] = Pair("val", System.currentTimeMillis() - 10 * 60 * 1000L)
+    service.sessionCache["user"] = "val"
 
-    assertEquals(false, service.isAuthorized("val"))
-    assertEquals(null, service.getSessionKey("user"))
+    assertEquals(true, service.isAuthorized("val"))
+    assertEquals("val", service.getSessionKey("user"))
   }
 
   @Test

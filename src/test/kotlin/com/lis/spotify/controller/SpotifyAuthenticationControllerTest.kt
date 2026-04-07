@@ -7,6 +7,7 @@ import com.lis.spotify.service.SpotifyAuthenticationService
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import jakarta.servlet.http.Cookie
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -57,9 +58,32 @@ class SpotifyAuthenticationControllerTest {
   }
 
   @Test
-  fun authorizeReturnsRedirect() {
-    val result = controller.authorize(mockk(relaxed = true), mockk(), mockk(), "cid")
+  fun authorizeReturnsRedirectAndSetsStateCookie() {
+    val request = mockk<HttpServletRequest>()
+    every { request.getHeader(any()) } returns null
+    every { request.scheme } returns "http"
+    every { request.serverName } returns "localhost"
+    every { request.serverPort } returns 8080
+    every { request.isSecure } returns false
+
+    val response = mockk<HttpServletResponse>(relaxed = true)
+
+    val result = controller.authorize(request, mockk(), response, "cid")
+
     assert(result.startsWith("redirect:"))
+    assert(result.contains("state="))
+    verify {
+      response.addCookie(
+        match {
+          it.name == "spotifyAuthState" &&
+            it.path == "/" &&
+            it.isHttpOnly &&
+            !it.secure &&
+            it.maxAge == 300 &&
+            it.value.isNotBlank()
+        }
+      )
+    }
   }
 
   @Test
@@ -69,6 +93,8 @@ class SpotifyAuthenticationControllerTest {
     every { request.scheme } returns "http"
     every { request.serverName } returns "localhost"
     every { request.serverPort } returns 80
+    every { request.isSecure } returns false
+    every { request.cookies } returns arrayOf(Cookie("spotifyAuthState", "expected-state"))
 
     val response = mockk<HttpServletResponse>(relaxed = true)
 
@@ -92,11 +118,37 @@ class SpotifyAuthenticationControllerTest {
       )
     } returns userResponse
 
-    controller.callback(request, "code", response)
+    controller.callback(request, "code", "expected-state", response)
 
     verify {
       response.addCookie(
-        match { it.name == "clientId" && it.path == "/" && it.isHttpOnly && it.secure }
+        match {
+          it.name == "clientId" && it.path == "/" && it.isHttpOnly && !it.secure && it.value == "cid"
+        }
+      )
+    }
+    verify {
+      response.addCookie(
+        match { it.name == "spotifyAuthState" && it.path == "/" && it.maxAge == 0 && !it.secure }
+      )
+    }
+  }
+
+  @Test
+  fun callbackRejectsInvalidState() {
+    val request = mockk<HttpServletRequest>()
+    every { request.getHeader(any()) } returns null
+    every { request.scheme } returns "http"
+    every { request.isSecure } returns false
+    every { request.cookies } returns arrayOf(Cookie("spotifyAuthState", "expected-state"))
+    val response = mockk<HttpServletResponse>(relaxed = true)
+
+    val result = controller.callback(request, "code", "wrong-state", response)
+
+    assertEquals("redirect:/error", result)
+    verify {
+      response.addCookie(
+        match { it.name == "spotifyAuthState" && it.maxAge == 0 && it.path == "/" && !it.secure }
       )
     }
   }

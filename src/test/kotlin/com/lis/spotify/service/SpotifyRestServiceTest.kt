@@ -175,7 +175,7 @@ class SpotifyRestServiceTest {
   }
 
   @Test
-  fun unauthorizedThrowsAuthException() {
+  fun unauthorizedThrowsAuthExceptionWhenRefreshFails() {
     val restTemplate = mockk<RestTemplate>()
     val builder = mockk<RestTemplateBuilder>()
     val auth = mockk<SpotifyAuthenticationService>()
@@ -183,6 +183,7 @@ class SpotifyRestServiceTest {
       builder
     every { builder.build() } returns restTemplate
     every { auth.getHeaders(any<String>()) } returns HttpHeaders()
+    every { auth.refreshToken("cid") } returns false
     val ex =
       HttpClientErrorException.create(
         HttpStatus.UNAUTHORIZED,
@@ -205,5 +206,41 @@ class SpotifyRestServiceTest {
     assertThrows(AuthenticationRequiredException::class.java) {
       service.doGet<String>("http://test", clientId = "cid")
     }
+    verify(exactly = 1) { auth.refreshToken("cid") }
+  }
+
+  @Test
+  fun unauthorizedRetriesOnceAfterRefreshingToken() {
+    val restTemplate = mockk<RestTemplate>()
+    val builder = mockk<RestTemplateBuilder>()
+    val auth = mockk<SpotifyAuthenticationService>()
+    every { builder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java) } returns
+      builder
+    every { builder.build() } returns restTemplate
+    every { auth.getHeaders(any<String>()) } returns HttpHeaders()
+    every { auth.refreshToken("cid") } returns true
+    val ex =
+      HttpClientErrorException.create(
+        HttpStatus.UNAUTHORIZED,
+        "",
+        HttpHeaders(),
+        ByteArray(0),
+        null,
+      )
+    every {
+      restTemplate.exchange<String>(
+        any(),
+        HttpMethod.GET,
+        any(),
+        any<ParameterizedTypeReference<String>>(),
+        any<Map<String, *>>(),
+      )
+    } throws ex andThen ResponseEntity("ok", HttpStatus.OK)
+
+    val service = SpotifyRestService(builder, auth)
+    val result = service.doGet<String>("http://test", clientId = "cid")
+
+    assertEquals("ok", result)
+    verify(exactly = 1) { auth.refreshToken("cid") }
   }
 }

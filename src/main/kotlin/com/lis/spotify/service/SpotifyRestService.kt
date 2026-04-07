@@ -49,14 +49,37 @@ class SpotifyRestService(
     body: Any? = null,
     clientId: String,
   ): U {
-    return doRequest {
+    return doRequest retry@{
       logger.debug("doRequest: {} {} {} {}", url, httpMethod, params, body)
       try {
         val result = doExchange<U>(url, httpMethod, body, clientId, params)
         logger.debug("doRequest result for {} {} -> {}", httpMethod, url, result)
         result
       } catch (e: HttpClientErrorException.Unauthorized) {
-        logger.error("Unauthorized Spotify request for clientId={}", clientId, e)
+        logger.warn(
+          "Unauthorized Spotify request for clientId={}; attempting token refresh.",
+          clientId,
+        )
+        if (spotifyAuthenticationService.refreshToken(clientId)) {
+          try {
+            val retryResult = doExchange<U>(url, httpMethod, body, clientId, params)
+            logger.debug(
+              "doRequest retry after refresh for {} {} -> {}",
+              httpMethod,
+              url,
+              retryResult,
+            )
+            return@retry retryResult
+          } catch (retryEx: HttpClientErrorException.Unauthorized) {
+            logger.error(
+              "Unauthorized Spotify request for clientId={} after refresh attempt.",
+              clientId,
+              retryEx,
+            )
+          }
+        } else {
+          logger.warn("Could not refresh Spotify token for clientId={}", clientId)
+        }
         throw AuthenticationRequiredException("SPOTIFY")
       }
     }

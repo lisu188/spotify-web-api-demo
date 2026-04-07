@@ -79,13 +79,13 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
     return token
   }
 
-  fun refreshToken(clientId: String) {
+  fun refreshToken(clientId: String): Boolean {
     logger.info("Attempting to refresh token for clientId={}", clientId)
     val currentToken = getAuthToken(clientId)
     val refreshTokenValue = currentToken?.refresh_token.orEmpty()
     if (refreshTokenValue.isEmpty()) {
       logger.warn("No refresh token available for clientId={}; cannot refresh.", clientId)
-      return
+      return false
     }
 
     val headers = HttpHeaders().apply { contentType = MediaType.APPLICATION_FORM_URLENCODED }
@@ -97,21 +97,32 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
     val tokenUrl = UriComponentsBuilder.fromHttpUrl(Spotify.TOKEN_URL).build().toUri()
     val entity = HttpEntity(body, headers)
 
-    try {
+    return try {
       val authToken =
         restTemplateBuilder
           .basicAuthentication(Spotify.CLIENT_ID, Spotify.CLIENT_SECRET)
           .build()
           .postForObject<AuthToken>(tokenUrl, entity)
-      // Preserve the existing refresh token.
-      authToken.clientId = clientId
-      authToken.refresh_token = refreshTokenValue
 
-      logger.info("Successfully refreshed token (access token redacted) for clientId={}", clientId)
-      setAuthToken(authToken)
-      logger.debug("refreshToken {} new token stored", clientId)
+      if (authToken == null) {
+        logger.warn("Spotify token refresh returned no body for clientId={}", clientId)
+        false
+      } else {
+        // Preserve the existing refresh token.
+        authToken.clientId = clientId
+        authToken.refresh_token = refreshTokenValue
+
+        logger.info(
+          "Successfully refreshed token (access token redacted) for clientId={}",
+          clientId,
+        )
+        setAuthToken(authToken)
+        logger.debug("refreshToken {} new token stored", clientId)
+        true
+      }
     } catch (ex: Exception) {
       logger.error("Error while refreshing token for clientId={}", clientId, ex)
+      false
     }
   }
 

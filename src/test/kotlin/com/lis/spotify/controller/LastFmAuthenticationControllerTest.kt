@@ -6,6 +6,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import jakarta.servlet.http.Cookie
+import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -25,34 +26,39 @@ class LastFmAuthenticationControllerTest {
   @Test
   fun handleCallbackWithToken() {
     every { service.getSession("tok") } returns mapOf("session" to mapOf("key" to "v"))
-    val result = controller.handleCallback("tok", mockk(relaxed = true))
+    val result = controller.handleCallback("tok", mockk(relaxed = true), mockk(relaxed = true))
     assertTrue(result.startsWith("redirect:/"))
   }
 
   @Test
   fun handleCallbackMissingToken() {
-    val result = controller.handleCallback(null, mockk(relaxed = true))
+    val result = controller.handleCallback(null, mockk(relaxed = true), mockk(relaxed = true))
     assertEquals("redirect:/error", result)
   }
 
   @Test
   fun handleCallbackNoSession() {
     every { service.getSession("tok") } returns null
-    val result = controller.handleCallback("tok", mockk(relaxed = true))
+    val result = controller.handleCallback("tok", mockk(relaxed = true), mockk(relaxed = true))
     assertEquals("redirect:/error", result)
   }
 
   @Test
   fun handleCallbackSetsCookiePath() {
     every { service.getSession("tok") } returns mapOf("session" to mapOf("key" to "v"))
+    val request = mockk<HttpServletRequest>()
+    every { request.getHeader(any()) } returns null
+    every { request.scheme } returns "http"
+    every { request.isSecure } returns false
+
     val response = mockk<HttpServletResponse>(relaxed = true)
     val cookieSlot: CapturingSlot<Cookie> = slot()
     every { response.addCookie(capture(cookieSlot)) } answers {}
 
-    controller.handleCallback("tok", response)
+    controller.handleCallback("tok", request, response)
 
     assertEquals("/", cookieSlot.captured.path)
     assertTrue(cookieSlot.captured.isHttpOnly)
-    assertTrue(cookieSlot.captured.secure)
+    assertEquals(false, cookieSlot.captured.secure)
   }
 }

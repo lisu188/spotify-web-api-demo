@@ -46,7 +46,8 @@ class SpotifyAuthenticationServiceTest {
     val newToken = AuthToken("access", "Bearer", "", 0, "new", "cid")
     every { restTemplate.postForObject(any<URI>(), any(), AuthToken::class.java) } returns newToken
     service.setAuthToken(AuthToken("old", "", "", 0, "refresh", "cid"))
-    service.refreshToken("cid")
+    val refreshed = service.refreshToken("cid")
+    assertTrue(refreshed)
     assertEquals(newToken, service.getAuthToken("cid"))
   }
 
@@ -60,7 +61,8 @@ class SpotifyAuthenticationServiceTest {
   fun refreshTokenWithoutRefreshTokenDoesNothing() {
     val token = AuthToken("a", "b", "c", 0, null, "cid")
     service.setAuthToken(token)
-    service.refreshToken("cid")
+    val refreshed = service.refreshToken("cid")
+    assertFalse(refreshed)
     assertEquals(token, service.getAuthToken("cid"))
   }
 

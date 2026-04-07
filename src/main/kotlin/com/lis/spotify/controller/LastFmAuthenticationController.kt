@@ -2,6 +2,7 @@ package com.lis.spotify.controller
 
 import com.lis.spotify.service.LastFmAuthenticationService
 import jakarta.servlet.http.Cookie
+import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Controller
@@ -19,6 +20,11 @@ import org.springframework.web.servlet.view.RedirectView
 @Controller
 class LastFmAuthenticationController(private val lastFmAuthService: LastFmAuthenticationService) {
 
+  private fun isSecureRequest(request: HttpServletRequest): Boolean {
+    val proto = request.getHeader("X-Forwarded-Proto") ?: request.scheme
+    return proto.equals("https", ignoreCase = true) || request.isSecure
+  }
+
   @GetMapping("/auth/lastfm")
   fun authenticateUser(): RedirectView {
     logger.debug("authenticateUser() called")
@@ -28,7 +34,11 @@ class LastFmAuthenticationController(private val lastFmAuthService: LastFmAuthen
   }
 
   @GetMapping("/auth/lastfm/callback")
-  fun handleCallback(@RequestParam token: String?, response: HttpServletResponse): String {
+  fun handleCallback(
+    @RequestParam token: String?,
+    request: HttpServletRequest,
+    response: HttpServletResponse,
+  ): String {
     logger.debug("handleCallback token={}", token)
     if (token.isNullOrEmpty()) {
       logger.warn("Token is missing in Last.fm callback")
@@ -44,7 +54,7 @@ class LastFmAuthenticationController(private val lastFmAuthService: LastFmAuthen
         val cookie = Cookie("lastFmToken", key)
         cookie.path = "/"
         cookie.isHttpOnly = true
-        cookie.secure = true
+        cookie.secure = isSecureRequest(request)
         response.addCookie(cookie)
       }
       if (!name.isNullOrEmpty() && !key.isNullOrEmpty()) {
