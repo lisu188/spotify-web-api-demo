@@ -8,6 +8,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class SpotifyTopPlaylistsServiceTest {
@@ -63,5 +64,27 @@ class SpotifyTopPlaylistsServiceTest {
     assertEquals(emptyList<String>(), ids)
     verify(exactly = 0) { playlistService.getOrCreatePlaylist(any(), any()) }
     verify(exactly = 0) { playlistService.modifyPlaylist(any(), any(), any()) }
+  }
+
+  @Test
+  fun updateYearlyPlaylistsReportsProgress() {
+    val playlistService = mockk<SpotifyPlaylistService>(relaxed = true)
+    val trackService = mockk<SpotifyTopTrackService>(relaxed = true)
+    val lastFmService = mockk<LastFmService>()
+    val searchService = mockk<SpotifySearchService>(relaxed = true)
+    val progressUpdates = mutableListOf<Int>()
+
+    every { lastFmService.yearlyChartlist(any(), any(), any(), any()) } returns emptyList()
+
+    val service =
+      SpotifyTopPlaylistsService(playlistService, trackService, lastFmService, searchService)
+
+    service.updateYearlyPlaylists("cid", "login") { progressPercent, _ ->
+      progressUpdates += progressPercent
+    }
+
+    assertTrue(progressUpdates.isNotEmpty())
+    assertEquals(0, progressUpdates.first())
+    assertEquals(100, progressUpdates.last())
   }
 }

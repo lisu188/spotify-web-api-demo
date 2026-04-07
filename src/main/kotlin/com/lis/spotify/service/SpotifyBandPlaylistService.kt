@@ -38,24 +38,21 @@ class SpotifyBandPlaylistService(
 
     val trackIds =
       runBlocking(Dispatchers.IO) {
-        cleaned
-          .map { band ->
-            async(Dispatchers.IO) {
-              val artist = spotifyArtistService.searchArtist(band, clientId)
-              if (artist == null) {
-                logger.warn("No Spotify artist match for '{}' (clientId={})", band, clientId)
-                emptyList()
-              } else {
-                spotifyArtistService
-                  .getArtistTopTracks(artist.id, clientId)
-                  .take(TRACKS_PER_ARTIST)
-                  .map { it.id }
+        val tracksByBand =
+          cleaned
+            .map { band ->
+              async(Dispatchers.IO) {
+                val artist = spotifyArtistService.searchArtist(band, clientId)
+                if (artist == null) {
+                  logger.warn("No Spotify artist match for '{}' (clientId={})", band, clientId)
+                  emptyList()
+                } else {
+                  spotifyArtistService.getArtistTopTracks(artist.id, clientId).map { it.id }
+                }
               }
             }
-          }
-          .awaitAll()
-          .flatten()
-          .distinct()
+            .awaitAll()
+        buildBalancedMix(tracksByBand)
       }
 
     if (trackIds.isEmpty()) {
@@ -69,24 +66,46 @@ class SpotifyBandPlaylistService(
     return playlist.id
   }
 
+  private fun buildBalancedMix(tracksByBand: List<List<String>>): List<String> {
+    val result = LinkedHashSet<String>()
+    var trackIndex = 0
+
+    while (result.size < targetTrackCount) {
+      var hadCandidate = false
+      for (tracks in tracksByBand) {
+        if (trackIndex < tracks.size) {
+          hadCandidate = true
+          result.add(tracks[trackIndex])
+          if (result.size >= targetTrackCount) {
+            break
+          }
+        }
+      }
+      if (!hadCandidate) {
+        break
+      }
+      trackIndex += 1
+    }
+
+    return result.toList()
+  }
+
   private fun buildPlaylistName(bands: List<String>): String {
     val joined = bands.joinToString(", ")
     val name = "Band Mix: $joined"
-    return if (name.length <= MAX_PLAYLIST_NAME_LENGTH) {
+    return if (name.length <= maxPlaylistNameLength) {
       name
     } else {
-      val truncated =
-        if (bands.size > 2) {
-          "Band Mix: ${bands.take(2).joinToString(", ")} +${bands.size - 2} more"
-        } else {
-          "Band Mix: ${bands.take(1).joinToString(", ")}"
-        }
-      truncated
+      if (bands.size > 2) {
+        "Band Mix: ${bands.take(2).joinToString(", ")} +${bands.size - 2} more"
+      } else {
+        "Band Mix: ${bands.take(1).joinToString(", ")}"
+      }
     }
   }
 
   companion object {
-    private const val TRACKS_PER_ARTIST = 5
-    private const val MAX_PLAYLIST_NAME_LENGTH = 100
+    private const val targetTrackCount = 50
+    private const val maxPlaylistNameLength = 100
   }
 }

@@ -40,6 +40,37 @@ class SpotifyBandPlaylistServiceTest {
   }
 
   @Test
+  fun createBandPlaylistCapsMixAtFiftyTracks() {
+    val bands = (1..6).map { Artist("a$it", "Band $it") }
+    val playlist = Playlist("p1", "Band Mix")
+
+    bands.forEachIndexed { index, artist ->
+      every { artistService.searchArtist(artist.name, "cid") } returns artist
+      every { artistService.getArtistTopTracks(artist.id, "cid") } returns
+        (1..10).map { trackIndex ->
+          Track(
+            "${artist.id}-t$trackIndex",
+            "Song $trackIndex",
+            listOf(artist),
+            Album("${artist.id}-al", "Album", listOf(artist)),
+          )
+        }
+    }
+    every { playlistService.getOrCreatePlaylist(any(), "cid") } returns playlist
+    every { playlistService.modifyPlaylist("p1", any(), "cid") } returns emptyMap()
+
+    service.createBandPlaylist("cid", bands.map { it.name })
+
+    verify {
+      playlistService.modifyPlaylist(
+        "p1",
+        match { trackIds -> trackIds.size == 50 && trackIds.distinct().size == 50 },
+        "cid",
+      )
+    }
+  }
+
+  @Test
   fun createBandPlaylistReturnsNullForEmptyInput() {
     val playlistId = service.createBandPlaylist("cid", listOf(" ", ""))
     assertNull(playlistId)

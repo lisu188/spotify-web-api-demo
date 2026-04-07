@@ -12,7 +12,7 @@
 
 package com.lis.spotify.service
 
-import java.util.*
+import java.util.Calendar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -28,7 +28,7 @@ class SpotifyTopPlaylistsService(
   var spotifySearchService: SpotifySearchService,
 ) {
 
-  private val YEARLY_LIMIT = 250
+  private val yearlyLimit = 250
 
   private val logger = LoggerFactory.getLogger(SpotifyTopPlaylistsService::class.java)
 
@@ -75,14 +75,14 @@ class SpotifyTopPlaylistsService(
         ids += longTermId
       }
 
-      val trackList1: List<String> =
+      val mixedTrackIds: List<String> =
         (shortTerm.asIterable() + midTerm.asIterable() + longTerm.asIterable())
           .toCollection(arrayListOf())
           .distinct()
 
-      if (trackList1.isNotEmpty()) {
+      if (mixedTrackIds.isNotEmpty()) {
         val mixedTermId = spotifyPlaylistService.getOrCreatePlaylist("Mixed Term", clientId).id
-        spotifyPlaylistService.modifyPlaylist(mixedTermId, trackList1, clientId)
+        spotifyPlaylistService.modifyPlaylist(mixedTermId, mixedTrackIds, clientId)
         ids += mixedTermId
       }
 
@@ -93,19 +93,25 @@ class SpotifyTopPlaylistsService(
     }
   }
 
-  fun updateYearlyPlaylists(clientId: String, lastFmLogin: String) {
+  fun updateYearlyPlaylists(
+    clientId: String,
+    lastFmLogin: String,
+    progress: (Int, String) -> Unit = { _, _ -> },
+  ) {
     logger.debug("updateYearlyPlaylists {} {}", clientId, lastFmLogin)
     logger.info("updateYearlyPlaylists: {}", clientId)
     runBlocking(Dispatchers.IO) {
       val years = (2005..getYear()).toList().sortedDescending()
-      val total = years.size
+      val total = years.size.coerceAtLeast(1)
+      progress(0, "Starting yearly playlist refresh")
 
       years.forEachIndexed { idx, year ->
+        progress((idx * 100) / total, "Processing $year (${idx + 1}/$total)")
         logger.info("Processing year {} ({}/{})", year, idx + 1, total)
-        val chartlist = lastFmService.yearlyChartlist(clientId, year, lastFmLogin, YEARLY_LIMIT)
+        val chartlist = lastFmService.yearlyChartlist(clientId, year, lastFmLogin, yearlyLimit)
 
         val deferred =
-          chartlist.take(YEARLY_LIMIT).map { song ->
+          chartlist.take(yearlyLimit).map { song ->
             async(Dispatchers.IO) {
               spotifySearchService
                 .doSearch(song, clientId)
@@ -124,9 +130,12 @@ class SpotifyTopPlaylistsService(
           spotifyPlaylistService.modifyPlaylist(playlistId, trackList, clientId)
           spotifyPlaylistService.deduplicatePlaylist(playlistId, clientId)
         }
-        logger.info("Year {} completed: {}%", year, ((idx + 1) * 100) / total)
+        val completedPercent = ((idx + 1) * 100) / total
+        progress(completedPercent, "Finished $year (${idx + 1}/$total)")
+        logger.info("Year {} completed: {}%", year, completedPercent)
       }
     }
+    progress(100, "Yearly playlists refreshed")
     logger.info("updateYearlyPlaylists {} completed", clientId)
   }
 

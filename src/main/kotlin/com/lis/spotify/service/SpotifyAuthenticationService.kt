@@ -72,6 +72,30 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
     logger.debug("AuthToken cached for {}", token.clientId)
   }
 
+  fun seedRefreshToken(clientId: String, refreshToken: String) {
+    if (clientId.isBlank() || refreshToken.isBlank()) {
+      logger.warn("Cannot seed Spotify refresh token because clientId or refresh token is blank")
+      return
+    }
+
+    val existing = tokenCache[clientId]
+    if (existing?.refresh_token == refreshToken) {
+      logger.debug("Refresh token already cached for clientId={}", clientId)
+      return
+    }
+
+    setAuthToken(
+      AuthToken(
+        access_token = existing?.access_token.orEmpty(),
+        token_type = existing?.token_type ?: "Bearer",
+        scope = existing?.scope ?: Spotify.SCOPES,
+        expires_in = existing?.expires_in ?: 0,
+        refresh_token = refreshToken,
+        clientId = clientId,
+      )
+    )
+  }
+
   fun getAuthToken(clientId: String): AuthToken? {
     logger.debug("Attempting to retrieve AuthToken from cache for clientId={}", clientId)
     val token = tokenCache[clientId]

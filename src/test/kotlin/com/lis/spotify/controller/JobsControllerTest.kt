@@ -1,6 +1,8 @@
 package com.lis.spotify.controller
 
 import com.lis.spotify.domain.JobId
+import com.lis.spotify.domain.JobState
+import com.lis.spotify.domain.JobStatus
 import com.lis.spotify.service.JobService
 import io.mockk.every
 import io.mockk.mockk
@@ -18,5 +20,16 @@ class JobsControllerTest {
     val resp = controller.start("c", JobsController.StartRequest("login"))
     assertEquals(JobId("id"), resp.body)
     assertEquals(HttpStatus.ACCEPTED, resp.statusCode)
+  }
+
+  @Test
+  fun getStatusReturnsJobStatus() {
+    val status = JobStatus("id", JobState.RUNNING, 25, "Processing 2025 (1/21)")
+    every { service.getJobStatus("id") } returns status
+
+    val response = controller.getStatus("id")
+
+    assertEquals(HttpStatus.OK, response.statusCode)
+    assertEquals(status, response.body)
   }
 }

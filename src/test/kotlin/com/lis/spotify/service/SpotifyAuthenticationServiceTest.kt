@@ -39,6 +39,15 @@ class SpotifyAuthenticationServiceTest {
   }
 
   @Test
+  fun seedRefreshTokenStoresRefreshTokenInCache() {
+    service.seedRefreshToken("cid", "refresh")
+
+    val token = service.getAuthToken("cid")
+    assertEquals("refresh", token?.refresh_token)
+    assertEquals("cid", token?.clientId)
+  }
+
+  @Test
   fun refreshTokenStoresNewToken() {
     val builderAuthed = mockk<RestTemplateBuilder>()
     every { builder.basicAuthentication(any(), any()) } returns builderAuthed
@@ -48,7 +57,10 @@ class SpotifyAuthenticationServiceTest {
     service.setAuthToken(AuthToken("old", "", "", 0, "refresh", "cid"))
     val refreshed = service.refreshToken("cid")
     assertTrue(refreshed)
-    assertEquals(newToken, service.getAuthToken("cid"))
+    val stored = service.getAuthToken("cid")
+    assertEquals("access", stored?.access_token)
+    assertEquals("refresh", stored?.refresh_token)
+    assertEquals("cid", stored?.clientId)
   }
 
   @Test

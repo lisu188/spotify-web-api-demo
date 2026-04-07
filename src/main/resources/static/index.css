@@ -11,28 +11,33 @@
  */
 
 button {
-    width: 100%;
+  width: 100%;
 }
 
 input {
-    width: 100%;
+  width: 100%;
 }
 
-html, body {
-    margin: 0;
-    padding: 0;
-    border: 0;
-    width: 100%;
-    height: 100%;
+html,
+body {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  width: 100%;
+  height: 100%;
 }
 
 iframe {
-    float: left;
-    width: 25%;
-    height: 360px;
-    margin: 0;
-    padding: 0;
-    background: blue;
-    border: 0;
-    display: block;
+  float: left;
+  width: 25%;
+  height: 360px;
+  margin: 0;
+  padding: 0;
+  background: blue;
+  border: 0;
+  display: block;
+}
+
+#lastfmProgress {
+  height: 1.5rem;
 }
