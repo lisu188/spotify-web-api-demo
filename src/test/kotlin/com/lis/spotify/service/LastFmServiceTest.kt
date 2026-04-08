@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.web.client.HttpClientErrorException
+import org.springframework.web.client.HttpServerErrorException
 import org.springframework.web.client.ResourceAccessException
 import org.springframework.web.client.RestTemplate
 
@@ -147,6 +148,80 @@ class LastFmServiceTest {
     val thrown =
       assertThrows(LastFmException::class.java) { service.yearlyChartlist("c", 2020, "u").first() }
     assertEquals(10, thrown.code)
+  }
+
+  @Test
+  fun transientBackendFailuresAreRetried() {
+    val rest = mockk<RestTemplate>()
+    val auth = mockk<LastFmAuthenticationService>(relaxed = true)
+    val service = LastFmService(auth)
+    service.rest = rest
+    val sleepCalls = mutableListOf<Long>()
+    service.sleeper = LastFmSleeper { millis -> sleepCalls += millis }
+    val ex =
+      HttpServerErrorException.create(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        "",
+        HttpHeaders(),
+        "{\"error\":8,\"message\":\"Operation failed - Most likely the backend service failed. Please try again.\"}"
+          .toByteArray(),
+        null,
+      )
+    val map1 =
+      mapOf(
+        "recenttracks" to
+          mapOf(
+            "@attr" to mapOf("totalPages" to "1"),
+            "track" to listOf(mapOf("artist" to mapOf("#text" to "A"), "name" to "T")),
+          )
+      )
+    val map2 =
+      mapOf(
+        "recenttracks" to
+          mapOf("@attr" to mapOf("totalPages" to "1"), "track" to emptyList<String>())
+      )
+
+    every { rest.getForObject(any<java.net.URI>(), Map::class.java) } throws
+      ex andThenMany
+      listOf(map1, map2)
+
+    val songs = service.yearlyChartlist("cid", 2020, "login")
+
+    assertEquals(listOf(Song("A", "T")), songs)
+    assertEquals(listOf(LastFmService.LASTFM_RETRY_DELAY_MS), sleepCalls)
+    io.mockk.verify(exactly = 3) { rest.getForObject(any<java.net.URI>(), Map::class.java) }
+  }
+
+  @Test
+  fun transientBackendFailuresStopAfterRetryBudget() {
+    val rest = mockk<RestTemplate>()
+    val auth = mockk<LastFmAuthenticationService>(relaxed = true)
+    val service = LastFmService(auth)
+    service.rest = rest
+    val sleepCalls = mutableListOf<Long>()
+    service.sleeper = LastFmSleeper { millis -> sleepCalls += millis }
+    val ex =
+      HttpServerErrorException.create(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        "",
+        HttpHeaders(),
+        "{\"error\":8,\"message\":\"Operation failed - Most likely the backend service failed. Please try again.\"}"
+          .toByteArray(),
+        null,
+      )
+    every { rest.getForObject(any<java.net.URI>(), Map::class.java) } throws ex
+
+    val thrown =
+      assertThrows(LastFmException::class.java) { service.yearlyChartlist("cid", 2020, "login") }
+
+    assertEquals(8, thrown.code)
+    assertEquals(
+      listOf(LastFmService.LASTFM_RETRY_DELAY_MS, LastFmService.LASTFM_RETRY_DELAY_MS * 2),
+      sleepCalls,
+    )
+    io.mockk.verify(exactly = LastFmService.LASTFM_FETCH_ATTEMPTS) {
+      rest.getForObject(any<java.net.URI>(), Map::class.java)
+    }
   }
 
   @Test

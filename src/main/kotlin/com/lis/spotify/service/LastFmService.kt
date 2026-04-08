@@ -8,7 +8,7 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import org.springframework.web.client.HttpClientErrorException
+import org.springframework.web.client.HttpStatusCodeException
 import org.springframework.web.client.ResourceAccessException
 import org.springframework.web.client.RestTemplate
 import org.springframework.web.util.UriComponentsBuilder
@@ -16,8 +16,9 @@ import org.springframework.web.util.UriComponentsBuilder
 @Service
 class LastFmService(private val lastFmAuthService: LastFmAuthenticationService) {
 
-  private val rest = RestTemplate()
-  private val log = LoggerFactory.getLogger(LastFmService::class.java)
+  internal var rest = RestTemplate()
+  internal var sleeper: LastFmSleeper = LastFmSleeper { millis -> Thread.sleep(millis) }
+  private val logger = LoggerFactory.getLogger(LastFmService::class.java)
   private val mapper = jacksonObjectMapper()
 
   private fun buildUri(method: String, params: Map<String, Any>, sessionKey: String?): URI {
@@ -42,22 +43,55 @@ class LastFmService(private val lastFmAuthService: LastFmAuthenticationService) 
         mapOf("user" to user, "from" to from, "to" to to, "page" to page, "limit" to 200),
         lastFmAuthService.getSessionKey(user),
       )
-    return try {
-      rest.getForObject(uri, Map::class.java) as Map<String, Any>
-    } catch (ex: HttpClientErrorException) {
-      val err = parseError(ex)
-      log.error("Last.fm error {} {}", err.code, err.message)
-      if (err.code == 17) {
-        throw AuthenticationRequiredException("LASTFM")
+    var attempt = 1
+    while (true) {
+      try {
+        return rest.getForObject(uri, Map::class.java) as Map<String, Any>
+      } catch (ex: HttpStatusCodeException) {
+        val err = parseError(ex)
+        if (err.code == AUTHENTICATION_REQUIRED_CODE) {
+          logger.warn("Last.fm authentication expired for user {}", user)
+          throw AuthenticationRequiredException("LASTFM")
+        }
+        if (shouldRetry(err, ex.statusCode.value(), attempt)) {
+          val delayMs = retryDelayMs(attempt)
+          logger.warn(
+            "Last.fm transient error {} {} on attempt {}/{} for user {}, retrying in {}ms",
+            err.code,
+            err.message,
+            attempt,
+            LASTFM_FETCH_ATTEMPTS,
+            user,
+            delayMs,
+          )
+          sleeper.sleep(delayMs)
+          attempt++
+          continue
+        }
+        logger.error("Last.fm error {} {}", err.code, err.message)
+        throw err
+      } catch (ex: ResourceAccessException) {
+        if (attempt < LASTFM_FETCH_ATTEMPTS) {
+          val delayMs = retryDelayMs(attempt)
+          logger.warn(
+            "Last.fm network error on attempt {}/{} for user {}, retrying in {}ms",
+            attempt,
+            LASTFM_FETCH_ATTEMPTS,
+            user,
+            delayMs,
+            ex,
+          )
+          sleeper.sleep(delayMs)
+          attempt++
+          continue
+        }
+        logger.error("Last.fm network error", ex)
+        throw LastFmException(503, ex.message ?: "I/O error")
       }
-      throw err
-    } catch (ex: ResourceAccessException) {
-      log.error("Last.fm network error", ex)
-      throw LastFmException(503, ex.message ?: "I/O error")
     }
   }
 
-  private fun parseError(ex: HttpClientErrorException): LastFmException {
+  private fun parseError(ex: HttpStatusCodeException): LastFmException {
     return try {
       val body = mapper.readValue(ex.responseBodyAsString, Map::class.java) as Map<*, *>
       val code = (body["error"] as? Int) ?: ex.statusCode.value()
@@ -69,24 +103,24 @@ class LastFmService(private val lastFmAuthService: LastFmAuthenticationService) 
   }
 
   fun userExists(lastFmLogin: String): Boolean {
-    log.info("Checking Last.fm user {}", lastFmLogin)
-    log.debug("userExists {}", lastFmLogin)
+    logger.info("Checking Last.fm user {}", lastFmLogin)
+    logger.debug("userExists {}", lastFmLogin)
     if (lastFmLogin.isBlank()) throw LastFmException(400, "user is required")
     val uri = buildUri("user.getInfo", mapOf("user" to lastFmLogin), null)
     return try {
       rest.getForObject(uri, Map::class.java)
       true
-    } catch (ex: HttpClientErrorException) {
+    } catch (ex: HttpStatusCodeException) {
       val err = parseError(ex)
       return if (err.code == 6) {
-        log.info("User {} not found", lastFmLogin)
+        logger.info("User {} not found", lastFmLogin)
         false
       } else {
-        log.error("Last.fm error {} {}", err.code, err.message)
+        logger.error("Last.fm error {} {}", err.code, err.message)
         throw err
       }
     } catch (ex: ResourceAccessException) {
-      log.error("Last.fm network error", ex)
+      logger.error("Last.fm network error", ex)
       throw LastFmException(503, ex.message ?: "I/O error")
     }
   }
@@ -98,8 +132,8 @@ class LastFmService(private val lastFmAuthService: LastFmAuthenticationService) 
     limit: Int = Int.MAX_VALUE,
     startPage: Int = 1,
   ): List<Song> {
-    log.info("Fetching yearly chartlist for user {} year {}", lastFmLogin, year)
-    log.debug("yearlyChartlist {} {} {}", spotifyClientId, year, lastFmLogin)
+    logger.info("Fetching yearly chartlist for user {} year {}", lastFmLogin, year)
+    logger.debug("yearlyChartlist {} {} {}", spotifyClientId, year, lastFmLogin)
     if (lastFmLogin.isBlank()) throw LastFmException(400, "user is required")
     val from = LocalDate.of(year, 1, 1).atStartOfDay().toEpochSecond(ZoneOffset.UTC)
     val to = LocalDate.of(year, 12, 31).atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC)
@@ -121,15 +155,35 @@ class LastFmService(private val lastFmAuthService: LastFmAuthenticationService) 
       }
       fetched++
     }
-    log.debug("yearlyChartlist {} {} fetched {} pages", lastFmLogin, year, fetched)
+    logger.debug("yearlyChartlist {} {} fetched {} pages", lastFmLogin, year, fetched)
     return result
   }
 
   fun globalChartlist(lastFmLogin: String, page: Int = 1): List<Song> {
-    log.info("Fetching global chartlist for user {}", lastFmLogin)
-    log.debug("globalChartlist {} {}", lastFmLogin, page)
+    logger.info("Fetching global chartlist for user {}", lastFmLogin)
+    logger.debug("globalChartlist {} {}", lastFmLogin, page)
     return yearlyChartlist("", 1970, lastFmLogin, startPage = page)
   }
+
+  private fun shouldRetry(error: LastFmException, statusCode: Int, attempt: Int): Boolean {
+    if (attempt >= LASTFM_FETCH_ATTEMPTS) {
+      return false
+    }
+    return statusCode >= 500 || error.code == TRANSIENT_BACKEND_ERROR_CODE
+  }
+
+  private fun retryDelayMs(attempt: Int): Long = LASTFM_RETRY_DELAY_MS * attempt
+
+  companion object {
+    internal const val LASTFM_FETCH_ATTEMPTS = 3
+    internal const val LASTFM_RETRY_DELAY_MS = 250L
+    private const val AUTHENTICATION_REQUIRED_CODE = 17
+    private const val TRANSIENT_BACKEND_ERROR_CODE = 8
+  }
+}
+
+fun interface LastFmSleeper {
+  fun sleep(millis: Long)
 }
 
 class LastFmException(val code: Int, override val message: String) : RuntimeException(message)
