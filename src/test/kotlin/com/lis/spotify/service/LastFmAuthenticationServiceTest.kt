@@ -51,6 +51,8 @@ class LastFmAuthenticationServiceTest {
     val service = LastFmAuthenticationService()
     service.setSession("user", "val")
     assertEquals(true, service.isAuthorized("val"))
+    assertEquals(true, service.isAuthorized("user", "val"))
+    assertEquals(false, service.isAuthorized("other-user", "val"))
     assertEquals(false, service.isAuthorized("other"))
   }
 

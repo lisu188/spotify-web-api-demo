@@ -11,10 +11,10 @@ import org.htmlunit.html.HtmlElement
 import org.htmlunit.html.HtmlInput
 import org.htmlunit.html.HtmlPage
 import org.htmlunit.util.WebConnectionWrapper
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.SpringBootTest
@@ -65,7 +65,12 @@ class IndexPageWorkflowIT {
       resourceText("htmlunit/jquery-shim.js"),
       "text/javascript",
     )
-    mockWebConnection.setDefaultResponse(resourceText("htmlunit/noop.js"), 200, "OK", "text/javascript")
+    mockWebConnection.setDefaultResponse(
+      resourceText("htmlunit/noop.js"),
+      200,
+      "OK",
+      "text/javascript",
+    )
 
     val delegate = webClient.webConnection
     webClient.webConnection =
@@ -251,9 +256,10 @@ class IndexPageWorkflowIT {
   }
 
   private fun resourceText(path: String): String {
-    val stream = requireNotNull(javaClass.classLoader.getResourceAsStream(path)) {
-      "Missing test resource: $path"
-    }
+    val stream =
+      requireNotNull(javaClass.classLoader.getResourceAsStream(path)) {
+        "Missing test resource: $path"
+      }
     return stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
   }
 }

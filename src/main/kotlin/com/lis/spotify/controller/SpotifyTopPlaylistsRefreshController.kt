@@ -9,11 +9,11 @@ import org.springframework.web.bind.annotation.RestController
 
 @RestController
 class SpotifyTopPlaylistsRefreshController(
-  private val spotifyTopPlaylistsRefreshService: SpotifyTopPlaylistsRefreshService,
+  private val spotifyTopPlaylistsRefreshService: SpotifyTopPlaylistsRefreshService
 ) {
   @PostMapping("/refreshConfiguredTopPlaylists")
   fun refreshConfiguredTopPlaylists(
-    @RequestHeader("X-Refresh-Token", required = false) refreshTriggerToken: String?,
+    @RequestHeader("X-Refresh-Token", required = false) refreshTriggerToken: String?
   ): ResponseEntity<Any> {
     if (!spotifyTopPlaylistsRefreshService.isTriggerAuthorized(refreshTriggerToken)) {
       return ResponseEntity.status(HttpStatus.FORBIDDEN)

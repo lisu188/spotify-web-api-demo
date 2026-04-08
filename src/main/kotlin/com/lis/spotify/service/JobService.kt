@@ -2,6 +2,8 @@ package com.lis.spotify.service
 
 import com.lis.spotify.domain.JobState
 import com.lis.spotify.domain.JobStatus
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.util.Date
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -39,7 +41,13 @@ class JobService(
           updateJob(id, JobState.COMPLETED, 100, "Yearly playlists refreshed")
         } catch (e: AuthenticationRequiredException) {
           logger.error("Authentication required during yearly job {}", id, e)
-          updateJob(id, JobState.FAILED, currentProgress(id), "Last.fm authentication required", "/auth/lastfm")
+          updateJob(
+            id,
+            JobState.FAILED,
+            currentProgress(id),
+            authenticationMessage(e.provider),
+            authenticationRedirectUrl(e.provider, lastFmLogin),
+          )
         } catch (e: Exception) {
           logger.error("Yearly playlist update failed for job {}", id, e)
           updateJob(id, JobState.FAILED, currentProgress(id), "Yearly playlist refresh failed")
@@ -53,6 +61,25 @@ class JobService(
 
   private fun currentProgress(jobId: String): Int {
     return jobs[jobId]?.progressPercent ?: 0
+  }
+
+  private fun authenticationMessage(provider: String): String {
+    return when (provider.uppercase()) {
+      "SPOTIFY" -> "Spotify authentication required"
+      "LASTFM" -> "Last.fm authentication required"
+      else -> "Authentication required"
+    }
+  }
+
+  private fun authenticationRedirectUrl(provider: String, lastFmLogin: String): String {
+    return when (provider.uppercase()) {
+      "SPOTIFY" -> "/auth/spotify"
+      "LASTFM" -> {
+        val encodedLogin = URLEncoder.encode(lastFmLogin, StandardCharsets.UTF_8)
+        "/auth/lastfm?lastFmLogin=$encodedLogin"
+      }
+      else -> "/"
+    }
   }
 
   private fun updateJob(

@@ -11,16 +11,12 @@ import org.springframework.stereotype.Service
 class SpotifyTopPlaylistsRefreshService(
   private val spotifyAuthenticationService: SpotifyAuthenticationService,
   private val spotifyTopPlaylistsService: SpotifyTopPlaylistsService,
-  @Value("\${spotify.top-playlists.refresh-enabled:false}")
-  private val refreshEnabled: Boolean,
-  @Value("\${spotify.top-playlists.refresh-client-id:}")
-  private val refreshClientId: String,
-  @Value("\${spotify.top-playlists.refresh-token:}")
-  private val refreshToken: String,
+  @Value("\${spotify.top-playlists.refresh-enabled:false}") private val refreshEnabled: Boolean,
+  @Value("\${spotify.top-playlists.refresh-client-id:}") private val refreshClientId: String,
+  @Value("\${spotify.top-playlists.refresh-token:}") private val refreshToken: String,
   @Value("\${spotify.top-playlists.refresh-on-startup:true}")
   private val refreshOnStartupEnabled: Boolean,
-  @Value("\${spotify.top-playlists.refresh-trigger-token:}")
-  private val refreshTriggerToken: String,
+  @Value("\${spotify.top-playlists.refresh-trigger-token:}") private val refreshTriggerToken: String,
 ) {
   @EventListener(ApplicationReadyEvent::class)
   fun triggerRefreshOnStartup() {

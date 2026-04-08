@@ -45,6 +45,15 @@ object AppEnvironment {
           ?: System.getProperty("SPOTIFY_TOKEN_URL")
           ?: "https://accounts.spotify.com/api/token"
 
+    val API_BASE_URL: String
+      get() =
+        System.getenv("SPOTIFY_API_BASE_URL")
+          ?: System.getProperty("SPOTIFY_API_BASE_URL")
+          ?: "https://api.spotify.com"
+
+    val USER_INFO_URL: String
+      get() = "$API_BASE_URL/v1/me"
+
     const val SCOPES: String = "user-top-read playlist-modify-public"
   }
 
