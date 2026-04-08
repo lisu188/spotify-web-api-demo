@@ -36,6 +36,8 @@ import kotlinx.coroutines.sync.withPermit
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
+import org.springframework.web.client.HttpStatusCodeException
+import org.springframework.web.client.ResourceAccessException
 
 @Service
 class SpotifySearchService(
@@ -50,11 +52,16 @@ class SpotifySearchService(
     val SEARCH_URL = "https://api.spotify.com/v1/search?q={q}&type={type}"
     internal const val DEFAULT_SEARCH_MAX_PARALLELISM = 64
     internal val DEFAULT_CACHE_TTL: Duration = Duration.ofDays(7)
+    internal const val SPOTIFY_SEARCH_ATTEMPTS = 3
+    internal const val SPOTIFY_SEARCH_RETRY_DELAY_MS = 250L
     private val WHITESPACE_REGEX = "\\s+".toRegex()
   }
 
   internal var maxParallelism = configuredMaxParallelism.coerceAtLeast(1)
   internal var cacheTtl = configuredCacheTtl
+  internal var sleeper: SpotifySearchSleeper = SpotifySearchSleeper { millis ->
+    Thread.sleep(millis)
+  }
 
   private val logger = LoggerFactory.getLogger(SpotifySearchService::class.java)
   private val mapper = jacksonObjectMapper()
@@ -72,12 +79,7 @@ class SpotifySearchService(
       return readCachedResult(cacheKey, cached)
     }
 
-    val result =
-      spotifyRestService.doGet<SearchResult>(
-        SEARCH_URL,
-        params = mapOf("q" to query, "type" to "track"),
-        clientId = clientId,
-      )
+    val result = fetchSearchResult(query, clientId, cacheKey) ?: return null
     saveCacheEntry(cacheKey, clientId, query, result, now)
     logger.debug("doSearch single result stored for {}", cacheKey)
     return result
@@ -156,6 +158,70 @@ class SpotifySearchService(
     searchCache.put(cacheKey, entry)
   }
 
+  private fun fetchSearchResult(query: String, clientId: String, cacheKey: String): SearchResult? {
+    var attempt = 1
+    while (true) {
+      try {
+        return spotifyRestService.doGet<SearchResult>(
+          SEARCH_URL,
+          params = mapOf("q" to query, "type" to "track"),
+          clientId = clientId,
+        )
+      } catch (ex: HttpStatusCodeException) {
+        val statusCode = ex.statusCode.value()
+        if (statusCode >= 500 && attempt < SPOTIFY_SEARCH_ATTEMPTS) {
+          val delayMs = retryDelayMs(attempt)
+          logger.warn(
+            "Spotify search transient error {} on attempt {}/{} for cache key {}, retrying in {}ms",
+            statusCode,
+            attempt,
+            SPOTIFY_SEARCH_ATTEMPTS,
+            cacheKey,
+            delayMs,
+          )
+          sleeper.sleep(delayMs)
+          attempt++
+          continue
+        }
+        if (statusCode >= 500) {
+          logger.warn(
+            "Spotify search failed with status {} after {}/{} attempts for cache key {}, skipping track",
+            statusCode,
+            attempt,
+            SPOTIFY_SEARCH_ATTEMPTS,
+            cacheKey,
+            ex,
+          )
+          return null
+        }
+        throw ex
+      } catch (ex: ResourceAccessException) {
+        if (attempt < SPOTIFY_SEARCH_ATTEMPTS) {
+          val delayMs = retryDelayMs(attempt)
+          logger.warn(
+            "Spotify search network error on attempt {}/{} for cache key {}, retrying in {}ms",
+            attempt,
+            SPOTIFY_SEARCH_ATTEMPTS,
+            cacheKey,
+            delayMs,
+            ex,
+          )
+          sleeper.sleep(delayMs)
+          attempt++
+          continue
+        }
+        logger.warn(
+          "Spotify search network error after {}/{} attempts for cache key {}, skipping track",
+          attempt,
+          SPOTIFY_SEARCH_ATTEMPTS,
+          cacheKey,
+          ex,
+        )
+        return null
+      }
+    }
+  }
+
   private fun readCachedResult(
     cacheKey: String,
     entry: StoredSpotifySearchCacheEntry,
@@ -189,4 +255,10 @@ class SpotifySearchService(
   internal fun clearCache() {
     searchCache.invalidateAll()
   }
+
+  private fun retryDelayMs(attempt: Int): Long = SPOTIFY_SEARCH_RETRY_DELAY_MS * attempt
+}
+
+fun interface SpotifySearchSleeper {
+  fun sleep(millis: Long)
 }

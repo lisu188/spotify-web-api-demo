@@ -22,6 +22,9 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpStatus
+import org.springframework.web.client.HttpServerErrorException
 
 class SpotifySearchServiceTest {
   @Test
@@ -159,6 +162,83 @@ class SpotifySearchServiceTest {
     }
 
     assertEquals(2, maxActiveRequests.get())
+    verify(exactly = 4) { rest.doRequest(any<() -> Any>()) }
+  }
+
+  @Test
+  fun transientServerErrorsAreRetriedAndEventuallySucceed() {
+    val rest = mockk<SpotifyRestService>()
+    val service = SpotifySearchService(rest, InMemorySpotifySearchCacheStore(), fixedClock())
+    val sleepCalls = mutableListOf<Long>()
+    service.sleeper = SpotifySearchSleeper { millis -> sleepCalls += millis }
+    val result =
+      SearchResult(
+        SearchResultInternal(
+          listOf(Track("1", "t", listOf(Artist("2", "a")), Album("3", "al", emptyList())))
+        )
+      )
+    val exception =
+      HttpServerErrorException.create(
+        HttpStatus.BAD_GATEWAY,
+        "",
+        HttpHeaders(),
+        "{\"error\":{\"status\":502,\"message\":\"An unexpected error occurred. Please try again later.\"}}"
+          .toByteArray(),
+        null,
+      )
+    every { rest.doRequest(any<() -> Any>()) } throws exception andThen result
+
+    val searchResult = service.doSearch(Song("artist", "title"), "cid")
+
+    assertEquals("1", searchResult?.tracks?.items?.firstOrNull()?.id)
+    assertEquals(listOf(SpotifySearchService.SPOTIFY_SEARCH_RETRY_DELAY_MS), sleepCalls)
+    verify(exactly = 2) { rest.doRequest(any<() -> Any>()) }
+  }
+
+  @Test
+  fun repeatedServerErrorsSkipOnlyFailingTrack() {
+    val rest = mockk<SpotifyRestService>()
+    val service =
+      SpotifySearchService(
+        spotifyRestService = rest,
+        spotifySearchCacheStore = InMemorySpotifySearchCacheStore(),
+        clock = fixedClock(),
+        configuredMaxParallelism = 1,
+        configuredCacheTtl = Duration.ofDays(7),
+      )
+    val sleepCalls = mutableListOf<Long>()
+    service.sleeper = SpotifySearchSleeper { millis -> sleepCalls += millis }
+    val result =
+      SearchResult(
+        SearchResultInternal(
+          listOf(Track("ok", "ok", listOf(Artist("2", "a")), Album("3", "al", emptyList())))
+        )
+      )
+    val exception =
+      HttpServerErrorException.create(
+        HttpStatus.BAD_GATEWAY,
+        "",
+        HttpHeaders(),
+        "{\"error\":{\"status\":502,\"message\":\"An unexpected error occurred. Please try again later.\"}}"
+          .toByteArray(),
+        null,
+      )
+    every { rest.doRequest(any<() -> Any>()) } throws
+      exception andThenThrows
+      exception andThenThrows
+      exception andThen
+      result
+
+    val ids = service.doSearch(listOf(Song("bad", "track"), Song("good", "track")), "cid")
+
+    assertEquals(listOf("ok"), ids)
+    assertEquals(
+      listOf(
+        SpotifySearchService.SPOTIFY_SEARCH_RETRY_DELAY_MS,
+        SpotifySearchService.SPOTIFY_SEARCH_RETRY_DELAY_MS * 2,
+      ),
+      sleepCalls,
+    )
     verify(exactly = 4) { rest.doRequest(any<() -> Any>()) }
   }
 
