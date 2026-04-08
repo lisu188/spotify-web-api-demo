@@ -11,6 +11,8 @@ import com.github.tomakehurst.wiremock.client.WireMock.reset as wireMockReset
 import com.github.tomakehurst.wiremock.client.WireMock.stubFor
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
+import com.lis.spotify.persistence.InMemorySpotifyTokenStore
+import com.lis.spotify.persistence.SpotifyTokenStore
 import com.lis.spotify.service.SpotifyAuthenticationService
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertAll
@@ -40,6 +42,7 @@ class SpotifyAuthenticationControllerIT
 constructor(
   private val rest: TestRestTemplate,
   private val spotifyAuthenticationService: SpotifyAuthenticationService,
+  private val spotifyTokenStore: SpotifyTokenStore,
 ) {
   companion object {
     val wm = WireMockServer(WireMockConfiguration.options().dynamicPort())
@@ -84,7 +87,8 @@ constructor(
   @BeforeEach
   fun resetStubs() {
     wireMockReset()
-    spotifyAuthenticationService.tokenCache.clear()
+    spotifyAuthenticationService.clearCache()
+    (spotifyTokenStore as? InMemorySpotifyTokenStore)?.clear()
   }
 
   @Test

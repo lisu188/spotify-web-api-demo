@@ -2,11 +2,15 @@ package com.lis.spotify.service
 
 import com.lis.spotify.domain.JobState
 import com.lis.spotify.domain.JobStatus
+import com.lis.spotify.persistence.JobStatusStore
+import com.lis.spotify.persistence.StoredJobStatus
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
 import java.util.Date
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.TaskScheduler
 import org.springframework.stereotype.Service
@@ -14,53 +18,105 @@ import org.springframework.stereotype.Service
 @Service
 class JobService(
   private val playlistService: SpotifyTopPlaylistsService,
+  private val jobStatusStore: JobStatusStore,
   private val scheduler: TaskScheduler,
 ) {
   private val logger = LoggerFactory.getLogger(JobService::class.java)
-  private val jobs = ConcurrentHashMap<String, JobStatus>()
+  private val clock: Clock = Clock.systemUTC()
 
   fun getJobStatus(jobId: String): JobStatus? {
-    return jobs[jobId]
+    return jobStatusStore.findById(jobId)?.toJobStatus()
   }
 
   fun startYearlyJob(clientId: String, lastFmLogin: String): String {
     val id = UUID.randomUUID().toString()
+    val createdAt = Instant.now(clock)
+    val expiresAt = createdAt.plus(JOB_TTL)
     logger.info(
       "Scheduling yearly playlist update for clientId={} lastFmLogin={}",
       clientId,
       lastFmLogin,
     )
-    updateJob(id, JobState.QUEUED, 0, "Queued yearly playlist refresh")
+    updateJob(
+      jobId = id,
+      state = JobState.QUEUED,
+      progressPercent = 0,
+      message = "Queued yearly playlist refresh",
+      clientId = clientId,
+      lastFmLogin = lastFmLogin,
+      createdAt = createdAt,
+      expiresAt = expiresAt,
+    )
     scheduler.schedule(
       {
-        updateJob(id, JobState.RUNNING, 0, "Starting yearly playlist refresh")
+        updateJob(
+          jobId = id,
+          state = JobState.RUNNING,
+          progressPercent = 0,
+          message = "Starting yearly playlist refresh",
+          clientId = clientId,
+          lastFmLogin = lastFmLogin,
+          createdAt = createdAt,
+          expiresAt = expiresAt,
+        )
         try {
           playlistService.updateYearlyPlaylists(clientId, lastFmLogin) { progressPercent, message ->
-            updateJob(id, JobState.RUNNING, progressPercent, message)
+            updateJob(
+              jobId = id,
+              state = JobState.RUNNING,
+              progressPercent = progressPercent,
+              message = message,
+              clientId = clientId,
+              lastFmLogin = lastFmLogin,
+              createdAt = createdAt,
+              expiresAt = expiresAt,
+            )
           }
-          updateJob(id, JobState.COMPLETED, 100, "Yearly playlists refreshed")
+          updateJob(
+            jobId = id,
+            state = JobState.COMPLETED,
+            progressPercent = 100,
+            message = "Yearly playlists refreshed",
+            clientId = clientId,
+            lastFmLogin = lastFmLogin,
+            createdAt = createdAt,
+            expiresAt = expiresAt,
+          )
         } catch (e: AuthenticationRequiredException) {
           logger.error("Authentication required during yearly job {}", id, e)
           updateJob(
-            id,
-            JobState.FAILED,
-            currentProgress(id),
-            authenticationMessage(e.provider),
-            authenticationRedirectUrl(e.provider, lastFmLogin),
+            jobId = id,
+            state = JobState.FAILED,
+            progressPercent = currentProgress(id),
+            message = authenticationMessage(e.provider),
+            redirectUrl = authenticationRedirectUrl(e.provider, lastFmLogin),
+            clientId = clientId,
+            lastFmLogin = lastFmLogin,
+            createdAt = createdAt,
+            expiresAt = expiresAt,
           )
         } catch (e: Exception) {
           logger.error("Yearly playlist update failed for job {}", id, e)
-          updateJob(id, JobState.FAILED, currentProgress(id), "Yearly playlist refresh failed")
+          updateJob(
+            jobId = id,
+            state = JobState.FAILED,
+            progressPercent = currentProgress(id),
+            message = "Yearly playlist refresh failed",
+            clientId = clientId,
+            lastFmLogin = lastFmLogin,
+            createdAt = createdAt,
+            expiresAt = expiresAt,
+          )
         }
       },
-      Date(),
+      Date.from(createdAt),
     )
     logger.info("Yearly playlist update job {} scheduled", id)
     return id
   }
 
   private fun currentProgress(jobId: String): Int {
-    return jobs[jobId]?.progressPercent ?: 0
+    return jobStatusStore.findById(jobId)?.progressPercent ?: 0
   }
 
   private fun authenticationMessage(provider: String): String {
@@ -87,17 +143,27 @@ class JobService(
     state: JobState,
     progressPercent: Int,
     message: String,
+    clientId: String,
+    lastFmLogin: String,
+    createdAt: Instant,
+    expiresAt: Instant,
     redirectUrl: String? = null,
   ): JobStatus {
-    val status =
-      JobStatus(
+    val now = Instant.now(clock)
+    val storedStatus =
+      StoredJobStatus(
         jobId = jobId,
         state = state,
         progressPercent = progressPercent.coerceIn(0, 100),
         message = message,
         redirectUrl = redirectUrl,
+        clientId = clientId,
+        lastFmLogin = lastFmLogin,
+        createdAt = createdAt,
+        updatedAt = now,
+        expiresAt = expiresAt,
       )
-    jobs[jobId] = status
+    val status = jobStatusStore.save(storedStatus).toJobStatus()
     logger.info(
       "Job {} updated: state={} progress={} message={}",
       jobId,
@@ -106,5 +172,9 @@ class JobService(
       message,
     )
     return status
+  }
+
+  companion object {
+    private val JOB_TTL: Duration = Duration.ofDays(7)
   }
 }

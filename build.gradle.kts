@@ -26,7 +26,9 @@ java {
 repositories { mavenCentral() }
 
 dependencies {
+  implementation(platform("com.google.cloud:libraries-bom:26.69.0"))
   implementation("org.springframework.boot:spring-boot-starter-web")
+  implementation("com.google.cloud:google-cloud-firestore")
   implementation("org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion")
   implementation("org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion")
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
@@ -56,6 +58,7 @@ tasks.withType<KotlinCompile> {
 
 tasks.withType<Test> {
   useJUnitPlatform()
+  systemProperty("app.state-store.mode", "memory")
   systemProperty("BASE_URL", "http://localhost")
   systemProperty("SPOTIFY_CLIENT_ID", "id")
   systemProperty("SPOTIFY_CLIENT_SECRET", "secret")

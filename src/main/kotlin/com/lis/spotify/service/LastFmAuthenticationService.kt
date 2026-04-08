@@ -1,8 +1,12 @@
 package com.lis.spotify.service
 
 import com.lis.spotify.AppEnvironment.LastFm
+import com.lis.spotify.persistence.LastFmSessionStore
+import com.lis.spotify.persistence.StoredLastFmSession
 import java.math.BigInteger
 import java.security.MessageDigest
+import java.time.Clock
+import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpEntity
@@ -22,26 +26,52 @@ import org.springframework.web.util.UriComponentsBuilder
  * secret, and then generating an MD5 hash.
  */
 @Service
-class LastFmAuthenticationService {
+class LastFmAuthenticationService(private val lastFmSessionStore: LastFmSessionStore) {
 
   private val restTemplate = RestTemplate()
-  val sessionCache = ConcurrentHashMap<String, String>()
+  private val logger = LoggerFactory.getLogger(LastFmAuthenticationService::class.java)
+  private val clock: Clock = Clock.systemUTC()
+  private val sessionCache = ConcurrentHashMap<String, String>()
 
   fun setSession(login: String, sessionKey: String) {
+    val now = Instant.now(clock)
     sessionCache[login] = sessionKey
+    lastFmSessionStore.save(
+      StoredLastFmSession(login = login, sessionKey = sessionKey, updatedAt = now)
+    )
     logger.info("Stored session for {}", login)
   }
 
   fun getSessionKey(login: String): String? {
-    return sessionCache[login]
+    val cached = sessionCache[login]
+    if (cached != null) {
+      return cached
+    }
+
+    val storedSession = lastFmSessionStore.findByLogin(login)?.sessionKey
+    if (storedSession != null) {
+      sessionCache[login] = storedSession
+    }
+    return storedSession
   }
 
   fun isAuthorized(sessionKey: String): Boolean {
-    return sessionKey.isNotEmpty() && sessionCache.values.any { it == sessionKey }
+    if (sessionKey.isEmpty()) {
+      return false
+    }
+    if (sessionCache.values.any { it == sessionKey }) {
+      return true
+    }
+    val storedSession = lastFmSessionStore.findBySessionKey(sessionKey) ?: return false
+    sessionCache[storedSession.login] = storedSession.sessionKey
+    return true
   }
 
   fun isAuthorized(login: String, sessionKey: String): Boolean {
-    return login.isNotEmpty() && sessionKey.isNotEmpty() && sessionCache[login] == sessionKey
+    if (login.isEmpty() || sessionKey.isEmpty()) {
+      return false
+    }
+    return getSessionKey(login) == sessionKey
   }
 
   /**
@@ -123,9 +153,5 @@ class LastFmAuthenticationService {
     val digest = md.digest(input.toByteArray(Charsets.UTF_8))
     val bigInt = BigInteger(1, digest)
     return bigInt.toString(16).padStart(32, '0')
-  }
-
-  companion object {
-    private val logger = LoggerFactory.getLogger(LastFmAuthenticationService::class.java)
   }
 }

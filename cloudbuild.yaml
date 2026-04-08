@@ -1,25 +1,53 @@
 steps:
   # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/spotify-web-api-demo:$COMMIT_SHA', '.']
-  # Push the container image to Container Registry
+    args:
+      [
+        'build',
+        '-t',
+        '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_NAME}:$COMMIT_SHA',
+        '.',
+      ]
+  # Push the container image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/spotify-web-api-demo:$COMMIT_SHA']
+    args:
+      [
+        'push',
+        '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_NAME}:$COMMIT_SHA',
+      ]
   # Deploy the container image to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
       - 'run'
       - 'deploy'
-      - 'spotify-web-api-demo'
+      - '${_SERVICE_NAME}'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/spotify-web-api-demo:$COMMIT_SHA'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_NAME}:$COMMIT_SHA'
       - '--region'
-      - 'us-central1'
+      - '${_REGION}'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
+      - '--service-account'
+      - '${_SERVICE_ACCOUNT}'
+      - '--set-env-vars'
+      - 'BASE_URL=${_BASE_URL}'
+      - '--set-secrets'
+      - 'SPOTIFY_CLIENT_ID=${_SPOTIFY_CLIENT_ID_SECRET},SPOTIFY_CLIENT_SECRET=${_SPOTIFY_CLIENT_SECRET_SECRET},LASTFM_API_KEY=${_LASTFM_API_KEY_SECRET},LASTFM_API_SECRET=${_LASTFM_API_SECRET_SECRET},SPOTIFY_TOP_PLAYLISTS_REFRESH_TRIGGER_TOKEN=${_REFRESH_TRIGGER_TOKEN_SECRET},SPOTIFY_TOP_PLAYLISTS_REFRESH_TOKEN=${_REFRESH_TOKEN_SECRET}'
 images:
-  - 'gcr.io/$PROJECT_ID/spotify-web-api-demo:$COMMIT_SHA'
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_NAME}:$COMMIT_SHA'
+substitutions:
+  _REGION: 'us-central1'
+  _AR_REPO: 'spotify-web-api-demo'
+  _SERVICE_NAME: 'spotify-web-api-demo'
+  _SERVICE_ACCOUNT: 'spotify-web-api-demo-run@$PROJECT_ID.iam.gserviceaccount.com'
+  _BASE_URL: 'https://spotify-web-api-demo.example.com'
+  _SPOTIFY_CLIENT_ID_SECRET: 'spotify-client-id:latest'
+  _SPOTIFY_CLIENT_SECRET_SECRET: 'spotify-client-secret:latest'
+  _LASTFM_API_KEY_SECRET: 'lastfm-api-key:latest'
+  _LASTFM_API_SECRET_SECRET: 'lastfm-api-secret:latest'
+  _REFRESH_TRIGGER_TOKEN_SECRET: 'spotify-refresh-trigger-token:latest'
+  _REFRESH_TOKEN_SECRET: 'spotify-refresh-token:latest'
 options:
   logging: CLOUD_LOGGING_ONLY
