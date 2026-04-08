@@ -25,3 +25,15 @@ interface RefreshStateStore {
 
   fun getTopPlaylists(): StoredRefreshState?
 }
+
+interface SpotifySearchCacheStore {
+  fun save(entry: StoredSpotifySearchCacheEntry): StoredSpotifySearchCacheEntry
+
+  fun findByKey(cacheKey: String): StoredSpotifySearchCacheEntry?
+}
+
+interface LastFmRecentTracksCacheStore {
+  fun save(page: StoredLastFmRecentTracksPage): StoredLastFmRecentTracksPage
+
+  fun findByKey(cacheKey: String): StoredLastFmRecentTracksPage?
+}

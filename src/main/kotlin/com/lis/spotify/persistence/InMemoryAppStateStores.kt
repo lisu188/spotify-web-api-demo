@@ -83,3 +83,41 @@ class InMemoryRefreshStateStore : RefreshStateStore {
     state.set(null)
   }
 }
+
+class InMemorySpotifySearchCacheStore : SpotifySearchCacheStore {
+  private val logger = LoggerFactory.getLogger(InMemorySpotifySearchCacheStore::class.java)
+  private val entries = ConcurrentHashMap<String, StoredSpotifySearchCacheEntry>()
+
+  override fun save(entry: StoredSpotifySearchCacheEntry): StoredSpotifySearchCacheEntry {
+    entries[entry.cacheKey] = entry
+    logger.debug("Saved in-memory Spotify search cache {}", entry.cacheKey)
+    return entry
+  }
+
+  override fun findByKey(cacheKey: String): StoredSpotifySearchCacheEntry? {
+    return entries[cacheKey]
+  }
+
+  fun clear() {
+    entries.clear()
+  }
+}
+
+class InMemoryLastFmRecentTracksCacheStore : LastFmRecentTracksCacheStore {
+  private val logger = LoggerFactory.getLogger(InMemoryLastFmRecentTracksCacheStore::class.java)
+  private val pages = ConcurrentHashMap<String, StoredLastFmRecentTracksPage>()
+
+  override fun save(page: StoredLastFmRecentTracksPage): StoredLastFmRecentTracksPage {
+    pages[page.cacheKey] = page
+    logger.debug("Saved in-memory Last.fm recent-tracks cache {}", page.cacheKey)
+    return page
+  }
+
+  override fun findByKey(cacheKey: String): StoredLastFmRecentTracksPage? {
+    return pages[cacheKey]
+  }
+
+  fun clear() {
+    pages.clear()
+  }
+}

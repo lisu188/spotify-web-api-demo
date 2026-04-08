@@ -23,6 +23,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 
 @Service
@@ -31,11 +32,12 @@ class SpotifyTopPlaylistsService(
   var spotifyTopTrackService: SpotifyTopTrackService,
   var lastFmService: LastFmService,
   var spotifySearchService: SpotifySearchService,
+  @Value("\${lastfm.jobs.max-parallelism:16}")
+  configuredYearlyParallelism: Int = DEFAULT_YEARLY_PARALLELISM,
 ) {
 
   private val yearlyLimit = 250
-  internal var yearlyParallelism = DEFAULT_YEARLY_PARALLELISM
-  internal var searchParallelism = DEFAULT_SEARCH_PARALLELISM
+  internal var yearlyParallelism = configuredYearlyParallelism.coerceAtLeast(1)
   internal var firstSupportedYear = FIRST_SUPPORTED_YEAR
   internal var currentYearProvider: () -> Int = { Calendar.getInstance().get(Calendar.YEAR) }
 
@@ -115,7 +117,6 @@ class SpotifyTopPlaylistsService(
       val completedYears = AtomicInteger(0)
       val progressLock = Any()
       val yearSemaphore = Semaphore(yearlyParallelism.coerceAtLeast(1))
-      val searchSemaphore = Semaphore(searchParallelism.coerceAtLeast(1))
       val existingPlaylists by
         lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
           ConcurrentHashMap(
@@ -130,26 +131,12 @@ class SpotifyTopPlaylistsService(
             yearSemaphore.withPermit {
               logger.info("Processing year {}", year)
               val trackList =
-                lastFmService
-                  .yearlyChartlist(clientId, year, lastFmLogin, yearlyLimit)
-                  .take(yearlyLimit)
-                  .map { song ->
-                    async(Dispatchers.IO) {
-                      searchSemaphore.withPermit {
-                        spotifySearchService
-                          .doSearch(song, clientId)
-                          ?.tracks
-                          ?.items
-                          ?.stream()
-                          ?.findFirst()
-                          ?.orElse(null)
-                          ?.id
-                      }
-                    }
-                  }
-                  .awaitAll()
-                  .filterNotNull()
-                  .distinct()
+                spotifySearchService.searchTrackIds(
+                  lastFmService
+                    .yearlyChartlist(clientId, year, lastFmLogin, yearlyLimit)
+                    .take(yearlyLimit),
+                  clientId,
+                )
 
               if (trackList.isNotEmpty()) {
                 val playlistId =
@@ -191,8 +178,7 @@ class SpotifyTopPlaylistsService(
   private fun getYear() = currentYearProvider()
 
   companion object {
-    internal const val DEFAULT_YEARLY_PARALLELISM = 4
-    internal const val DEFAULT_SEARCH_PARALLELISM = 24
+    internal const val DEFAULT_YEARLY_PARALLELISM = 16
     private const val FIRST_SUPPORTED_YEAR = 2005
   }
 }

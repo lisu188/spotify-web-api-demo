@@ -180,4 +180,99 @@ class FirestoreAppStateStoresTest {
     assertEquals(listOf("p1", "p2"), loaded?.lastPlaylistIds)
     assertEquals("COMPLETED", loaded?.lastStatus)
   }
+
+  @Test
+  fun firestoreSpotifySearchCacheStoreUsesSpotifySearchCacheCollection() {
+    val firestore = mockk<Firestore>()
+    val collection = mockk<CollectionReference>()
+    val document = mockk<DocumentReference>()
+    val writeFuture = mockk<ApiFuture<WriteResult>>()
+    val readFuture = mockk<ApiFuture<DocumentSnapshot>>()
+    val snapshot = mockk<DocumentSnapshot>()
+    val updatedAt = Instant.parse("2026-04-08T07:00:00Z")
+    val expiresAt = Instant.parse("2026-04-15T07:00:00Z")
+    val store = FirestoreSpotifySearchCacheStore(firestore)
+    val entry =
+      StoredSpotifySearchCacheEntry(
+        cacheKey = "search-key",
+        clientId = "client-id",
+        query = "track:title artist:artist",
+        payloadJson = "{\"tracks\":{\"items\":[]}}",
+        updatedAt = updatedAt,
+        expiresAt = expiresAt,
+      )
+
+    every { firestore.collection("spotifySearchCache") } returns collection
+    every { collection.document("search-key") } returns document
+    every { document.set(any<Map<String, Any>>()) } returns writeFuture
+    every { writeFuture.get() } returns mockk()
+    every { document.get() } returns readFuture
+    every { readFuture.get() } returns snapshot
+    every { snapshot.exists() } returns true
+    every { snapshot.getString("cacheKey") } returns "search-key"
+    every { snapshot.getString("clientId") } returns "client-id"
+    every { snapshot.getString("query") } returns "track:title artist:artist"
+    every { snapshot.getString("payloadJson") } returns "{\"tracks\":{\"items\":[]}}"
+    every { snapshot.get("updatedAt") } returns updatedAt.toFirestoreTimestamp()
+    every { snapshot.get("expiresAt") } returns expiresAt.toFirestoreTimestamp()
+
+    store.save(entry)
+    val loaded = store.findByKey("search-key")
+
+    verify { firestore.collection("spotifySearchCache") }
+    assertNotNull(loaded)
+    assertEquals("client-id", loaded?.clientId)
+    assertEquals(expiresAt, loaded?.expiresAt)
+  }
+
+  @Test
+  fun firestoreLastFmRecentTracksCacheStoreUsesLastFmRecentTracksCacheCollection() {
+    val firestore = mockk<Firestore>()
+    val collection = mockk<CollectionReference>()
+    val document = mockk<DocumentReference>()
+    val writeFuture = mockk<ApiFuture<WriteResult>>()
+    val readFuture = mockk<ApiFuture<DocumentSnapshot>>()
+    val snapshot = mockk<DocumentSnapshot>()
+    val updatedAt = Instant.parse("2026-04-08T07:00:00Z")
+    val expiresAt = Instant.parse("2026-04-15T07:00:00Z")
+    val store = FirestoreLastFmRecentTracksCacheStore(firestore)
+    val entry =
+      StoredLastFmRecentTracksPage(
+        cacheKey = "recent-key",
+        login = "login",
+        from = 1L,
+        to = 2L,
+        page = 3,
+        sessionKey = "session",
+        payloadJson = "{\"totalPages\":5,\"songs\":[]}",
+        updatedAt = updatedAt,
+        expiresAt = expiresAt,
+      )
+
+    every { firestore.collection("lastFmRecentTracksCache") } returns collection
+    every { collection.document("recent-key") } returns document
+    every { document.set(any<Map<String, Any>>()) } returns writeFuture
+    every { writeFuture.get() } returns mockk()
+    every { document.get() } returns readFuture
+    every { readFuture.get() } returns snapshot
+    every { snapshot.exists() } returns true
+    every { snapshot.getString("cacheKey") } returns "recent-key"
+    every { snapshot.getString("login") } returns "login"
+    every { snapshot.getLong("from") } returns 1L
+    every { snapshot.getLong("to") } returns 2L
+    every { snapshot.getLong("page") } returns 3L
+    every { snapshot.getString("sessionKey") } returns "session"
+    every { snapshot.getString("payloadJson") } returns "{\"totalPages\":5,\"songs\":[]}"
+    every { snapshot.get("updatedAt") } returns updatedAt.toFirestoreTimestamp()
+    every { snapshot.get("expiresAt") } returns expiresAt.toFirestoreTimestamp()
+
+    store.save(entry)
+    val loaded = store.findByKey("recent-key")
+
+    verify { firestore.collection("lastFmRecentTracksCache") }
+    assertNotNull(loaded)
+    assertEquals("login", loaded?.login)
+    assertEquals(3, loaded?.page)
+    assertEquals(expiresAt, loaded?.expiresAt)
+  }
 }
