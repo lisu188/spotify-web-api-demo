@@ -43,14 +43,37 @@ class JobServiceTest {
         mockk(relaxed = true)
       }
     every { playlistService.updateYearlyPlaylists(any(), any(), any()) } throws
-      AuthenticationRequiredException("SPOTIFY")
+      AuthenticationRequiredException("LASTFM")
     val service = JobService(playlistService, scheduler)
 
-    val jobId = service.startYearlyJob("c", "l")
+    val jobId = service.startYearlyJob("c", "last fm")
 
-    verify { playlistService.updateYearlyPlaylists("c", "l", any()) }
+    verify { playlistService.updateYearlyPlaylists("c", "last fm", any()) }
     val status = service.getJobStatus(jobId)
     assertEquals(JobState.FAILED, status?.state)
     assertEquals("Last.fm authentication required", status?.message)
+    assertEquals("/auth/lastfm?lastFmLogin=last+fm", status?.redirectUrl)
+  }
+
+  @Test
+  fun spotifyAuthFailureRedirectsToSpotify() {
+    val playlistService = mockk<SpotifyTopPlaylistsService>()
+    val scheduler = mockk<TaskScheduler>()
+    val runnable = slot<Runnable>()
+    every { scheduler.schedule(capture(runnable), any<java.util.Date>()) } answers
+      {
+        runnable.captured.run()
+        mockk(relaxed = true)
+      }
+    every { playlistService.updateYearlyPlaylists(any(), any(), any()) } throws
+      AuthenticationRequiredException("SPOTIFY")
+    val service = JobService(playlistService, scheduler)
+
+    val jobId = service.startYearlyJob("c", "login")
+
+    val status = service.getJobStatus(jobId)
+    assertEquals(JobState.FAILED, status?.state)
+    assertEquals("Spotify authentication required", status?.message)
+    assertEquals("/auth/spotify", status?.redirectUrl)
   }
 }

@@ -123,7 +123,11 @@ class SpotifyAuthenticationControllerTest {
     verify {
       response.addCookie(
         match {
-          it.name == "clientId" && it.path == "/" && it.isHttpOnly && !it.secure && it.value == "cid"
+          it.name == "clientId" &&
+            it.path == "/" &&
+            it.isHttpOnly &&
+            !it.secure &&
+            it.value == "cid"
         }
       )
     }

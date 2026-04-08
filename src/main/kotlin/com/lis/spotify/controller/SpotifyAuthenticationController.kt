@@ -48,7 +48,7 @@ class SpotifyAuthenticationController(
         restTemplateBuilder
           .build()
           .exchange<User>(
-            "https://api.spotify.com/v1/me",
+            Spotify.USER_INFO_URL,
             HttpMethod.GET,
             HttpEntity(null, spotifyAuthenticationService.getHeaders(token)),
           )
@@ -84,7 +84,11 @@ class SpotifyAuthenticationController(
   }
 
   private fun getCookieValue(request: HttpServletRequest, name: String): String? {
-    return request.cookies.orEmpty().firstOrNull { it.name == name }?.value?.takeIf { it.isNotBlank() }
+    return request.cookies
+      .orEmpty()
+      .firstOrNull { it.name == name }
+      ?.value
+      ?.takeIf { it.isNotBlank() }
   }
 
   private fun createState(): String {
@@ -158,12 +162,7 @@ class SpotifyAuthenticationController(
     logger.info("Authorize endpoint called. Current clientId from cookie: {}", clientId)
     val state = createState()
     response.addCookie(
-      createCookie(
-        SPOTIFY_AUTH_STATE_COOKIE,
-        state,
-        request,
-        AUTH_STATE_COOKIE_MAX_AGE_SECONDS,
-      )
+      createCookie(SPOTIFY_AUTH_STATE_COOKIE, state, request, AUTH_STATE_COOKIE_MAX_AGE_SECONDS)
     )
     val builder =
       UriComponentsBuilder.fromHttpUrl(Spotify.AUTH_URL)

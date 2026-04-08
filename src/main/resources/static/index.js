@@ -16,6 +16,7 @@ const URL = ORIGIN;
 var lastFmIdValid = false;
 var lastFmJobRunning = false;
 var lastFmProgressPoll = null;
+var lastFmRedirectTimer = null;
 var verifyRequest;
 
 function buildPlayButtonUrl(id) {
@@ -50,6 +51,18 @@ function setBandStatus(message) {
 
 function setLastfmStatus(message) {
     $('#lastfmStatus').text(message || '');
+}
+
+function getCookie(name) {
+    var prefix = name + '=';
+    var cookies = document.cookie ? document.cookie.split(';') : [];
+    for (var i = 0; i < cookies.length; i += 1) {
+        var cookie = cookies[i].trim();
+        if (cookie.indexOf(prefix) === 0) {
+            return decodeURIComponent(cookie.substring(prefix.length));
+        }
+    }
+    return '';
 }
 
 function updateBandButtonState() {
@@ -102,11 +115,81 @@ function renderLastfmProgress(job) {
         $('#lastfmProgressBar')
             .removeClass('progress-bar-striped progress-bar-animated bg-danger')
             .addClass('bg-success');
+    } else {
+        $('#lastfmProgressBar')
+            .removeClass('bg-danger bg-success')
+            .addClass('progress-bar-striped progress-bar-animated');
     }
 
     if (job.message) {
         setLastfmStatus(job.message);
     }
+}
+
+function currentLastfmProgress() {
+    var current = parseInt($('#lastfmProgressBar').attr('aria-valuenow'), 10);
+    if (Number.isNaN(current)) {
+        return 0;
+    }
+    return current;
+}
+
+function redirectToLastfmAuth(url) {
+    if (lastFmRedirectTimer) {
+        window.clearTimeout(lastFmRedirectTimer);
+    }
+    lastFmRedirectTimer = window.setTimeout(function () {
+        window.location.href = url;
+    }, 500);
+}
+
+function verifyLastfmLogin(login) {
+    if (verifyRequest) {
+        verifyRequest.abort();
+        verifyRequest = null;
+    }
+
+    lastFmIdValid = false;
+    updateLastfmButtonState();
+
+    if (!login) {
+        setLastfmStatus('Enter your Last.fm login to enable yearly refresh.');
+        return;
+    }
+
+    setLastfmStatus('Checking Last.fm login...');
+    verifyRequest = $.ajax({
+        type: 'post',
+        url: URL + '/verifyLastFmId/' + encodeURIComponent(login),
+        dataType: 'json',
+        success: function (data) {
+            lastFmIdValid = data === true;
+            if (lastFmIdValid) {
+                setLastfmStatus('');
+            } else {
+                setLastfmStatus('Last.fm login not found.');
+            }
+            updateLastfmButtonState();
+        },
+        error: function (xhr) {
+            if (xhr.statusText === 'abort') {
+                return;
+            }
+            setLastfmStatus('Unable to verify Last.fm login right now.');
+            updateLastfmButtonState();
+        }
+    });
+}
+
+function restoreLastfmLogin() {
+    var savedLogin = getCookie('lastFmLogin');
+    var input = document.getElementById('lastFmId');
+    if (!savedLogin || !input || input.value.trim()) {
+        return;
+    }
+
+    input.value = savedLogin;
+    input.dispatchEvent(new Event('input', {bubbles: true}));
 }
 
 function stopLastfmPolling() {
@@ -118,15 +201,15 @@ function stopLastfmPolling() {
 
 function pollLastfmJob(jobId) {
     $.getJSON(URL + '/jobs/' + jobId, function (job) {
+        renderLastfmProgress(job);
         if (job.redirectUrl) {
             stopLastfmPolling();
             lastFmJobRunning = false;
             updateLastfmButtonState();
-            window.location.href = job.redirectUrl;
+            setLastfmStatus((job.message || 'Authentication required') + '. Redirecting...');
+            redirectToLastfmAuth(job.redirectUrl);
             return;
         }
-
-        renderLastfmProgress(job);
         if (job.state === 'QUEUED' || job.state === 'RUNNING') {
             lastFmProgressPoll = window.setTimeout(function () {
                 pollLastfmJob(jobId);
@@ -141,6 +224,7 @@ function pollLastfmJob(jobId) {
         stopLastfmPolling();
         lastFmJobRunning = false;
         updateLastfmButtonState();
+        renderLastfmProgress({state: 'FAILED', progressPercent: currentLastfmProgress()});
         setLastfmStatus('Unable to load Last.fm refresh progress right now.');
     });
 }
@@ -192,42 +276,7 @@ $('#lastfm').on('click', function () {
 });
 
 $('#lastFmId').on('input', function () {
-    var login = $('#lastFmId').val().trim();
-    if (verifyRequest) {
-        verifyRequest.abort();
-        verifyRequest = null;
-    }
-
-    lastFmIdValid = false;
-    updateLastfmButtonState();
-
-    if (!login) {
-        setLastfmStatus('Enter your Last.fm login to enable yearly refresh.');
-        return;
-    }
-
-    setLastfmStatus('Checking Last.fm login...');
-    verifyRequest = $.ajax({
-        type: 'post',
-        url: URL + '/verifyLastFmId/' + encodeURIComponent(login),
-        dataType: 'json',
-        success: function (data) {
-            lastFmIdValid = data === true;
-            if (lastFmIdValid) {
-                setLastfmStatus('');
-            } else {
-                setLastfmStatus('Last.fm login not found.');
-            }
-            updateLastfmButtonState();
-        },
-        error: function (xhr) {
-            if (xhr.statusText === 'abort') {
-                return;
-            }
-            setLastfmStatus('Unable to verify Last.fm login right now.');
-            updateLastfmButtonState();
-        }
-    });
+    verifyLastfmLogin($('#lastFmId').val().trim());
 });
 
 $('#bandNames').on('input', function () {
@@ -271,3 +320,4 @@ $('#bandPlaylist').on('click', function () {
 resetLastfmProgress();
 updateLastfmButtonState();
 updateBandButtonState();
+restoreLastfmLogin();

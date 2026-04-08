@@ -17,13 +17,19 @@ class MainController(
   @GetMapping("/")
   fun main(
     @CookieValue("clientId", defaultValue = "") clientId: String,
+    @CookieValue("lastFmLogin", defaultValue = "") lastFmLogin: String,
     @CookieValue("lastFmToken", defaultValue = "") lastFmToken: String,
   ): String {
-    logger.debug("Entering main() with clientId='{}' and lastFmToken='{}'", clientId, lastFmToken)
+    logger.debug(
+      "Entering main() with clientId='{}', lastFmLogin='{}' and lastFmToken='{}'",
+      clientId,
+      lastFmLogin,
+      lastFmToken,
+    )
 
     val spotifyAuthorized =
       clientId.isNotEmpty() && spotifyAuthenticationService.getAuthToken(clientId) != null
-    val lastFmAuthorized = lastFmAuthenticationService.isAuthorized(lastFmToken)
+    val lastFmAuthorized = lastFmAuthenticationService.isAuthorized(lastFmLogin, lastFmToken)
 
     return if (!spotifyAuthorized) {
       logger.warn("Spotify token missing or invalid; redirecting to /auth/spotify.")

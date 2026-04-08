@@ -40,18 +40,22 @@ class LastFmAuthenticationService {
     return sessionKey.isNotEmpty() && sessionCache.values.any { it == sessionKey }
   }
 
+  fun isAuthorized(login: String, sessionKey: String): Boolean {
+    return login.isNotEmpty() && sessionKey.isNotEmpty() && sessionCache[login] == sessionKey
+  }
+
   /**
    * Constructs the URL that the user will be redirected to in order to grant access.
    *
    * Format: https://www.last.fm/api/auth/?api_key=xxx&cb=<redirectUri>
    */
-  fun getAuthorizationUrl(): String {
+  fun getAuthorizationUrl(callbackUrl: String = LastFm.CALLBACK_URL): String {
     logger.debug("getAuthorizationUrl() called")
     return UriComponentsBuilder.fromHttpUrl(LastFm.AUTHORIZE_URL)
       .queryParam("api_key", LastFm.API_KEY)
       .queryParam("cb", "{cb}")
       .encode()
-      .buildAndExpand(LastFm.CALLBACK_URL)
+      .buildAndExpand(callbackUrl)
       .toUriString()
   }
 
