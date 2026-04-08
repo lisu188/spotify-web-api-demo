@@ -1,6 +1,7 @@
 package com.lis.spotify.service
 
 import com.lis.spotify.domain.AuthToken
+import com.lis.spotify.persistence.InMemorySpotifyTokenStore
 import io.mockk.every
 import io.mockk.mockk
 import java.net.URI
@@ -18,7 +19,8 @@ import org.springframework.web.client.RestTemplate
 class SpotifyAuthenticationServiceTest {
   private val restTemplate = mockk<RestTemplate>()
   private val builder = mockk<RestTemplateBuilder>()
-  private val service = SpotifyAuthenticationService(builder)
+  private val store = InMemorySpotifyTokenStore()
+  private val service = SpotifyAuthenticationService(builder, store)
 
   init {
     every { builder.build() } returns restTemplate
@@ -45,6 +47,17 @@ class SpotifyAuthenticationServiceTest {
     val token = service.getAuthToken("cid")
     assertEquals("refresh", token?.refresh_token)
     assertEquals("cid", token?.clientId)
+  }
+
+  @Test
+  fun persistedTokenCanBeReadByNewServiceInstance() {
+    val token = AuthToken("a", "Bearer", "scope", 120, "refresh", "cid")
+    service.setAuthToken(token)
+
+    val restartedService = SpotifyAuthenticationService(builder, store)
+
+    assertTrue(restartedService.isAuthorized("cid"))
+    assertEquals("refresh", restartedService.getAuthToken("cid")?.refresh_token)
   }
 
   @Test

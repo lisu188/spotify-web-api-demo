@@ -1,6 +1,7 @@
 package com.lis.spotify.service
 
 import com.lis.spotify.AppEnvironment
+import com.lis.spotify.persistence.InMemoryLastFmSessionStore
 import io.mockk.every
 import io.mockk.mockk
 import java.net.URLEncoder
@@ -19,7 +20,7 @@ import org.springframework.web.client.RestTemplate
 class LastFmAuthenticationServiceTest {
   @Test
   fun getAuthorizationUrlFormatsCorrectly() {
-    val service = LastFmAuthenticationService()
+    val service = LastFmAuthenticationService(InMemoryLastFmSessionStore())
     val url = service.getAuthorizationUrl()
     assert(url.contains("api_key"))
     val encoded = URLEncoder.encode(AppEnvironment.LastFm.CALLBACK_URL, "UTF-8")
@@ -29,7 +30,7 @@ class LastFmAuthenticationServiceTest {
   @Test
   fun getSessionHandlesResponse() {
     val rest = mockk<RestTemplate>()
-    val service = LastFmAuthenticationService()
+    val service = LastFmAuthenticationService(InMemoryLastFmSessionStore())
     val field = LastFmAuthenticationService::class.java.getDeclaredField("restTemplate")
     field.isAccessible = true
     field.set(service, rest)
@@ -48,7 +49,7 @@ class LastFmAuthenticationServiceTest {
 
   @Test
   fun isAuthorizedChecksCache() {
-    val service = LastFmAuthenticationService()
+    val service = LastFmAuthenticationService(InMemoryLastFmSessionStore())
     service.setSession("user", "val")
     assertEquals(true, service.isAuthorized("val"))
     assertEquals(true, service.isAuthorized("user", "val"))
@@ -58,16 +59,28 @@ class LastFmAuthenticationServiceTest {
 
   @Test
   fun sessionDoesNotExpirePrematurely() {
-    val service = LastFmAuthenticationService()
-    service.sessionCache["user"] = "val"
+    val service = LastFmAuthenticationService(InMemoryLastFmSessionStore())
+    service.setSession("user", "val")
 
     assertEquals(true, service.isAuthorized("val"))
     assertEquals("val", service.getSessionKey("user"))
   }
 
   @Test
+  fun persistedSessionCanBeReadByNewServiceInstance() {
+    val store = InMemoryLastFmSessionStore()
+    LastFmAuthenticationService(store).setSession("user", "val")
+
+    val restartedService = LastFmAuthenticationService(store)
+
+    assertEquals(true, restartedService.isAuthorized("val"))
+    assertEquals(true, restartedService.isAuthorized("user", "val"))
+    assertEquals("val", restartedService.getSessionKey("user"))
+  }
+
+  @Test
   fun concurrentReadWriteDoesNotThrow() = runBlocking {
-    val service = LastFmAuthenticationService()
+    val service = LastFmAuthenticationService(InMemoryLastFmSessionStore())
     coroutineScope {
       repeat(50) {
         launch(Dispatchers.Default) {

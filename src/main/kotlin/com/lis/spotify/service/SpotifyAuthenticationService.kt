@@ -29,6 +29,9 @@ package com.lis.spotify.service
 
 import com.lis.spotify.AppEnvironment.Spotify
 import com.lis.spotify.domain.AuthToken
+import com.lis.spotify.persistence.SpotifyTokenStore
+import com.lis.spotify.persistence.StoredSpotifyAuthToken
+import java.time.Clock
 import java.util.concurrent.ConcurrentHashMap
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -42,9 +45,14 @@ import org.springframework.web.client.postForObject
 import org.springframework.web.util.UriComponentsBuilder
 
 @Service
-class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplateBuilder) {
+class SpotifyAuthenticationService(
+  private val restTemplateBuilder: RestTemplateBuilder,
+  private val spotifyTokenStore: SpotifyTokenStore,
+) {
 
-  val tokenCache = ConcurrentHashMap<String, AuthToken>()
+  private val logger: Logger = LoggerFactory.getLogger(SpotifyAuthenticationService::class.java)
+  private val clock: Clock = Clock.systemUTC()
+  private val tokenCache = ConcurrentHashMap<String, AuthToken>()
 
   fun getHeaders(token: AuthToken): HttpHeaders {
     logger.debug("Creating headers with Bearer token for clientId={}", token.clientId)
@@ -67,9 +75,12 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
   }
 
   fun setAuthToken(token: AuthToken) {
-    logger.info("Storing AuthToken in cache for clientId={}", token.clientId)
-    tokenCache[token.clientId!!] = token
-    logger.debug("AuthToken cached for {}", token.clientId)
+    val clientId =
+      requireNotNull(token.clientId) { "clientId is required to store a Spotify auth token" }
+    logger.info("Storing AuthToken for clientId={}", clientId)
+    spotifyTokenStore.save(StoredSpotifyAuthToken.fromAuthToken(token, clock.instant()))
+    tokenCache[clientId] = token
+    logger.debug("AuthToken persisted and cached for {}", clientId)
   }
 
   fun seedRefreshToken(clientId: String, refreshToken: String) {
@@ -78,7 +89,7 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
       return
     }
 
-    val existing = tokenCache[clientId]
+    val existing = getAuthToken(clientId)
     if (existing?.refresh_token == refreshToken) {
       logger.debug("Refresh token already cached for clientId={}", clientId)
       return
@@ -98,7 +109,16 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
 
   fun getAuthToken(clientId: String): AuthToken? {
     logger.debug("Attempting to retrieve AuthToken from cache for clientId={}", clientId)
-    val token = tokenCache[clientId]
+    val cached = tokenCache[clientId]
+    if (cached != null) {
+      logger.debug("getAuthToken {} found in cache", clientId)
+      return cached
+    }
+
+    val token = spotifyTokenStore.findByClientId(clientId)?.toAuthToken(clock.instant())
+    if (token != null) {
+      tokenCache[clientId] = token
+    }
     logger.debug("getAuthToken {} found={}", clientId, token != null)
     return token
   }
@@ -157,7 +177,7 @@ class SpotifyAuthenticationService(private val restTemplateBuilder: RestTemplate
     return authorized
   }
 
-  companion object {
-    private val logger: Logger = LoggerFactory.getLogger(SpotifyAuthenticationService::class.java)
+  internal fun clearCache() {
+    tokenCache.clear()
   }
 }

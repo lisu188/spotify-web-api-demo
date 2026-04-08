@@ -1,12 +1,14 @@
 package com.lis.spotify.service
 
 import com.lis.spotify.domain.JobState
+import com.lis.spotify.persistence.InMemoryJobStatusStore
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.scheduling.TaskScheduler
 
@@ -14,6 +16,7 @@ class JobServiceTest {
   @Test
   fun startJobRunsAsyncAndMarksJobCompleted() {
     val playlistService = mockk<SpotifyTopPlaylistsService>(relaxed = true)
+    val jobStatusStore = InMemoryJobStatusStore()
     val scheduler = mockk<TaskScheduler>()
     val runnable = slot<Runnable>()
     every { scheduler.schedule(capture(runnable), any<java.util.Date>()) } answers
@@ -21,7 +24,7 @@ class JobServiceTest {
         runnable.captured.run()
         mockk(relaxed = true)
       }
-    val service = JobService(playlistService, scheduler)
+    val service = JobService(playlistService, jobStatusStore, scheduler)
 
     val jobId = service.startYearlyJob("c", "l")
 
@@ -35,6 +38,7 @@ class JobServiceTest {
   @Test
   fun authFailureMarksJobFailed() {
     val playlistService = mockk<SpotifyTopPlaylistsService>()
+    val jobStatusStore = InMemoryJobStatusStore()
     val scheduler = mockk<TaskScheduler>()
     val runnable = slot<Runnable>()
     every { scheduler.schedule(capture(runnable), any<java.util.Date>()) } answers
@@ -44,7 +48,7 @@ class JobServiceTest {
       }
     every { playlistService.updateYearlyPlaylists(any(), any(), any()) } throws
       AuthenticationRequiredException("LASTFM")
-    val service = JobService(playlistService, scheduler)
+    val service = JobService(playlistService, jobStatusStore, scheduler)
 
     val jobId = service.startYearlyJob("c", "last fm")
 
@@ -58,6 +62,7 @@ class JobServiceTest {
   @Test
   fun spotifyAuthFailureRedirectsToSpotify() {
     val playlistService = mockk<SpotifyTopPlaylistsService>()
+    val jobStatusStore = InMemoryJobStatusStore()
     val scheduler = mockk<TaskScheduler>()
     val runnable = slot<Runnable>()
     every { scheduler.schedule(capture(runnable), any<java.util.Date>()) } answers
@@ -67,7 +72,7 @@ class JobServiceTest {
       }
     every { playlistService.updateYearlyPlaylists(any(), any(), any()) } throws
       AuthenticationRequiredException("SPOTIFY")
-    val service = JobService(playlistService, scheduler)
+    val service = JobService(playlistService, jobStatusStore, scheduler)
 
     val jobId = service.startYearlyJob("c", "login")
 
@@ -75,5 +80,27 @@ class JobServiceTest {
     assertEquals(JobState.FAILED, status?.state)
     assertEquals("Spotify authentication required", status?.message)
     assertEquals("/auth/spotify", status?.redirectUrl)
+  }
+
+  @Test
+  fun storedJobIncludesPersistenceMetadata() {
+    val playlistService = mockk<SpotifyTopPlaylistsService>(relaxed = true)
+    val jobStatusStore = InMemoryJobStatusStore()
+    val scheduler = mockk<TaskScheduler>()
+    val runnable = slot<Runnable>()
+    every { scheduler.schedule(capture(runnable), any<java.util.Date>()) } answers
+      {
+        runnable.captured.run()
+        mockk(relaxed = true)
+      }
+    val service = JobService(playlistService, jobStatusStore, scheduler)
+
+    val jobId = service.startYearlyJob("client-id", "lastfm-login")
+    val stored = jobStatusStore.findById(jobId)
+
+    assertNotNull(stored)
+    assertEquals("client-id", stored?.clientId)
+    assertEquals("lastfm-login", stored?.lastFmLogin)
+    assertTrue(stored!!.expiresAt.isAfter(stored.createdAt))
   }
 }

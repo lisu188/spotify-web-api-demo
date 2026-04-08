@@ -4,9 +4,14 @@ import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock.configureFor
 import com.github.tomakehurst.wiremock.client.WireMock.reset as wireMockReset
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
+import com.lis.spotify.service.AuthenticationRequiredException
 import com.lis.spotify.service.SpotifyTopPlaylistsService
+import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.mockk
+import java.time.Duration
+import java.time.Instant
+import java.util.Date
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
@@ -17,6 +22,7 @@ import org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDO
 import org.springframework.boot.test.web.client.TestRestTemplate
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
+import org.springframework.context.annotation.Primary
 import org.springframework.http.*
 import org.springframework.scheduling.TaskScheduler
 import org.springframework.test.annotation.DirtiesContext
@@ -26,7 +32,12 @@ import org.springframework.test.context.DynamicPropertySource
 @SpringBootTest(webEnvironment = RANDOM_PORT)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Import(JobsControllerIT.Config::class)
-class JobsControllerIT @Autowired constructor(private val rest: TestRestTemplate) {
+class JobsControllerIT
+@Autowired
+constructor(
+  private val rest: TestRestTemplate,
+  private val playlistService: SpotifyTopPlaylistsService,
+) {
   companion object {
     val wm = WireMockServer(WireMockConfiguration.options().dynamicPort())
     val baseUrl: String
@@ -59,6 +70,9 @@ class JobsControllerIT @Autowired constructor(private val rest: TestRestTemplate
   @BeforeEach
   fun reset() {
     wireMockReset()
+    clearMocks(playlistService)
+    every { playlistService.updateYearlyPlaylists(any(), any(), any()) } returns Unit
+    every { playlistService.updateTopPlaylists(any()) } returns emptyList()
   }
 
   @Test
@@ -68,15 +82,56 @@ class JobsControllerIT @Autowired constructor(private val rest: TestRestTemplate
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
     val resp = rest.postForEntity("/jobs", req, Map::class.java)
     assertEquals(HttpStatus.ACCEPTED, resp.statusCode)
+    val jobId = resp.body?.get("jobId") as String
+
+    val status = rest.getForEntity("/jobs/$jobId", Map::class.java)
+
+    assertEquals(HttpStatus.OK, status.statusCode)
+    assertEquals("COMPLETED", status.body?.get("state"))
+    assertEquals(100, status.body?.get("progressPercent"))
+  }
+
+  @Test
+  fun jobAuthFailurePreservesLastFmRedirect() {
+    every { playlistService.updateYearlyPlaylists(any(), any(), any()) } throws
+      AuthenticationRequiredException("LASTFM")
+    val headers = HttpHeaders()
+    headers.add(HttpHeaders.COOKIE, "clientId=cid")
+    val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
+
+    val resp = rest.postForEntity("/jobs", req, Map::class.java)
+    val jobId = resp.body?.get("jobId") as String
+
+    val status = rest.getForEntity("/jobs/$jobId", Map::class.java)
+
+    assertEquals(HttpStatus.OK, status.statusCode)
+    assertEquals("FAILED", status.body?.get("state"))
+    assertEquals("/auth/lastfm?lastFmLogin=login", status.body?.get("redirectUrl"))
   }
 
   class Config {
     @Bean
+    @Primary
     fun playlistService(taskScheduler: TaskScheduler): SpotifyTopPlaylistsService {
-      val svc = mockk<SpotifyTopPlaylistsService>()
-      every { svc.updateYearlyPlaylists(any(), any()) } returns Unit
+      val svc = mockk<SpotifyTopPlaylistsService>(relaxed = true)
+      every { svc.updateYearlyPlaylists(any(), any(), any()) } returns Unit
       every { svc.updateTopPlaylists(any()) } returns emptyList()
       return svc
+    }
+
+    @Bean
+    @Primary
+    fun immediateTaskScheduler(): TaskScheduler {
+      val scheduler = mockk<TaskScheduler>()
+      every { scheduler.schedule(any<Runnable>(), any<Date>()) } answers
+        {
+          firstArg<Runnable>().run()
+          mockk(relaxed = true)
+        }
+      every {
+        scheduler.scheduleWithFixedDelay(any<Runnable>(), any<Instant>(), any<Duration>())
+      } returns mockk(relaxed = true)
+      return scheduler
     }
   }
 }
