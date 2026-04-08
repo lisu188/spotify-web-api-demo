@@ -8,6 +8,8 @@ private const val JOBS_COLLECTION = "jobs"
 private const val SPOTIFY_AUTH_TOKENS_COLLECTION = "spotifyAuthTokens"
 private const val LAST_FM_SESSIONS_COLLECTION = "lastFmSessions"
 private const val REFRESH_STATE_COLLECTION = "refreshState"
+private const val SPOTIFY_SEARCH_CACHE_COLLECTION = "spotifySearchCache"
+private const val LAST_FM_RECENT_TRACKS_CACHE_COLLECTION = "lastFmRecentTracksCache"
 
 abstract class FirestoreStoreSupport(protected val firestore: Firestore) {
   protected fun loadDocument(collection: String, documentId: String): DocumentSnapshot? {
@@ -97,5 +99,37 @@ class FirestoreRefreshStateStore(firestore: Firestore) :
       loadDocument(REFRESH_STATE_COLLECTION, StoredRefreshState.TOP_PLAYLISTS_DOCUMENT_ID)
         ?: return null
     return StoredRefreshState.fromDocument(document)
+  }
+}
+
+class FirestoreSpotifySearchCacheStore(firestore: Firestore) :
+  FirestoreStoreSupport(firestore), SpotifySearchCacheStore {
+  private val logger = LoggerFactory.getLogger(FirestoreSpotifySearchCacheStore::class.java)
+
+  override fun save(entry: StoredSpotifySearchCacheEntry): StoredSpotifySearchCacheEntry {
+    saveDocument(SPOTIFY_SEARCH_CACHE_COLLECTION, entry.cacheKey, entry.toFirestoreMap())
+    logger.debug("Saved Firestore Spotify search cache {}", entry.cacheKey)
+    return entry
+  }
+
+  override fun findByKey(cacheKey: String): StoredSpotifySearchCacheEntry? {
+    val document = loadDocument(SPOTIFY_SEARCH_CACHE_COLLECTION, cacheKey) ?: return null
+    return StoredSpotifySearchCacheEntry.fromDocument(document)
+  }
+}
+
+class FirestoreLastFmRecentTracksCacheStore(firestore: Firestore) :
+  FirestoreStoreSupport(firestore), LastFmRecentTracksCacheStore {
+  private val logger = LoggerFactory.getLogger(FirestoreLastFmRecentTracksCacheStore::class.java)
+
+  override fun save(page: StoredLastFmRecentTracksPage): StoredLastFmRecentTracksPage {
+    saveDocument(LAST_FM_RECENT_TRACKS_CACHE_COLLECTION, page.cacheKey, page.toFirestoreMap())
+    logger.debug("Saved Firestore Last.fm recent-tracks cache {}", page.cacheKey)
+    return page
+  }
+
+  override fun findByKey(cacheKey: String): StoredLastFmRecentTracksPage? {
+    val document = loadDocument(LAST_FM_RECENT_TRACKS_CACHE_COLLECTION, cacheKey) ?: return null
+    return StoredLastFmRecentTracksPage.fromDocument(document)
   }
 }

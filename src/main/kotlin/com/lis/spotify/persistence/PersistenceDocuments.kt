@@ -5,6 +5,7 @@ import com.google.cloud.firestore.DocumentSnapshot
 import com.lis.spotify.domain.AuthToken
 import com.lis.spotify.domain.JobState
 import com.lis.spotify.domain.JobStatus
+import com.lis.spotify.domain.Song
 import java.time.Duration
 import java.time.Instant
 
@@ -212,6 +213,109 @@ data class StoredRefreshState(
         lastPlaylistIds =
           (document.get("lastPlaylistIds") as? List<*>)?.filterIsInstance<String>().orEmpty(),
         updatedAt = document.getInstant("updatedAt") ?: Instant.EPOCH,
+      )
+    }
+  }
+}
+
+data class StoredSpotifySearchCacheEntry(
+  val cacheKey: String,
+  val clientId: String,
+  val query: String,
+  val payloadJson: String,
+  val updatedAt: Instant,
+  val expiresAt: Instant,
+) {
+  fun isFresh(now: Instant): Boolean {
+    return expiresAt.isAfter(now)
+  }
+
+  fun toFirestoreMap(): Map<String, Any> {
+    return mapOf(
+      "cacheKey" to cacheKey,
+      "clientId" to clientId,
+      "query" to query,
+      "payloadJson" to payloadJson,
+      "updatedAt" to updatedAt.toFirestoreTimestamp(),
+      "expiresAt" to expiresAt.toFirestoreTimestamp(),
+    )
+  }
+
+  companion object {
+    fun fromDocument(document: DocumentSnapshot): StoredSpotifySearchCacheEntry? {
+      if (!document.exists()) {
+        return null
+      }
+
+      val cacheKey = document.getString("cacheKey") ?: document.id
+      val payloadJson = document.getString("payloadJson") ?: return null
+      val updatedAt = document.getInstant("updatedAt") ?: Instant.EPOCH
+      val expiresAt = document.getInstant("expiresAt") ?: updatedAt
+      return StoredSpotifySearchCacheEntry(
+        cacheKey = cacheKey,
+        clientId = document.getString("clientId").orEmpty(),
+        query = document.getString("query").orEmpty(),
+        payloadJson = payloadJson,
+        updatedAt = updatedAt,
+        expiresAt = expiresAt,
+      )
+    }
+  }
+}
+
+data class CachedLastFmRecentTracksPage(val totalPages: Int, val songs: List<Song>)
+
+data class StoredLastFmRecentTracksPage(
+  val cacheKey: String,
+  val login: String,
+  val from: Long,
+  val to: Long,
+  val page: Int,
+  val sessionKey: String?,
+  val payloadJson: String,
+  val updatedAt: Instant,
+  val expiresAt: Instant,
+) {
+  fun isFresh(now: Instant): Boolean {
+    return expiresAt.isAfter(now)
+  }
+
+  fun toFirestoreMap(): Map<String, Any> {
+    val data =
+      mutableMapOf<String, Any>(
+        "cacheKey" to cacheKey,
+        "login" to login,
+        "from" to from,
+        "to" to to,
+        "page" to page,
+        "payloadJson" to payloadJson,
+        "updatedAt" to updatedAt.toFirestoreTimestamp(),
+        "expiresAt" to expiresAt.toFirestoreTimestamp(),
+      )
+    sessionKey?.let { data["sessionKey"] = it }
+    return data
+  }
+
+  companion object {
+    fun fromDocument(document: DocumentSnapshot): StoredLastFmRecentTracksPage? {
+      if (!document.exists()) {
+        return null
+      }
+
+      val cacheKey = document.getString("cacheKey") ?: document.id
+      val payloadJson = document.getString("payloadJson") ?: return null
+      val updatedAt = document.getInstant("updatedAt") ?: Instant.EPOCH
+      val expiresAt = document.getInstant("expiresAt") ?: updatedAt
+      return StoredLastFmRecentTracksPage(
+        cacheKey = cacheKey,
+        login = document.getString("login").orEmpty(),
+        from = document.getLong("from") ?: 0L,
+        to = document.getLong("to") ?: 0L,
+        page = document.getLong("page")?.toInt() ?: 1,
+        sessionKey = document.getString("sessionKey"),
+        payloadJson = payloadJson,
+        updatedAt = updatedAt,
+        expiresAt = expiresAt,
       )
     }
   }

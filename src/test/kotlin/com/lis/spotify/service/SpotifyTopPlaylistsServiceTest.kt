@@ -121,7 +121,6 @@ class SpotifyTopPlaylistsServiceTest {
     service.firstSupportedYear = 2005
     service.currentYearProvider = { 2008 }
     service.yearlyParallelism = 2
-    service.searchParallelism = 1
 
     val executor = Executors.newSingleThreadExecutor()
     try {

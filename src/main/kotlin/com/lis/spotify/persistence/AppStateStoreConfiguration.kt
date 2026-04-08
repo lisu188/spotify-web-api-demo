@@ -87,6 +87,26 @@ class AppStateStoreConfiguration(
   }
 
   @Bean
+  @ConditionalOnProperty(
+    name = ["app.state-store.mode"],
+    havingValue = "firestore",
+    matchIfMissing = true,
+  )
+  fun firestoreSpotifySearchCacheStore(firestore: Firestore): SpotifySearchCacheStore {
+    return FirestoreSpotifySearchCacheStore(firestore)
+  }
+
+  @Bean
+  @ConditionalOnProperty(
+    name = ["app.state-store.mode"],
+    havingValue = "firestore",
+    matchIfMissing = true,
+  )
+  fun firestoreLastFmRecentTracksCacheStore(firestore: Firestore): LastFmRecentTracksCacheStore {
+    return FirestoreLastFmRecentTracksCacheStore(firestore)
+  }
+
+  @Bean
   @ConditionalOnProperty(name = ["app.state-store.mode"], havingValue = "memory")
   fun inMemoryJobStatusStore(): JobStatusStore {
     logger.info("Initializing in-memory job status store")
@@ -112,6 +132,20 @@ class AppStateStoreConfiguration(
   fun inMemoryRefreshStateStore(): RefreshStateStore {
     logger.info("Initializing in-memory refresh state store")
     return InMemoryRefreshStateStore()
+  }
+
+  @Bean
+  @ConditionalOnProperty(name = ["app.state-store.mode"], havingValue = "memory")
+  fun inMemorySpotifySearchCacheStore(): SpotifySearchCacheStore {
+    logger.info("Initializing in-memory Spotify search cache store")
+    return InMemorySpotifySearchCacheStore()
+  }
+
+  @Bean
+  @ConditionalOnProperty(name = ["app.state-store.mode"], havingValue = "memory")
+  fun inMemoryLastFmRecentTracksCacheStore(): LastFmRecentTracksCacheStore {
+    logger.info("Initializing in-memory Last.fm recent-tracks cache store")
+    return InMemoryLastFmRecentTracksCacheStore()
   }
 
   private fun configuredProjectId(): String {
