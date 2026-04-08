@@ -12,11 +12,16 @@
 
 package com.lis.spotify.service
 
+import com.lis.spotify.domain.Playlist
 import java.util.Calendar
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
@@ -29,6 +34,10 @@ class SpotifyTopPlaylistsService(
 ) {
 
   private val yearlyLimit = 250
+  internal var yearlyParallelism = DEFAULT_YEARLY_PARALLELISM
+  internal var searchParallelism = DEFAULT_SEARCH_PARALLELISM
+  internal var firstSupportedYear = FIRST_SUPPORTED_YEAR
+  internal var currentYearProvider: () -> Int = { Calendar.getInstance().get(Calendar.YEAR) }
 
   private val logger = LoggerFactory.getLogger(SpotifyTopPlaylistsService::class.java)
 
@@ -101,43 +110,89 @@ class SpotifyTopPlaylistsService(
     logger.debug("updateYearlyPlaylists {} {}", clientId, lastFmLogin)
     logger.info("updateYearlyPlaylists: {}", clientId)
     runBlocking(Dispatchers.IO) {
-      val years = (2005..getYear()).toList().sortedDescending()
+      val years = (firstSupportedYear..getYear()).toList().sortedDescending()
       val total = years.size.coerceAtLeast(1)
+      val completedYears = AtomicInteger(0)
+      val progressLock = Any()
+      val yearSemaphore = Semaphore(yearlyParallelism.coerceAtLeast(1))
+      val searchSemaphore = Semaphore(searchParallelism.coerceAtLeast(1))
+      val existingPlaylists by
+        lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+          ConcurrentHashMap(
+            spotifyPlaylistService.getCurrentUserPlaylists(clientId).associateBy { it.name }
+          )
+        }
       progress(0, "Starting yearly playlist refresh")
 
-      years.forEachIndexed { idx, year ->
-        progress((idx * 100) / total, "Processing $year (${idx + 1}/$total)")
-        logger.info("Processing year {} ({}/{})", year, idx + 1, total)
-        val chartlist = lastFmService.yearlyChartlist(clientId, year, lastFmLogin, yearlyLimit)
+      years
+        .map { year ->
+          async(Dispatchers.IO) {
+            yearSemaphore.withPermit {
+              logger.info("Processing year {}", year)
+              val trackList =
+                lastFmService
+                  .yearlyChartlist(clientId, year, lastFmLogin, yearlyLimit)
+                  .take(yearlyLimit)
+                  .map { song ->
+                    async(Dispatchers.IO) {
+                      searchSemaphore.withPermit {
+                        spotifySearchService
+                          .doSearch(song, clientId)
+                          ?.tracks
+                          ?.items
+                          ?.stream()
+                          ?.findFirst()
+                          ?.orElse(null)
+                          ?.id
+                      }
+                    }
+                  }
+                  .awaitAll()
+                  .filterNotNull()
+                  .distinct()
 
-        val deferred =
-          chartlist.take(yearlyLimit).map { song ->
-            async(Dispatchers.IO) {
-              spotifySearchService
-                .doSearch(song, clientId)
-                ?.tracks
-                ?.items
-                ?.stream()
-                ?.findFirst()
-                ?.orElse(null)
-                ?.id
+              if (trackList.isNotEmpty()) {
+                val playlistId =
+                  getOrCreatePlaylistId("LAST.FM $year", clientId, existingPlaylists).id
+                spotifyPlaylistService.modifyPlaylist(playlistId, trackList, clientId)
+                spotifyPlaylistService.deduplicatePlaylist(playlistId, clientId)
+              }
+              val completedPercent: Int
+              synchronized(progressLock) {
+                val completed = completedYears.incrementAndGet()
+                completedPercent = (completed * 100) / total
+                progress(completedPercent, "Finished $year ($completed/$total)")
+              }
+              logger.info("Year {} completed: {}%", year, completedPercent)
             }
           }
-
-        val trackList = deferred.awaitAll().filterNotNull().distinct()
-        if (trackList.isNotEmpty()) {
-          val playlistId = spotifyPlaylistService.getOrCreatePlaylist("LAST.FM $year", clientId).id
-          spotifyPlaylistService.modifyPlaylist(playlistId, trackList, clientId)
-          spotifyPlaylistService.deduplicatePlaylist(playlistId, clientId)
         }
-        val completedPercent = ((idx + 1) * 100) / total
-        progress(completedPercent, "Finished $year (${idx + 1}/$total)")
-        logger.info("Year {} completed: {}%", year, completedPercent)
-      }
+        .awaitAll()
     }
     progress(100, "Yearly playlists refreshed")
     logger.info("updateYearlyPlaylists {} completed", clientId)
   }
 
-  private fun getYear() = Calendar.getInstance().get(Calendar.YEAR)
+  private fun getOrCreatePlaylistId(
+    playlistName: String,
+    clientId: String,
+    existingPlaylists: ConcurrentHashMap<String, Playlist>,
+  ): Playlist {
+    val existing = existingPlaylists[playlistName]
+    if (existing != null) {
+      return existing
+    }
+
+    val created = spotifyPlaylistService.createPlaylist(playlistName, clientId)
+    val previous = existingPlaylists.putIfAbsent(playlistName, created)
+    return previous ?: created
+  }
+
+  private fun getYear() = currentYearProvider()
+
+  companion object {
+    internal const val DEFAULT_YEARLY_PARALLELISM = 4
+    internal const val DEFAULT_SEARCH_PARALLELISM = 24
+    private const val FIRST_SUPPORTED_YEAR = 2005
+  }
 }
