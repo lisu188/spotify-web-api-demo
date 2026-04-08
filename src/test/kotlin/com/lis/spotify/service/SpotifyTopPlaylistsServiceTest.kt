@@ -1,11 +1,18 @@
 package com.lis.spotify.service
 
 import com.lis.spotify.domain.Album
+import com.lis.spotify.domain.Artist
 import com.lis.spotify.domain.Playlist
+import com.lis.spotify.domain.SearchResult
+import com.lis.spotify.domain.SearchResultInternal
+import com.lis.spotify.domain.Song
 import com.lis.spotify.domain.Track
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import java.util.Calendar
+import java.util.Collections
+import java.util.concurrent.atomic.AtomicInteger
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -72,7 +79,7 @@ class SpotifyTopPlaylistsServiceTest {
     val trackService = mockk<SpotifyTopTrackService>(relaxed = true)
     val lastFmService = mockk<LastFmService>()
     val searchService = mockk<SpotifySearchService>(relaxed = true)
-    val progressUpdates = mutableListOf<Int>()
+    val progressUpdates = Collections.synchronizedList(mutableListOf<Int>())
 
     every { lastFmService.yearlyChartlist(any(), any(), any(), any()) } returns emptyList()
 
@@ -86,5 +93,57 @@ class SpotifyTopPlaylistsServiceTest {
     assertTrue(progressUpdates.isNotEmpty())
     assertEquals(0, progressUpdates.first())
     assertEquals(100, progressUpdates.last())
+  }
+
+  @Test
+  fun updateYearlyPlaylistsRunsYearsInParallelWithoutStartingEveryYearAtOnce() {
+    val playlistService = mockk<SpotifyPlaylistService>(relaxed = true)
+    val trackService = mockk<SpotifyTopTrackService>(relaxed = true)
+    val lastFmService = mockk<LastFmService>()
+    val searchService = mockk<SpotifySearchService>()
+    val progressUpdates = Collections.synchronizedList(mutableListOf<Int>())
+    val activeYears = AtomicInteger()
+    val maxActiveYears = AtomicInteger()
+    val totalYears = Calendar.getInstance().get(Calendar.YEAR) - 2005 + 1
+    val spotifyTrack =
+      Track(
+        "track-1",
+        "Song",
+        listOf(Artist("artist-1", "Artist")),
+        Album("album-1", "Album", emptyList()),
+      )
+
+    every { lastFmService.yearlyChartlist(any(), any(), any(), any()) } answers {
+      val active = activeYears.incrementAndGet()
+      maxActiveYears.accumulateAndGet(active, ::maxOf)
+      Thread.sleep(75)
+      activeYears.decrementAndGet()
+      listOf(Song("Artist", "Song"))
+    }
+    every { searchService.doSearch(any<Song>(), any<String>()) } returns
+      SearchResult(SearchResultInternal(listOf(spotifyTrack)))
+    every { playlistService.getOrCreatePlaylist(any(), any()) } answers {
+      Playlist("playlist-${firstArg<String>()}", firstArg<String>())
+    }
+    every { playlistService.modifyPlaylist(any(), any(), any()) } returns emptyMap()
+
+    val service =
+      SpotifyTopPlaylistsService(playlistService, trackService, lastFmService, searchService)
+
+    service.updateYearlyPlaylists("cid", "login") { progressPercent, _ ->
+      progressUpdates += progressPercent
+    }
+
+    assertTrue(progressUpdates.isNotEmpty())
+    assertEquals(0, progressUpdates.first())
+    assertEquals(100, progressUpdates.last())
+    assertTrue(
+      maxActiveYears.get() > 1,
+      "Expected yearly work to overlap across multiple years",
+    )
+    assertTrue(
+      maxActiveYears.get() < totalYears,
+      "Expected yearly work to stay below launching all years at once",
+    )
   }
 }
