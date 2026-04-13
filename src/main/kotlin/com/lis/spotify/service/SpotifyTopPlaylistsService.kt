@@ -29,7 +29,8 @@ import org.springframework.stereotype.Service
 
 data class ForgottenObsessionsPlaylistResult(
   val playlistId: String?,
-  val matchedTrackCount: Int,
+  val playlistTrackCount: Int,
+  val spotifyMatchCount: Int,
   val candidateCount: Int,
 )
 
@@ -226,22 +227,25 @@ class SpotifyTopPlaylistsService(
       logger.info("No forgotten obsessions found for {}", clientId)
       return ForgottenObsessionsPlaylistResult(
         playlistId = null,
-        matchedTrackCount = 0,
+        playlistTrackCount = 0,
+        spotifyMatchCount = 0,
         candidateCount = 0,
       )
     }
 
     progress(((years.size + 1) * 100) / totalSteps, "Matching forgotten obsessions on Spotify")
     val trackIds = mutableListOf<String>()
+    var spotifyMatchCount = 0
     var candidateOffset = 0
-    while (
-      trackIds.size < FORGOTTEN_OBSESSIONS_TARGET_TRACK_COUNT && candidateOffset < candidates.size
-    ) {
+    while (candidateOffset < candidates.size) {
       val batch = candidates.drop(candidateOffset).take(FORGOTTEN_OBSESSIONS_SEARCH_BATCH_SIZE)
       val matchedBatch =
         runBlocking(Dispatchers.IO) { spotifySearchService.searchTrackIds(batch, clientId) }
-      val remainingCapacity = FORGOTTEN_OBSESSIONS_TARGET_TRACK_COUNT - trackIds.size
-      trackIds += matchedBatch.filterNot { it in trackIds }.take(remainingCapacity)
+      spotifyMatchCount += matchedBatch.size
+      if (trackIds.size < FORGOTTEN_OBSESSIONS_TARGET_TRACK_COUNT) {
+        val remainingCapacity = FORGOTTEN_OBSESSIONS_TARGET_TRACK_COUNT - trackIds.size
+        trackIds += matchedBatch.filterNot { it in trackIds }.take(remainingCapacity)
+      }
       candidateOffset += batch.size
     }
 
@@ -250,23 +254,30 @@ class SpotifyTopPlaylistsService(
       logger.info("Forgotten obsessions candidates found but no Spotify matches for {}", clientId)
       return ForgottenObsessionsPlaylistResult(
         playlistId = null,
-        matchedTrackCount = 0,
+        playlistTrackCount = 0,
+        spotifyMatchCount = 0,
         candidateCount = candidates.size,
       )
     }
 
     val playlistId =
       getOrCreatePlaylistId(FORGOTTEN_OBSESSIONS_PLAYLIST_NAME, clientId, existingPlaylists).id
-    spotifyPlaylistService.modifyPlaylist(playlistId, trackIds, clientId)
+    try {
+      spotifyPlaylistService.modifyPlaylist(playlistId, trackIds, clientId)
+    } catch (ex: Exception) {
+      throw PlaylistUpdateException(listOf(playlistId), ex)
+    }
     progress(100, "Forgotten obsessions playlist refreshed")
     logger.info(
-      "Forgotten obsessions playlist {} refreshed with {} tracks",
+      "Forgotten obsessions playlist {} refreshed with {} playlist tracks from {} Spotify matches",
       playlistId,
       trackIds.size,
+      spotifyMatchCount,
     )
     return ForgottenObsessionsPlaylistResult(
       playlistId = playlistId,
-      matchedTrackCount = trackIds.size,
+      playlistTrackCount = trackIds.size,
+      spotifyMatchCount = spotifyMatchCount,
       candidateCount = candidates.size,
     )
   }
@@ -365,6 +376,15 @@ class SpotifyTopPlaylistsService(
         return existing
       }
 
+      val remoteExisting =
+        spotifyPlaylistService.getCurrentUserPlaylists(clientId).firstOrNull {
+          it.name == playlistName
+        }
+      if (remoteExisting != null) {
+        existingPlaylists.putIfAbsent(playlistName, remoteExisting)
+        return remoteExisting
+      }
+
       val created = spotifyPlaylistService.createPlaylist(playlistName, clientId)
       val previous = existingPlaylists.putIfAbsent(playlistName, created)
       return previous ?: created
@@ -401,3 +421,6 @@ class SpotifyTopPlaylistsService(
     val lastPlayedAtEpochSecond: Long,
   )
 }
+
+class PlaylistUpdateException(val playlistIds: List<String>, cause: Throwable) :
+  RuntimeException(cause)

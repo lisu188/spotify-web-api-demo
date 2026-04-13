@@ -232,7 +232,8 @@ class SpotifyTopPlaylistsServiceTest {
     val result = service.updateForgottenObsessionsPlaylist("cid", "login")
 
     assertEquals("forgotten-id", result.playlistId)
-    assertEquals(1, result.matchedTrackCount)
+    assertEquals(1, result.playlistTrackCount)
+    assertEquals(1, result.spotifyMatchCount)
     assertEquals(1, result.candidateCount)
   }
 }

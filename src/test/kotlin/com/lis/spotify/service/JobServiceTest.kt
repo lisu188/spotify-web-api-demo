@@ -116,7 +116,7 @@ class JobServiceTest {
         mockk(relaxed = true)
       }
     every { playlistService.updateForgottenObsessionsPlaylist(any(), any(), any()) } returns
-      ForgottenObsessionsPlaylistResult("playlist-1", 12, 18)
+      ForgottenObsessionsPlaylistResult("playlist-1", 12, 12, 18)
     val service = JobService(playlistService, jobStatusStore, scheduler)
 
     val jobId = service.startForgottenObsessionsJob("c", "login")
@@ -125,5 +125,27 @@ class JobServiceTest {
     assertEquals(JobState.COMPLETED, status?.state)
     assertEquals(listOf("playlist-1"), status?.playlistIds)
     assertEquals("Forgotten obsessions playlist refreshed (12 tracks)", status?.message)
+  }
+
+  @Test
+  fun forgottenObsessionsJobPreservesPlaylistIdOnPartialFailure() {
+    val playlistService = mockk<SpotifyTopPlaylistsService>()
+    val jobStatusStore = InMemoryJobStatusStore()
+    val scheduler = mockk<TaskScheduler>()
+    val runnable = slot<Runnable>()
+    every { scheduler.schedule(capture(runnable), any<java.util.Date>()) } answers
+      {
+        runnable.captured.run()
+        mockk(relaxed = true)
+      }
+    every { playlistService.updateForgottenObsessionsPlaylist(any(), any(), any()) } throws
+      PlaylistUpdateException(listOf("playlist-1"), IllegalStateException("boom"))
+    val service = JobService(playlistService, jobStatusStore, scheduler)
+
+    val jobId = service.startForgottenObsessionsJob("c", "login")
+
+    val status = service.getJobStatus(jobId)
+    assertEquals(JobState.FAILED, status?.state)
+    assertEquals(listOf("playlist-1"), status?.playlistIds)
   }
 }
