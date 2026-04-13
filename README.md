@@ -98,6 +98,19 @@ Recommended runtime inputs:
 - `SPOTIFY_TOP_PLAYLISTS_REFRESH_ON_STARTUP`
 - `SPOTIFY_TOP_PLAYLISTS_REFRESH_INTERVAL_MS`
 - `SPOTIFY_TOP_PLAYLISTS_REFRESH_TRIGGER_TOKEN`
+- `LASTFM_JOBS_MAX_PARALLELISM`
+- `LASTFM_RECENT_TRACKS_MAX_PARALLELISM`
+- `LASTFM_RECENT_TRACKS_PERSISTENT_CACHE_ENABLED`
+
+For Cloud Run, the Last.fm job fan-out defaults are intentionally conservative:
+
+- `LASTFM_JOBS_MAX_PARALLELISM=4`
+- `LASTFM_RECENT_TRACKS_MAX_PARALLELISM=4`
+- `LASTFM_RECENT_TRACKS_PERSISTENT_CACHE_ENABLED=false`
+
+The recent-tracks Firestore cache is disabled by default to avoid large document
+reads during full-history scans such as Private Mood Taxonomy. The app still
+keeps an in-memory cache per instance.
 
 Cloud Scheduler should invoke `POST /refreshConfiguredTopPlaylists` with
 `X-Refresh-Token` set to the configured trigger token. Keep the existing startup
