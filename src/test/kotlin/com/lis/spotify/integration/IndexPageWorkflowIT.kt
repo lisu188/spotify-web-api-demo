@@ -112,10 +112,12 @@ class IndexPageWorkflowIT {
     val login = page.getHtmlElementById("lastFmId") as HtmlInput
     val button = page.getHtmlElementById("lastfm") as HtmlButton
     val forgottenButton = page.getHtmlElementById("forgottenObsessions") as HtmlButton
+    val privateMoodButton = page.getHtmlElementById("privateMoodTaxonomy") as HtmlButton
     val status = page.getHtmlElementById("lastfmStatus") as HtmlElement
 
     assertTrue(button.isDisabled)
     assertTrue(forgottenButton.isDisabled)
+    assertTrue(privateMoodButton.isDisabled)
     assertEquals("Enter your Last.fm login to enable Last.fm tools.", status.asNormalizedText())
 
     setInputValue(page, login, "missing-user")
@@ -123,6 +125,7 @@ class IndexPageWorkflowIT {
 
     assertTrue(button.isDisabled)
     assertTrue(forgottenButton.isDisabled)
+    assertTrue(privateMoodButton.isDisabled)
     assertEquals("Last.fm login not found.", status.asNormalizedText())
 
     setInputValue(page, login, "valid-user")
@@ -130,6 +133,7 @@ class IndexPageWorkflowIT {
 
     assertFalse(button.isDisabled)
     assertFalse(forgottenButton.isDisabled)
+    assertFalse(privateMoodButton.isDisabled)
     assertEquals("", status.asNormalizedText())
   }
 
@@ -266,6 +270,62 @@ class IndexPageWorkflowIT {
 
     assertEquals("Forgotten obsessions playlist refreshed (12 tracks)", status.asNormalizedText())
     assertEquals(1, iframeCount)
+  }
+
+  @Test
+  fun shouldRenderPrivateMoodPlaylistsAfterSuccessfulJob() {
+    val page = loadIndexPage()
+    installAjaxMock(
+      page,
+      """
+        window.__uiTestMockAjax = function (options) {
+          if (options.url.indexOf('/verifyLastFmId/valid-user') !== -1) {
+            return { status: 200, responseText: 'true' };
+          }
+          if (options.url.indexOf('/jobs/private-mood-taxonomy') !== -1 && options.type === 'post') {
+            return { status: 202, responseText: '{"jobId":"job-4"}', json: true };
+          }
+          if (options.url.indexOf('/jobs/job-4') !== -1) {
+            return {
+              status: 200,
+              responseText: '{"jobId":"job-4","state":"COMPLETED","progressPercent":100,"message":"Private mood taxonomy refreshed (Anchor 12, Surge 8, Night Drift 6, Frontier 15)","redirectUrl":null,"playlistIds":["anchor-id","surge-id","night-id","frontier-id"]}'
+            };
+          }
+          return { status: 404, responseText: 'null' };
+        };
+      """,
+    )
+
+    val login = page.getHtmlElementById("lastFmId") as HtmlInput
+    val privateMoodButton = page.getHtmlElementById("privateMoodTaxonomy") as HtmlButton
+
+    setInputValue(page, login, "valid-user")
+    waitForJs()
+    assertFalse(privateMoodButton.isDisabled)
+
+    triggerClick(page, "privateMoodTaxonomy")
+    waitForJs(4000)
+
+    val status = page.getHtmlElementById("lastfmStatus") as HtmlElement
+    val iframeCount =
+      (page
+          .executeJavaScript("document.querySelectorAll('#privateMoodPlaylists iframe').length;")
+          .javaScriptResult as Number)
+        .toInt()
+    val titleCount =
+      (page
+          .executeJavaScript(
+            "document.querySelectorAll('#privateMoodPlaylists .playlist-embed-title').length;"
+          )
+          .javaScriptResult as Number)
+        .toInt()
+
+    assertEquals(
+      "Private mood taxonomy refreshed (Anchor 12, Surge 8, Night Drift 6, Frontier 15)",
+      status.asNormalizedText(),
+    )
+    assertEquals(4, iframeCount)
+    assertEquals(4, titleCount)
   }
 
   private fun loadIndexPage(): HtmlPage {

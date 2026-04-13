@@ -1,6 +1,7 @@
 package com.lis.spotify.service
 
 import com.lis.spotify.domain.Album
+import com.lis.spotify.domain.AuthToken
 import com.lis.spotify.domain.Playlist
 import com.lis.spotify.domain.PlaylistTrack
 import com.lis.spotify.domain.PlaylistTracks
@@ -94,9 +95,26 @@ class SpotifyPlaylistServiceTest {
 
   @Test
   fun modifyPlaylistEmptyList() {
-    val result = service.modifyPlaylist("id", emptyList(), "cid")
+    val spied = spyk(service)
+    every { spied.getPlaylistTrackIds("id", "cid") } returns emptyList()
+
+    val result = spied.modifyPlaylist("id", emptyList(), "cid")
+
     assertEquals(emptyList<String>(), result["added"])
     assertEquals(emptyList<String>(), result["removed"])
+  }
+
+  @Test
+  fun modifyPlaylistEmptyListClearsExistingTracks() {
+    val spied = spyk(service)
+    every { spied.getPlaylistTrackIds("id", "cid") } returns listOf("1", "2")
+    every { spied.deleteTracksFromPlaylist("id", listOf("1", "2"), "cid") } returns Unit
+
+    val result = spied.modifyPlaylist("id", emptyList(), "cid")
+
+    assertEquals(emptyList<String>(), result["added"])
+    assertEquals(listOf("1", "2"), result["removed"])
+    verify(exactly = 1) { spied.deleteTracksFromPlaylist("id", listOf("1", "2"), "cid") }
   }
 
   @Test
@@ -146,5 +164,25 @@ class SpotifyPlaylistServiceTest {
     val distinct = tracks.distinct()
     verify(exactly = 1) { spied.replacePlaylistTracks("pl", distinct.take(100), "cid") }
     verify(exactly = 1) { spied.addTracksToPlaylist("pl", distinct.drop(100), "cid") }
+  }
+
+  @Test
+  fun hasRequiredScopesChecksStoredSpotifyScopeString() {
+    val authService = mockk<SpotifyAuthenticationService>()
+    every { rest.spotifyAuthenticationService } returns authService
+    every { authService.getAuthToken("cid") } returns
+      AuthToken(
+        access_token = "access",
+        token_type = "Bearer",
+        scope = "user-top-read playlist-modify-private playlist-read-private",
+        expires_in = 3600,
+        refresh_token = "refresh",
+        clientId = "cid",
+      )
+
+    val result =
+      service.hasRequiredScopes("cid", setOf("playlist-modify-private", "playlist-read-private"))
+
+    assertEquals(true, result)
   }
 }

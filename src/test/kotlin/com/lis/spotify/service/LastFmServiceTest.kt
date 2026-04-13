@@ -335,6 +335,59 @@ class LastFmServiceTest {
   }
 
   @Test
+  fun trackSimilarParsesSongsAndUsesCache() {
+    val rest = mockk<RestTemplate>()
+    val service = service()
+    service.rest = rest
+    every { rest.getForObject(any<URI>(), Map::class.java) } returns
+      mapOf(
+        "similartracks" to
+          mapOf(
+            "track" to
+              listOf(
+                mapOf(
+                  "name" to "Signal",
+                  "match" to "0.81",
+                  "artist" to mapOf("name" to "Artist B"),
+                )
+              )
+          )
+      )
+
+    val first = service.trackSimilar("Artist A", "Seed Song", 5)
+    val second = service.trackSimilar("Artist A", "Seed Song", 5)
+
+    assertEquals(listOf(LastFmSimilarTrack(Song("Artist B", "Signal"), 0.81)), first)
+    assertEquals(first, second)
+    verify(exactly = 1) { rest.getForObject(any<URI>(), Map::class.java) }
+  }
+
+  @Test
+  fun artistSimilarParsesArtists() {
+    val rest = mockk<RestTemplate>()
+    val service = service()
+    service.rest = rest
+    every { rest.getForObject(any<URI>(), Map::class.java) } returns
+      mapOf(
+        "similarartists" to
+          mapOf(
+            "artist" to
+              listOf(
+                mapOf("name" to "Night Swim", "match" to "0.55"),
+                mapOf("name" to "Afterglow", "match" to 0.42),
+              )
+          )
+      )
+
+    val result = service.artistSimilar("Artist A", 5)
+
+    assertEquals(
+      listOf(LastFmSimilarArtist("Night Swim", 0.55), LastFmSimilarArtist("Afterglow", 0.42)),
+      result,
+    )
+  }
+
+  @Test
   fun userExistsReturnsTrue() {
     val rest = mockk<RestTemplate>()
     val service = service()

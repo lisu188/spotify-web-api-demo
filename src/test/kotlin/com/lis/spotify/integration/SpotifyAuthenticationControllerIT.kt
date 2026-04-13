@@ -105,6 +105,8 @@ constructor(
     assertAll(
       { assertEquals(HttpStatus.FOUND, response.statusCode) },
       { assertTrue(response.headers.location!!.toString().startsWith(baseUrl)) },
+      { assertTrue(response.headers.location!!.toString().contains("playlist-modify-private")) },
+      { assertTrue(response.headers.location!!.toString().contains("playlist-read-private")) },
       { assertNotNull(stateCookie) },
     )
   }

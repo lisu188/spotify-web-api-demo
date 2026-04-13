@@ -75,6 +75,39 @@ class JobService(
     )
   }
 
+  fun startPrivateMoodTaxonomyJob(
+    clientId: String,
+    lastFmLogin: String,
+    playlistSize: Int = 50,
+  ): String {
+    logger.info(
+      "Scheduling private mood taxonomy playlist update for clientId={} lastFmLogin={} playlistSize={}",
+      clientId,
+      lastFmLogin,
+      playlistSize,
+    )
+    return scheduleJob(
+      clientId = clientId,
+      lastFmLogin = lastFmLogin,
+      queuedMessage = "Queued private mood taxonomy refresh",
+      startMessage = "Scanning listening history for private moods",
+      failureMessage = "Private mood taxonomy refresh failed",
+      work = { progress ->
+        val result =
+          playlistService.updatePrivateMoodTaxonomyPlaylists(
+            clientId = clientId,
+            lastFmLogin = lastFmLogin,
+            playlistSize = playlistSize,
+            progress = progress,
+          )
+        JobCompletion(
+          message = privateMoodTaxonomyCompletionMessage(result),
+          playlistIds = result.playlistIds,
+        )
+      },
+    )
+  }
+
   private fun currentProgress(jobId: String): Int {
     return jobStatusStore.findById(jobId)?.progressPercent ?: 0
   }
@@ -247,6 +280,14 @@ class JobService(
     } else {
       "Forgotten obsessions playlist refreshed (${result.playlistTrackCount} tracks)"
     }
+  }
+
+  private fun privateMoodTaxonomyCompletionMessage(result: PrivateMoodTaxonomyResult): String {
+    val counts =
+      result.playlists.joinToString(separator = ", ") { playlist ->
+        "${playlist.label} ${playlist.trackCount}"
+      }
+    return "Private mood taxonomy refreshed ($counts)"
   }
 
   companion object {

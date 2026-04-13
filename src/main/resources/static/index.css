@@ -27,12 +27,23 @@ body {
   height: 100%;
 }
 
-iframe {
+.playlist-embed {
   float: left;
   width: 100%;
   max-width: 360px;
-  height: 360px;
   margin: 0 0 1rem 0;
+}
+
+.playlist-embed-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin: 0 0 0.5rem 0;
+}
+
+iframe {
+  width: 100%;
+  height: 360px;
   padding: 0;
   background: #1db954;
   border: 0;
@@ -44,14 +55,14 @@ iframe {
 }
 
 @media (min-width: 768px) {
-  iframe {
+  .playlist-embed {
     width: calc(50% - 1rem);
     margin: 0 1rem 1rem 0;
   }
 }
 
 @media (min-width: 1200px) {
-  iframe {
+  .playlist-embed {
     width: calc(25% - 1rem);
     margin: 0 1rem 1rem 0;
   }

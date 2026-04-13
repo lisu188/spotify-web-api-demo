@@ -136,54 +136,68 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
     logger.debug("modifyPlaylist {} {} {}", id, clientId, trackList.size)
     logger.info("modifyPlaylist: {} {} {}", id, clientId, trackList.size)
 
-    if (trackList.isNotEmpty()) {
-      val old = getPlaylistTrackIds(id, clientId).orEmpty()
-      val oldSet = old.toSet()
-      val newSet = trackList.toSet()
+    val old = getPlaylistTrackIds(id, clientId).orEmpty()
+    val oldSet = old.toSet()
+    val newSet = trackList.toSet()
 
-      val tracksToRemove = (oldSet - newSet).toList()
-      if (tracksToRemove.isNotEmpty()) {
-        deleteTracksFromPlaylist(id, tracksToRemove, clientId)
-      }
-
-      val tracksToAdd = (newSet - oldSet).toList()
-      addTracksToPlaylist(id, tracksToAdd, clientId)
-
-      val result = mapOf("added" to tracksToAdd, "removed" to tracksToRemove)
-      logger.debug(
-        "modifyPlaylist {} {} -> added {} removed {}",
-        id,
-        clientId,
-        tracksToAdd.size,
-        tracksToRemove.size,
-      )
-      return result
+    val tracksToRemove = (oldSet - newSet).toList()
+    if (tracksToRemove.isNotEmpty()) {
+      deleteTracksFromPlaylist(id, tracksToRemove, clientId)
     }
 
-    return mapOf("added" to emptyList(), "removed" to emptyList())
+    val tracksToAdd = (newSet - oldSet).toList()
+    if (tracksToAdd.isNotEmpty()) {
+      addTracksToPlaylist(id, tracksToAdd, clientId)
+    }
+
+    val result = mapOf("added" to tracksToAdd, "removed" to tracksToRemove)
+    logger.debug(
+      "modifyPlaylist {} {} -> added {} removed {}",
+      id,
+      clientId,
+      tracksToAdd.size,
+      tracksToRemove.size,
+    )
+    return result
   }
 
-  fun createPlaylist(name: String, clientId: String): Playlist {
-    logger.debug("createPlaylist {} {}", name, clientId)
-    logger.info("createPlaylist: {} {}", name, clientId)
+  fun createPlaylist(name: String, clientId: String, public: Boolean = true): Playlist {
+    logger.debug("createPlaylist {} {} public={}", name, clientId, public)
+    logger.info("createPlaylist: {} {} public={}", name, clientId, public)
 
     return spotifyRestService.doPost<Playlist>(
       USER_PLAYLISTS_URL,
-      body = mapOf("name" to name),
+      body = mapOf("name" to name, "public" to public),
       clientId = clientId,
     )
   }
 
-  fun getOrCreatePlaylist(playlistName: String, clientId: String): Playlist {
-    logger.debug("getOrCreatePlaylist {} {}", playlistName, clientId)
-    logger.info("getOrCreatePlaylist: {} {}", playlistName, clientId)
+  fun getOrCreatePlaylist(
+    playlistName: String,
+    clientId: String,
+    public: Boolean = true,
+  ): Playlist {
+    logger.debug("getOrCreatePlaylist {} {} public={}", playlistName, clientId, public)
+    logger.info("getOrCreatePlaylist: {} {} public={}", playlistName, clientId, public)
 
     val findAny =
       getCurrentUserPlaylists(clientId).stream().filter { it.name == playlistName }.findAny()
     if (findAny.isPresent) {
       return findAny.get()
     }
-    return createPlaylist(playlistName, clientId)
+    return createPlaylist(playlistName, clientId, public)
+  }
+
+  fun hasRequiredScopes(clientId: String, requiredScopes: Set<String>): Boolean {
+    val grantedScopes =
+      spotifyRestService.spotifyAuthenticationService
+        .getAuthToken(clientId)
+        ?.scope
+        .orEmpty()
+        .split(" ")
+        .filter { it.isNotBlank() }
+        .toSet()
+    return requiredScopes.all { it in grantedScopes }
   }
 
   companion object {
