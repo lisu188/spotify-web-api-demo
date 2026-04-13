@@ -148,4 +148,59 @@ class JobServiceTest {
     assertEquals(JobState.FAILED, status?.state)
     assertEquals(listOf("playlist-1"), status?.playlistIds)
   }
+
+  @Test
+  fun privateMoodTaxonomyJobStoresPlaylistIds() {
+    val playlistService = mockk<SpotifyTopPlaylistsService>()
+    val jobStatusStore = InMemoryJobStatusStore()
+    val scheduler = mockk<TaskScheduler>()
+    val runnable = slot<Runnable>()
+    every { scheduler.schedule(capture(runnable), any<java.util.Date>()) } answers
+      {
+        runnable.captured.run()
+        mockk(relaxed = true)
+      }
+    every { playlistService.updatePrivateMoodTaxonomyPlaylists(any(), any(), any(), any()) } returns
+      PrivateMoodTaxonomyResult(
+        listOf(
+          PrivateMoodPlaylistResult("Anchor", "Private Mood - Anchor", "anchor-id", 12, 20),
+          PrivateMoodPlaylistResult("Surge", "Private Mood - Surge", "surge-id", 8, 14),
+          PrivateMoodPlaylistResult("Night Drift", "Private Mood - Night Drift", "night-id", 6, 10),
+          PrivateMoodPlaylistResult("Frontier", "Private Mood - Frontier", "frontier-id", 15, 24),
+        )
+      )
+    val service = JobService(playlistService, jobStatusStore, scheduler)
+
+    val jobId = service.startPrivateMoodTaxonomyJob("c", "login")
+
+    val status = service.getJobStatus(jobId)
+    assertEquals(JobState.COMPLETED, status?.state)
+    assertEquals(listOf("anchor-id", "surge-id", "night-id", "frontier-id"), status?.playlistIds)
+    assertEquals(
+      "Private mood taxonomy refreshed (Anchor 12, Surge 8, Night Drift 6, Frontier 15)",
+      status?.message,
+    )
+  }
+
+  @Test
+  fun privateMoodTaxonomyJobPreservesPlaylistIdsOnFailure() {
+    val playlistService = mockk<SpotifyTopPlaylistsService>()
+    val jobStatusStore = InMemoryJobStatusStore()
+    val scheduler = mockk<TaskScheduler>()
+    val runnable = slot<Runnable>()
+    every { scheduler.schedule(capture(runnable), any<java.util.Date>()) } answers
+      {
+        runnable.captured.run()
+        mockk(relaxed = true)
+      }
+    every { playlistService.updatePrivateMoodTaxonomyPlaylists(any(), any(), any(), any()) } throws
+      PlaylistUpdateException(listOf("anchor-id", "surge-id"), IllegalStateException("boom"))
+    val service = JobService(playlistService, jobStatusStore, scheduler)
+
+    val jobId = service.startPrivateMoodTaxonomyJob("c", "login")
+
+    val status = service.getJobStatus(jobId)
+    assertEquals(JobState.FAILED, status?.state)
+    assertEquals(listOf("anchor-id", "surge-id"), status?.playlistIds)
+  }
 }

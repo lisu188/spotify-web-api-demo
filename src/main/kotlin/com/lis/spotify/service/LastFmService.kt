@@ -52,6 +52,10 @@ class LastFmService(
   private val mapper = jacksonObjectMapper()
   private val recentTracksCache: Cache<String, StoredLastFmRecentTracksPage> =
     CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.HOURS).build()
+  private val similarTracksCache: Cache<String, List<LastFmSimilarTrack>> =
+    CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.HOURS).build()
+  private val similarArtistsCache: Cache<String, List<LastFmSimilarArtist>> =
+    CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.HOURS).build()
 
   private fun buildUri(method: String, params: Map<String, Any>, sessionKey: String?): URI {
     var builder =
@@ -96,57 +100,60 @@ class LastFmService(
         ),
         sessionKey,
       )
+    val data = fetchPayload(uri, "recent tracks for user $user")
+    val recentTracksPage = parseRecentTracksPage(data, page)
+    saveRecentTracksPage(
+      cacheKey = cacheKey,
+      user = user,
+      from = from,
+      to = to,
+      page = page,
+      sessionKey = sessionKey,
+      recentTracksPage = recentTracksPage,
+      now = now,
+    )
+    return recentTracksPage
+  }
+
+  private fun fetchPayload(uri: URI, context: String): Map<String, Any?> {
     var attempt = 1
     while (true) {
       try {
-        val data =
-          (rest.getForObject(uri, Map::class.java) as? Map<*, *>)
-            ?.entries
-            ?.associate { (key, value) -> key.toString() to value }
-            .orEmpty()
-        val recentTracksPage = parseRecentTracksPage(data, page)
-        saveRecentTracksPage(
-          cacheKey = cacheKey,
-          user = user,
-          from = from,
-          to = to,
-          page = page,
-          sessionKey = sessionKey,
-          recentTracksPage = recentTracksPage,
-          now = now,
-        )
-        return recentTracksPage
+        return (rest.getForObject(uri, Map::class.java) as? Map<*, *>)
+          ?.entries
+          ?.associate { (key, value) -> key.toString() to value }
+          .orEmpty()
       } catch (ex: HttpStatusCodeException) {
         val err = parseError(ex)
         if (err.code == AUTHENTICATION_REQUIRED_CODE) {
-          logger.warn("Last.fm authentication expired for user {}", user)
+          logger.warn("Last.fm authentication expired during {}", context)
           throw AuthenticationRequiredException("LASTFM")
         }
         if (shouldRetry(err, ex.statusCode.value(), attempt)) {
           val delayMs = retryDelayMs(attempt)
           logger.warn(
-            "Last.fm transient error {} {} on attempt {}/{} for user {}, retrying in {}ms",
+            "Last.fm transient error {} {} on attempt {}/{} for {}, retrying in {}ms",
             err.code,
             err.message,
             attempt,
             LASTFM_FETCH_ATTEMPTS,
-            user,
+            context,
             delayMs,
           )
           sleeper.sleep(delayMs)
           attempt++
           continue
         }
-        logger.error("Last.fm error {} {}", err.code, err.message)
+        logger.error("Last.fm error during {}: {} {}", context, err.code, err.message)
         throw err
       } catch (ex: ResourceAccessException) {
         if (attempt < LASTFM_FETCH_ATTEMPTS) {
           val delayMs = retryDelayMs(attempt)
           logger.warn(
-            "Last.fm network error on attempt {}/{} for user {}, retrying in {}ms",
+            "Last.fm network error on attempt {}/{} for {}, retrying in {}ms",
             attempt,
             LASTFM_FETCH_ATTEMPTS,
-            user,
+            context,
             delayMs,
             ex,
           )
@@ -154,7 +161,7 @@ class LastFmService(
           attempt++
           continue
         }
-        logger.error("Last.fm network error", ex)
+        logger.error("Last.fm network error during {}", context, ex)
         throw LastFmException(503, ex.message ?: "I/O error")
       }
     }
@@ -244,6 +251,58 @@ class LastFmService(
     return yearlyChartlist("", 1970, lastFmLogin, startPage = page)
   }
 
+  fun trackSimilar(artist: String, track: String, limit: Int = 20): List<LastFmSimilarTrack> {
+    require(artist.isNotBlank()) { "artist is required" }
+    require(track.isNotBlank()) { "track is required" }
+    val normalizedLimit = limit.coerceIn(1, 100)
+    val cacheKey = sha256("track.getSimilar|${artist.trim()}|${track.trim()}|$normalizedLimit")
+    similarTracksCache.getIfPresent(cacheKey)?.let { cached ->
+      logger.debug("Last.fm similar track cache hit {}", cacheKey)
+      return cached
+    }
+
+    val payload =
+      fetchPayload(
+        buildUri(
+          "track.getSimilar",
+          mapOf(
+            "artist" to artist.trim(),
+            "track" to track.trim(),
+            "limit" to normalizedLimit,
+            "autocorrect" to 1,
+          ),
+          null,
+        ),
+        "similar tracks for $artist - $track",
+      )
+    val similarTracks = parseSimilarTracks(payload, normalizedLimit)
+    similarTracksCache.put(cacheKey, similarTracks)
+    return similarTracks
+  }
+
+  fun artistSimilar(artist: String, limit: Int = 20): List<LastFmSimilarArtist> {
+    require(artist.isNotBlank()) { "artist is required" }
+    val normalizedLimit = limit.coerceIn(1, 100)
+    val cacheKey = sha256("artist.getSimilar|${artist.trim()}|$normalizedLimit")
+    similarArtistsCache.getIfPresent(cacheKey)?.let { cached ->
+      logger.debug("Last.fm similar artist cache hit {}", cacheKey)
+      return cached
+    }
+
+    val payload =
+      fetchPayload(
+        buildUri(
+          "artist.getSimilar",
+          mapOf("artist" to artist.trim(), "limit" to normalizedLimit, "autocorrect" to 1),
+          null,
+        ),
+        "similar artists for $artist",
+      )
+    val similarArtists = parseSimilarArtists(payload, normalizedLimit)
+    similarArtistsCache.put(cacheKey, similarArtists)
+    return similarArtists
+  }
+
   private fun parseRecentTracksPage(
     payload: Map<String, Any?>,
     currentPage: Int,
@@ -281,6 +340,64 @@ class LastFmService(
       totalPages = totalPages.coerceAtLeast(currentPage),
       songs = songs,
     )
+  }
+
+  private fun parseSimilarTracks(payload: Map<String, Any?>, limit: Int): List<LastFmSimilarTrack> {
+    val similarTracks = payload["similartracks"] as? Map<*, *> ?: return emptyList()
+    val trackItems =
+      when (val tracks = similarTracks["track"]) {
+        is List<*> -> tracks
+        is Map<*, *> -> listOf(tracks)
+        else -> emptyList()
+      }
+
+    return trackItems
+      .mapNotNull { track ->
+        val map = track as? Map<*, *> ?: return@mapNotNull null
+        val artist =
+          when (val artistValue = map["artist"]) {
+            is Map<*, *> -> artistValue["name"] as? String
+            is String -> artistValue
+            else -> null
+          } ?: return@mapNotNull null
+        val title = map["name"] as? String ?: return@mapNotNull null
+        val match = parseMatchValue(map["match"])
+        LastFmSimilarTrack(song = Song(artist = artist, title = title), match = match)
+      }
+      .filter { it.song.artist.isNotBlank() && it.song.title.isNotBlank() }
+      .distinctBy { it.song.artist.trim().lowercase() to it.song.title.trim().lowercase() }
+      .take(limit)
+  }
+
+  private fun parseSimilarArtists(
+    payload: Map<String, Any?>,
+    limit: Int,
+  ): List<LastFmSimilarArtist> {
+    val similarArtists = payload["similarartists"] as? Map<*, *> ?: return emptyList()
+    val artistItems =
+      when (val artists = similarArtists["artist"]) {
+        is List<*> -> artists
+        is Map<*, *> -> listOf(artists)
+        else -> emptyList()
+      }
+
+    return artistItems
+      .mapNotNull { artist ->
+        val map = artist as? Map<*, *> ?: return@mapNotNull null
+        val name = map["name"] as? String ?: return@mapNotNull null
+        LastFmSimilarArtist(name = name, match = parseMatchValue(map["match"]))
+      }
+      .filter { it.name.isNotBlank() }
+      .distinctBy { it.name.trim().lowercase() }
+      .take(limit)
+  }
+
+  private fun parseMatchValue(value: Any?): Double {
+    return when (value) {
+      is Number -> value.toDouble()
+      is String -> value.toDoubleOrNull()
+      else -> null
+    } ?: 0.0
   }
 
   private fun extractPlayedAtEpochSecond(value: Any?): Long? {
@@ -425,3 +542,7 @@ fun interface LastFmSleeper {
 }
 
 class LastFmException(val code: Int, override val message: String) : RuntimeException(message)
+
+data class LastFmSimilarTrack(val song: Song, val match: Double)
+
+data class LastFmSimilarArtist(val name: String, val match: Double)

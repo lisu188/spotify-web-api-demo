@@ -6,6 +6,8 @@ import com.github.tomakehurst.wiremock.client.WireMock.reset as wireMockReset
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
 import com.lis.spotify.service.AuthenticationRequiredException
 import com.lis.spotify.service.ForgottenObsessionsPlaylistResult
+import com.lis.spotify.service.PrivateMoodPlaylistResult
+import com.lis.spotify.service.PrivateMoodTaxonomyResult
 import com.lis.spotify.service.SpotifyTopPlaylistsService
 import io.mockk.clearMocks
 import io.mockk.every
@@ -75,6 +77,15 @@ constructor(
     every { playlistService.updateYearlyPlaylists(any(), any(), any()) } returns Unit
     every { playlistService.updateForgottenObsessionsPlaylist(any(), any(), any()) } returns
       ForgottenObsessionsPlaylistResult("playlist-1", 12, 12, 18)
+    every { playlistService.updatePrivateMoodTaxonomyPlaylists(any(), any(), any(), any()) } returns
+      PrivateMoodTaxonomyResult(
+        listOf(
+          PrivateMoodPlaylistResult("Anchor", "Private Mood - Anchor", "anchor-id", 12, 20),
+          PrivateMoodPlaylistResult("Surge", "Private Mood - Surge", "surge-id", 8, 14),
+          PrivateMoodPlaylistResult("Night Drift", "Private Mood - Night Drift", "night-id", 6, 9),
+          PrivateMoodPlaylistResult("Frontier", "Private Mood - Frontier", "frontier-id", 15, 24),
+        )
+      )
     every { playlistService.updateTopPlaylists(any()) } returns emptyList()
   }
 
@@ -138,6 +149,35 @@ constructor(
     assertEquals(HttpStatus.BAD_REQUEST, resp.statusCode)
   }
 
+  @Test
+  fun privateMoodTaxonomyJobReturnsPlaylistIds() {
+    val headers = HttpHeaders()
+    headers.add(HttpHeaders.COOKIE, "clientId=cid")
+    val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
+
+    val resp = rest.postForEntity("/jobs/private-mood-taxonomy", req, Map::class.java)
+    val jobId = resp.body?.get("jobId") as String
+    val status = rest.getForEntity("/jobs/$jobId", Map::class.java)
+
+    assertEquals(HttpStatus.OK, status.statusCode)
+    assertEquals("COMPLETED", status.body?.get("state"))
+    assertEquals(
+      listOf("anchor-id", "surge-id", "night-id", "frontier-id"),
+      status.body?.get("playlistIds"),
+    )
+  }
+
+  @Test
+  fun privateMoodTaxonomyJobRejectsBlankLogin() {
+    val headers = HttpHeaders()
+    headers.add(HttpHeaders.COOKIE, "clientId=cid")
+    val req = HttpEntity(mapOf("lastFmLogin" to "   "), headers)
+
+    val resp = rest.postForEntity("/jobs/private-mood-taxonomy", req, Map::class.java)
+
+    assertEquals(HttpStatus.BAD_REQUEST, resp.statusCode)
+  }
+
   class Config {
     @Bean
     @Primary
@@ -146,6 +186,21 @@ constructor(
       every { svc.updateYearlyPlaylists(any(), any(), any()) } returns Unit
       every { svc.updateForgottenObsessionsPlaylist(any(), any(), any()) } returns
         ForgottenObsessionsPlaylistResult("playlist-1", 12, 12, 18)
+      every { svc.updatePrivateMoodTaxonomyPlaylists(any(), any(), any(), any()) } returns
+        PrivateMoodTaxonomyResult(
+          listOf(
+            PrivateMoodPlaylistResult("Anchor", "Private Mood - Anchor", "anchor-id", 12, 20),
+            PrivateMoodPlaylistResult("Surge", "Private Mood - Surge", "surge-id", 8, 14),
+            PrivateMoodPlaylistResult(
+              "Night Drift",
+              "Private Mood - Night Drift",
+              "night-id",
+              6,
+              9,
+            ),
+            PrivateMoodPlaylistResult("Frontier", "Private Mood - Frontier", "frontier-id", 15, 24),
+          )
+        )
       every { svc.updateTopPlaylists(any()) } returns emptyList()
       return svc
     }

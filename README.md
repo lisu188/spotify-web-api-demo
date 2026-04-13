@@ -64,6 +64,16 @@ credentials are available at runtime:
 - Last.fm endpoints default to HTTPS. Override `LASTFM_API_URL` and
   `LASTFM_AUTHORIZE_URL` only if custom values are required.
 
+Spotify authorization now requests these scopes:
+
+- `user-top-read`
+- `playlist-modify-public`
+- `playlist-modify-private`
+- `playlist-read-private`
+
+The private playlist scopes are required for the Private Mood Taxonomy flow so
+the app can create private playlists and find them again on later refreshes.
+
 ## Google Cloud
 
 Run the service as a single public Cloud Run service. Keep the browser UI and
@@ -182,6 +192,28 @@ Enter your Last.fm login on the main page and click **LAST.FM** to refresh yearl
 playlists. The refresh runs in the background and shows progress in the UI.
 The current flow preserves the login across Last.fm auth redirects so the retry
 path can continue after the user authorizes access.
+
+Use **PRIVATE MOOD TAXONOMY** to build four private playlists from deterministic
+Spotify + Last.fm listening heuristics:
+
+- `Private Mood - Anchor`
+- `Private Mood - Surge`
+- `Private Mood - Night Drift`
+- `Private Mood - Frontier`
+
+The app uses only listening history, Spotify top tracks, and Last.fm similar
+tracks/artists. It does not use Last.fm tags, Spotify recommendations, audio
+features, audio analysis, or any trained model. The UI reuses the background
+job polling flow and shows the resulting playlists as embedded Spotify iframes.
+
+The underlying API accepts an optional playlist size when starting the job:
+
+```shell
+curl -X POST http://localhost:8080/jobs/private-mood-taxonomy \
+  -H 'Content-Type: application/json' \
+  -H 'Cookie: clientId=your-client-id' \
+  -d '{"lastFmLogin":"your-lastfm-login","playlistSize":50}'
+```
 
 Use **BAND MIX** on the main page to generate a playlist from multiple band
 names. Enter at least two bands separated by commas, then click **BAND MIX** to

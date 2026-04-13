@@ -54,7 +54,8 @@ object AppEnvironment {
     val USER_INFO_URL: String
       get() = "$API_BASE_URL/v1/me"
 
-    const val SCOPES: String = "user-top-read playlist-modify-public"
+    const val SCOPES: String =
+      "user-top-read playlist-modify-public playlist-modify-private playlist-read-private"
   }
 
   object LastFm {

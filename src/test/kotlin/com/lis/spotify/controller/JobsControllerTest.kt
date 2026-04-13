@@ -31,6 +31,16 @@ class JobsControllerTest {
   }
 
   @Test
+  fun startPrivateMoodTaxonomyReturnsId() {
+    every { service.startPrivateMoodTaxonomyJob("c", "login", 50) } returns "private-mood-id"
+
+    val resp = controller.startPrivateMoodTaxonomy("c", JobsController.StartRequest("login"))
+
+    assertEquals(JobId("private-mood-id"), resp.body)
+    assertEquals(HttpStatus.ACCEPTED, resp.statusCode)
+  }
+
+  @Test
   fun startRejectsBlankLogin() {
     val resp = controller.start("c", JobsController.StartRequest("   "))
     assertEquals(HttpStatus.BAD_REQUEST, resp.statusCode)
@@ -39,6 +49,12 @@ class JobsControllerTest {
   @Test
   fun startForgottenObsessionsRejectsBlankLogin() {
     val resp = controller.startForgottenObsessions("c", JobsController.StartRequest("   "))
+    assertEquals(HttpStatus.BAD_REQUEST, resp.statusCode)
+  }
+
+  @Test
+  fun startPrivateMoodTaxonomyRejectsBlankLogin() {
+    val resp = controller.startPrivateMoodTaxonomy("c", JobsController.StartRequest("   "))
     assertEquals(HttpStatus.BAD_REQUEST, resp.statusCode)
   }
 

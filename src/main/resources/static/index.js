@@ -12,22 +12,46 @@
 
 const ORIGIN = window.location.origin;
 const URL = ORIGIN;
+const PRIVATE_MOOD_LABELS = ['Anchor', 'Surge', 'Night Drift', 'Frontier'];
 
 var lastFmIdValid = false;
 var lastFmJobRunning = false;
 var lastFmProgressPoll = null;
 var lastFmRedirectTimer = null;
-var lastFmPlaylistTarget = null;
+var lastFmPlaylistConfig = null;
 var verifyRequest;
 
 function buildPlayButtonUrl(id) {
     return "https://open.spotify.com/embed/playlist/" + id;
 }
 
-function appendPlayButton(div, playlistId) {
-    $('<iframe>', {
-        src: buildPlayButtonUrl(playlistId), frameborder: 0, allow: "encrypted-media", allowtransparency: "true"
-    }).appendTo('#' + div);
+function appendPlayButton(div, playlistId, label) {
+    var container = document.getElementById(div);
+    if (!container) {
+        return;
+    }
+    var wrapper = document.createElement('div');
+    wrapper.className = 'playlist-embed';
+    if (label) {
+        var title = document.createElement('div');
+        title.className = 'playlist-embed-title';
+        title.textContent = label;
+        wrapper.appendChild(title);
+    }
+    var iframe = document.createElement('iframe');
+    iframe.src = buildPlayButtonUrl(playlistId);
+    iframe.frameBorder = '0';
+    iframe.allow = 'encrypted-media';
+    iframe.setAttribute('allowtransparency', 'true');
+    wrapper.appendChild(iframe);
+    container.appendChild(wrapper);
+}
+
+function renderPlaylistEmbeds(div, playlistIds, labels) {
+    $('#' + div).empty();
+    for (var i = 0; i < playlistIds.length; i += 1) {
+        appendPlayButton(div, playlistIds[i], labels && labels[i] ? labels[i] : null);
+    }
 }
 
 function parseBandNames() {
@@ -86,11 +110,14 @@ function updateLastfmButtonState() {
     var enabled = lastFmIdValid && !lastFmJobRunning;
     $('#lastfm').prop('disabled', !enabled);
     $('#forgottenObsessions').prop('disabled', !enabled);
+    $('#privateMoodTaxonomy').prop('disabled', !enabled);
     $('#lastFmId').prop('disabled', lastFmJobRunning);
     $('#lastfm').toggleClass('btn-info', enabled);
     $('#lastfm').toggleClass('btn-secondary', !enabled);
     $('#forgottenObsessions').toggleClass('btn-warning', enabled);
     $('#forgottenObsessions').toggleClass('btn-secondary', !enabled);
+    $('#privateMoodTaxonomy').toggleClass('btn-dark', enabled);
+    $('#privateMoodTaxonomy').toggleClass('btn-secondary', !enabled);
 }
 
 function resetLastfmProgress() {
@@ -224,26 +251,33 @@ function pollLastfmJob(jobId) {
         stopLastfmPolling();
         lastFmJobRunning = false;
         updateLastfmButtonState();
-        if (job.state === 'COMPLETED' && job.playlistIds && job.playlistIds.length > 0 && lastFmPlaylistTarget) {
-            $('#' + lastFmPlaylistTarget).empty();
-            appendPlayButton(lastFmPlaylistTarget, job.playlistIds[0]);
+        if (job.state === 'COMPLETED' && job.playlistIds && job.playlistIds.length > 0 && lastFmPlaylistConfig) {
+            renderPlaylistEmbeds(
+                lastFmPlaylistConfig.targetId,
+                job.playlistIds,
+                lastFmPlaylistConfig.labels || null
+            );
+        }
+        if (job.state === 'COMPLETED' || job.state === 'FAILED') {
+            lastFmPlaylistConfig = null;
         }
     }).fail(function () {
         stopLastfmPolling();
         lastFmJobRunning = false;
+        lastFmPlaylistConfig = null;
         updateLastfmButtonState();
         renderLastfmProgress({state: 'FAILED', progressPercent: currentLastfmProgress()});
         setLastfmStatus('Unable to load Last.fm refresh progress right now.');
     });
 }
 
-function startLastfmJob(jobPath, startMessage, failureMessage, playlistTargetId) {
+function startLastfmJob(jobPath, startMessage, failureMessage, playlistConfig) {
     if (!lastFmIdValid || lastFmJobRunning) {
         return;
     }
 
     lastFmJobRunning = true;
-    lastFmPlaylistTarget = playlistTargetId || null;
+    lastFmPlaylistConfig = playlistConfig || null;
     updateLastfmButtonState();
     resetLastfmProgress();
     $('#lastfmProgress').removeClass('d-none');
@@ -255,14 +289,14 @@ function startLastfmJob(jobPath, startMessage, failureMessage, playlistTargetId)
         contentType: 'application/json',
         data: JSON.stringify({lastFmLogin: $('#lastFmId').val().trim()}),
         success: function (data) {
-            if (lastFmPlaylistTarget) {
-                $('#' + lastFmPlaylistTarget).empty();
+            if (lastFmPlaylistConfig) {
+                $('#' + lastFmPlaylistConfig.targetId).empty();
             }
             pollLastfmJob(data.jobId);
         },
         error: function () {
             lastFmJobRunning = false;
-            lastFmPlaylistTarget = null;
+            lastFmPlaylistConfig = null;
             updateLastfmButtonState();
             resetLastfmProgress();
             setLastfmStatus(failureMessage);
@@ -276,11 +310,9 @@ $('#top').on('click', function () {
         type: 'post',
         url: URL + '/updateTopPlaylists',
         success: function (data) {
-            $('#spotifyTop iframe').remove();
+            $('#spotifyTop .playlist-embed').remove();
             $('#top').prop('disabled', false);
-            for (var i = 0; i < data.length; i += 1) {
-                appendPlayButton('spotifyTop', data[i]);
-            }
+            renderPlaylistEmbeds('spotifyTop', data, null);
         },
         error: function () {
             $('#top').prop('disabled', false);
@@ -302,12 +334,22 @@ $('#forgottenObsessions').on('click', function () {
         '/jobs/forgotten-obsessions',
         'Scanning Last.fm history for forgotten obsessions...',
         'Unable to start forgotten obsessions scan right now.',
-        'forgottenObsessionsPlaylists'
+        {targetId: 'forgottenObsessionsPlaylists'}
+    );
+});
+
+$('#privateMoodTaxonomy').on('click', function () {
+    startLastfmJob(
+        '/jobs/private-mood-taxonomy',
+        'Scanning listening history for private moods...',
+        'Unable to start private mood taxonomy right now.',
+        {targetId: 'privateMoodPlaylists', labels: PRIVATE_MOOD_LABELS}
     );
 });
 
 $('#lastFmId').on('input', function () {
     $('#forgottenObsessionsPlaylists').empty();
+    $('#privateMoodPlaylists').empty();
     verifyLastfmLogin($('#lastFmId').val().trim());
 });
 
@@ -333,8 +375,7 @@ $('#bandPlaylist').on('click', function () {
         contentType: 'application/json',
         data: JSON.stringify({bands: bands}),
         success: function (data) {
-            $('#bandPlaylists').empty();
-            appendPlayButton('bandPlaylists', data);
+            renderPlaylistEmbeds('bandPlaylists', [data], null);
             setBandStatus('Playlist ready!');
             updateBandButtonState();
         },

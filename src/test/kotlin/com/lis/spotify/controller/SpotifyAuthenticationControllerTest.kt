@@ -72,6 +72,8 @@ class SpotifyAuthenticationControllerTest {
 
     assert(result.startsWith("redirect:"))
     assert(result.contains("state="))
+    assert(result.contains("playlist-modify-private"))
+    assert(result.contains("playlist-read-private"))
     verify {
       response.addCookie(
         match {

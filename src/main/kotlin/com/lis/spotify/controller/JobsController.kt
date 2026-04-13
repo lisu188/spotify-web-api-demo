@@ -21,7 +21,7 @@ class JobsController(private val jobService: JobService) {
     private val logger = LoggerFactory.getLogger(JobsController::class.java)
   }
 
-  data class StartRequest(val lastFmLogin: String)
+  data class StartRequest(val lastFmLogin: String, val playlistSize: Int? = null)
 
   @PostMapping
   fun start(
@@ -61,6 +61,32 @@ class JobsController(private val jobService: JobService) {
     )
     val id = jobService.startForgottenObsessionsJob(clientId, lastFmLogin)
     logger.info("Forgotten obsessions job {} scheduled", id)
+    return ResponseEntity.accepted().body(JobId(id))
+  }
+
+  @PostMapping("/private-mood-taxonomy")
+  fun startPrivateMoodTaxonomy(
+    @CookieValue("clientId") clientId: String,
+    @RequestBody request: StartRequest,
+  ): ResponseEntity<JobId> {
+    val lastFmLogin = request.lastFmLogin.trim()
+    if (lastFmLogin.isEmpty()) {
+      logger.warn(
+        "Rejecting private mood taxonomy job without Last.fm login for clientId={}",
+        clientId,
+      )
+      return ResponseEntity.badRequest().build()
+    }
+
+    logger.info(
+      "Starting private mood taxonomy job for clientId={} lastFmLogin={} playlistSize={}",
+      clientId,
+      lastFmLogin,
+      request.playlistSize,
+    )
+    val id =
+      jobService.startPrivateMoodTaxonomyJob(clientId, lastFmLogin, request.playlistSize ?: 50)
+    logger.info("Private mood taxonomy job {} scheduled", id)
     return ResponseEntity.accepted().body(JobId(id))
   }
 
