@@ -288,7 +288,7 @@ class IndexPageWorkflowIT {
           if (options.url.indexOf('/jobs/job-4') !== -1) {
             return {
               status: 200,
-              responseText: '{"jobId":"job-4","state":"COMPLETED","progressPercent":100,"message":"Private mood taxonomy refreshed (Anchor 12, Surge 8, Night Drift 6, Frontier 15)","redirectUrl":null,"playlistIds":["anchor-id","surge-id","night-id","frontier-id"]}'
+              responseText: '{"jobId":"job-4","state":"COMPLETED","progressPercent":100,"message":"Private mood taxonomy refreshed (Anchor 12, Happy 10, Sad 9, Surge 8, Night Drift 6, Frontier 15)","redirectUrl":null,"playlistIds":["anchor-id","happy-id","sad-id","surge-id","night-id","frontier-id"]}'
             };
           }
           return { status: 404, responseText: 'null' };
@@ -321,11 +321,11 @@ class IndexPageWorkflowIT {
         .toInt()
 
     assertEquals(
-      "Private mood taxonomy refreshed (Anchor 12, Surge 8, Night Drift 6, Frontier 15)",
+      "Private mood taxonomy refreshed (Anchor 12, Happy 10, Sad 9, Surge 8, Night Drift 6, Frontier 15)",
       status.asNormalizedText(),
     )
-    assertEquals(4, iframeCount)
-    assertEquals(4, titleCount)
+    assertEquals(6, iframeCount)
+    assertEquals(6, titleCount)
   }
 
   private fun loadIndexPage(): HtmlPage {

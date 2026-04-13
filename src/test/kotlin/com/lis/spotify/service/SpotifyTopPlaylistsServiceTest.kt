@@ -335,11 +335,20 @@ class SpotifyTopPlaylistsServiceTest {
       )
     } returns true
     every { trackService.getTopTracksShortTerm("cid") } returns
-      listOf(track("short-1", "Surge Song", "Artist Surge"))
+      listOf(
+        track("short-1", "Surge Song", "Artist Surge"),
+        track("short-2", "Happy Song", "Artist Happy"),
+      )
     every { trackService.getTopTracksMidTerm("cid") } returns
-      listOf(track("mid-1", "Anchor Song", "Artist Anchor"))
+      listOf(
+        track("mid-1", "Anchor Song", "Artist Anchor"),
+        track("mid-2", "Sad Song", "Artist Sad"),
+      )
     every { trackService.getTopTracksLongTerm("cid") } returns
-      listOf(track("long-1", "Anchor Song", "Artist Anchor"))
+      listOf(
+        track("long-1", "Anchor Song", "Artist Anchor"),
+        track("long-2", "Sad Song", "Artist Sad"),
+      )
     every { lastFmService.yearlyChartlist("cid", 2024, "login", Int.MAX_VALUE) } returns
       listOf(
         Song("Artist Anchor", "Anchor Song", 1_720_000_000),
@@ -347,6 +356,12 @@ class SpotifyTopPlaylistsServiceTest {
         Song("Artist Surge", "Surge Song", 1_730_300_000),
         Song("Artist Surge", "Surge Song", 1_730_320_000),
         Song("Artist Surge", "Surge Song", 1_730_340_000),
+        Song("Artist Happy", "Happy Song", 1_728_554_400),
+        Song("Artist Happy", "Happy Song", 1_728_741_600),
+        Song("Artist Happy", "Happy Song", 1_728_835_200),
+        Song("Artist Sad", "Sad Song", 1_728_689_400),
+        Song("Artist Sad", "Sad Song", 1_728_693_000),
+        Song("Artist Sad", "Sad Song", 1_728_696_600),
         Song("Artist Night", "Night Song", 1_730_347_200),
         Song("Artist Night", "Night Song", 1_730_350_800),
         Song("Artist Night", "Night Song", 1_730_354_400),
@@ -357,6 +372,7 @@ class SpotifyTopPlaylistsServiceTest {
         Song("Artist Anchor", "Anchor Song", 1_690_000_000),
         Song("Artist Anchor", "Anchor Song", 1_690_100_000),
         Song("Artist Surge", "Surge Song", 1_690_200_000),
+        Song("Artist Sad", "Sad Song", 1_697_067_900),
       )
     every { lastFmService.artistSimilar(any(), any()) } returns
       listOf(LastFmSimilarArtist("Artist Fresh", 0.7))
@@ -369,6 +385,8 @@ class SpotifyTopPlaylistsServiceTest {
             when (song.title) {
               "Anchor Song" -> "anchor-track"
               "Surge Song" -> "surge-track"
+              "Happy Song" -> "happy-track"
+              "Sad Song" -> "sad-track"
               "Night Song" -> "night-track"
               "Outer Edge" -> "frontier-track"
               "Fresh Cut" -> "fresh-track"
@@ -386,16 +404,18 @@ class SpotifyTopPlaylistsServiceTest {
 
     val result = service.updatePrivateMoodTaxonomyPlaylists("cid", "login")
 
-    assertEquals(4, result.playlists.size)
+    assertEquals(6, result.playlists.size)
     assertEquals(
-      listOf("Anchor", "Surge", "Night Drift", "Frontier"),
+      listOf("Anchor", "Happy", "Sad", "Surge", "Night Drift", "Frontier"),
       result.playlists.map { it.label },
     )
     assertTrue(result.playlists.all { it.playlistId.isNotBlank() })
-    verify(exactly = 4) {
+    assertTrue(result.playlists.associateBy { it.label }.getValue("Happy").trackCount > 0)
+    assertTrue(result.playlists.associateBy { it.label }.getValue("Sad").trackCount > 0)
+    verify(exactly = 6) {
       playlistService.createPlaylist(match { it.startsWith("Private Mood -") }, "cid", false)
     }
-    verify(exactly = 4) { playlistService.modifyPlaylist(any(), any(), "cid") }
+    verify(exactly = 6) { playlistService.modifyPlaylist(any(), any(), "cid") }
   }
 
   @Test

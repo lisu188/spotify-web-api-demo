@@ -193,10 +193,12 @@ playlists. The refresh runs in the background and shows progress in the UI.
 The current flow preserves the login across Last.fm auth redirects so the retry
 path can continue after the user authorizes access.
 
-Use **PRIVATE MOOD TAXONOMY** to build four private playlists from deterministic
+Use **PRIVATE MOOD TAXONOMY** to build six private playlists from deterministic
 Spotify + Last.fm listening heuristics:
 
 - `Private Mood - Anchor`
+- `Private Mood - Happy`
+- `Private Mood - Sad`
 - `Private Mood - Surge`
 - `Private Mood - Night Drift`
 - `Private Mood - Frontier`

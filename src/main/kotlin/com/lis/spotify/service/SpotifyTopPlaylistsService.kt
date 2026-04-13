@@ -409,6 +409,8 @@ class SpotifyTopPlaylistsService(
     val statsByKey = stats.associateBy { it.normalizedKey }
     val anchorCandidates = selectAnchorCandidates(stats, spotifySignals)
     val surgeCandidates = selectSurgeCandidates(stats, spotifySignals)
+    val happyCandidates = selectHappyCandidates(stats, spotifySignals)
+    val sadCandidates = selectSadCandidates(stats, spotifySignals)
     val nightDriftCandidates = selectNightDriftCandidates(stats, spotifySignals)
 
     progress(80, "Exploring frontier candidates")
@@ -423,22 +425,34 @@ class SpotifyTopPlaylistsService(
     val playlistCandidates =
       linkedMapOf(
         PrivateMoodPlaylistKind.ANCHOR to anchorCandidates,
+        PrivateMoodPlaylistKind.HAPPY to happyCandidates,
+        PrivateMoodPlaylistKind.SAD to sadCandidates,
         PrivateMoodPlaylistKind.SURGE to surgeCandidates,
         PrivateMoodPlaylistKind.NIGHT_DRIFT to nightDriftCandidates,
         PrivateMoodPlaylistKind.FRONTIER to frontierCandidates,
+      )
+    val playlistProcessingOrder =
+      listOf(
+        PrivateMoodPlaylistKind.HAPPY,
+        PrivateMoodPlaylistKind.SAD,
+        PrivateMoodPlaylistKind.NIGHT_DRIFT,
+        PrivateMoodPlaylistKind.SURGE,
+        PrivateMoodPlaylistKind.ANCHOR,
+        PrivateMoodPlaylistKind.FRONTIER,
       )
 
     val updatedPlaylistIds = mutableListOf<String>()
     val reservedCandidateKeys = mutableSetOf<Pair<String, String>>()
     val usedTrackIds = mutableSetOf<String>()
-    val playlistResults = mutableListOf<PrivateMoodPlaylistResult>()
+    val playlistResultsByKind = linkedMapOf<PrivateMoodPlaylistKind, PrivateMoodPlaylistResult>()
     val playlistProgressStart = 85
     val playlistProgressRange = 14
 
-    playlistCandidates.entries.forEachIndexed { index, (kind, candidates) ->
+    playlistProcessingOrder.forEachIndexed { index, kind ->
+      val candidates = playlistCandidates.getValue(kind)
       val filteredCandidates = candidates.filterNot { it.normalizedKey in reservedCandidateKeys }
       progress(
-        playlistProgressStart + ((index * playlistProgressRange) / playlistCandidates.size),
+        playlistProgressStart + ((index * playlistProgressRange) / playlistProcessingOrder.size),
         "Matching ${kind.label} on Spotify",
       )
       val matchedTracks =
@@ -465,7 +479,7 @@ class SpotifyTopPlaylistsService(
 
       updatedPlaylistIds += playlist.id
       usedTrackIds += matchedTracks.trackIds
-      playlistResults +=
+      playlistResultsByKind[kind] =
         PrivateMoodPlaylistResult(
           label = kind.label,
           playlistName = kind.playlistName(),
@@ -475,13 +489,16 @@ class SpotifyTopPlaylistsService(
         )
       progress(
         playlistProgressStart +
-          (((index + 1) * playlistProgressRange) / playlistCandidates.size).coerceAtMost(99),
+          (((index + 1) * playlistProgressRange) / playlistProcessingOrder.size).coerceAtMost(99),
         "${kind.label} playlist refreshed (${matchedTracks.trackIds.size} tracks)",
       )
     }
 
     progress(100, "Private mood taxonomy refreshed")
-    val result = PrivateMoodTaxonomyResult(playlistResults)
+    val result =
+      PrivateMoodTaxonomyResult(
+        PrivateMoodPlaylistKind.entries.mapNotNull { playlistResultsByKind[it] }
+      )
     logger.info(
       "Private mood taxonomy refreshed for {} -> {}",
       clientId,
@@ -607,6 +624,7 @@ class SpotifyTopPlaylistsService(
         recencySpikeRatio = recencySpikeRatio,
         stabilityScore = stabilityScore,
         noveltyScore = noveltyScore,
+        daytimePlayRatio = daytimePlayRatio(stat.hourHistogram, totalPlays),
         nightPlayRatio = stat.nightPlays / totalPlays,
         lateSessionRatio = stat.lateSessionPlays / totalPlays,
         nightPlays = stat.nightPlays,
@@ -745,6 +763,68 @@ class SpotifyTopPlaylistsService(
       .toList()
   }
 
+  private fun selectHappyCandidates(
+    stats: List<PrivateMoodSongStats>,
+    spotifySignals: PrivateMoodSpotifySignals,
+    limit: Int = Int.MAX_VALUE,
+  ): List<PrivateMoodCandidateSong> {
+    return stats
+      .asSequence()
+      .filter {
+        it.recentPlays90d > 0 &&
+          it.daytimePlayRatio >= PRIVATE_MOOD_HAPPY_MIN_DAYTIME_RATIO &&
+          it.nightPlayRatio <= PRIVATE_MOOD_HAPPY_MAX_NIGHT_RATIO
+      }
+      .map { stat ->
+        val score =
+          stat.daytimePlayRatio * 70.0 +
+            minOf(stat.weekendToWeekdayRatio, 3.0) * 18.0 +
+            stat.recencySpikeRatio * 14.0 +
+            stat.recentPlays30d * 5.0 +
+            stat.recentPlays90d * 2.0 +
+            stat.stabilityScore * 0.45 +
+            (if (stat.normalizedKey in spotifySignals.shortTermKeys) 30.0 else 0.0) +
+            (if (stat.normalizedKey in spotifySignals.midTermKeys) 14.0 else 0.0) -
+            stat.nightPlayRatio * 25.0
+        PrivateMoodCandidateSong(stat.song, stat.normalizedKey, score)
+      }
+      .sortedWith(privateMoodCandidateComparator())
+      .take(limit)
+      .toList()
+  }
+
+  private fun selectSadCandidates(
+    stats: List<PrivateMoodSongStats>,
+    spotifySignals: PrivateMoodSpotifySignals,
+    limit: Int = Int.MAX_VALUE,
+  ): List<PrivateMoodCandidateSong> {
+    return stats
+      .asSequence()
+      .filter {
+        it.totalPlays >= PRIVATE_MOOD_SAD_MIN_TOTAL_PLAYS &&
+          (it.activeYears >= 2 || it.normalizedKey in spotifySignals.longTermKeys) &&
+          (it.nightPlayRatio >= PRIVATE_MOOD_SAD_MIN_NIGHT_RATIO ||
+            it.lateSessionRatio >= PRIVATE_MOOD_SAD_MIN_LATE_SESSION_RATIO)
+      }
+      .map { stat ->
+        val score =
+          stat.stabilityScore * 2.6 +
+            stat.totalPlays * 1.5 +
+            stat.activeYears * 10.0 +
+            stat.nightPlayRatio * 42.0 +
+            stat.lateSessionRatio * 24.0 +
+            stat.recentPlays90d * 1.5 +
+            (if (stat.normalizedKey in spotifySignals.longTermKeys) 28.0 else 0.0) +
+            (if (stat.normalizedKey in spotifySignals.midTermKeys) 10.0 else 0.0) -
+            stat.daytimePlayRatio * 18.0 -
+            minOf(stat.weekendToWeekdayRatio, 3.0) * 5.0
+        PrivateMoodCandidateSong(stat.song, stat.normalizedKey, score)
+      }
+      .sortedWith(privateMoodCandidateComparator())
+      .take(limit)
+      .toList()
+  }
+
   private fun buildFrontierCandidates(
     statsByKey: Map<Pair<String, String>, PrivateMoodSongStats>,
     spotifySignals: PrivateMoodSpotifySignals,
@@ -845,6 +925,14 @@ class SpotifyTopPlaylistsService(
 
   private fun normalizedFrontierCandidateLimit(playlistSize: Int): Int {
     return maxOf(playlistSize * 4, PRIVATE_MOOD_FRONTIER_MIN_CANDIDATE_COUNT)
+  }
+
+  private fun daytimePlayRatio(hourHistogram: IntArray, totalPlays: Double): Double {
+    val daytimePlays =
+      (PRIVATE_MOOD_DAYTIME_START_HOUR until PRIVATE_MOOD_DAYTIME_END_HOUR).sumOf {
+        hourHistogram[it]
+      }
+    return daytimePlays / totalPlays
   }
 
   private fun matchPrivateMoodTrackIds(
@@ -1021,9 +1109,16 @@ class SpotifyTopPlaylistsService(
     private const val PRIVATE_MOOD_SEARCH_BATCH_SIZE = 100
     private const val PRIVATE_MOOD_ANCHOR_MIN_TOTAL_PLAYS = 4
     private const val PRIVATE_MOOD_SURGE_MIN_SPIKE_RATIO = 1.35
+    private const val PRIVATE_MOOD_HAPPY_MIN_DAYTIME_RATIO = 0.45
+    private const val PRIVATE_MOOD_HAPPY_MAX_NIGHT_RATIO = 0.35
+    private const val PRIVATE_MOOD_SAD_MIN_TOTAL_PLAYS = 4
+    private const val PRIVATE_MOOD_SAD_MIN_NIGHT_RATIO = 0.20
+    private const val PRIVATE_MOOD_SAD_MIN_LATE_SESSION_RATIO = 0.20
     private const val PRIVATE_MOOD_NIGHT_DRIFT_MIN_TOTAL_PLAYS = 3
     private const val PRIVATE_MOOD_NIGHT_RATIO_THRESHOLD = 0.35
     private const val PRIVATE_MOOD_LATE_SESSION_RATIO_THRESHOLD = 0.35
+    private const val PRIVATE_MOOD_DAYTIME_START_HOUR = 6
+    private const val PRIVATE_MOOD_DAYTIME_END_HOUR = 20
     private const val PRIVATE_MOOD_FRONTIER_MAX_USER_PLAYS = 5
     private const val PRIVATE_MOOD_FRONTIER_TRACK_SEED_LIMIT = 12
     private const val PRIVATE_MOOD_FRONTIER_ARTIST_SEED_LIMIT = 12
@@ -1079,6 +1174,7 @@ class SpotifyTopPlaylistsService(
     val recencySpikeRatio: Double,
     val stabilityScore: Double,
     val noveltyScore: Double,
+    val daytimePlayRatio: Double,
     val nightPlayRatio: Double,
     val lateSessionRatio: Double,
     val nightPlays: Int,
@@ -1116,6 +1212,8 @@ class SpotifyTopPlaylistsService(
 
   private enum class PrivateMoodPlaylistKind(val label: String) {
     ANCHOR("Anchor"),
+    HAPPY("Happy"),
+    SAD("Sad"),
     SURGE("Surge"),
     NIGHT_DRIFT("Night Drift"),
     FRONTIER("Frontier");
