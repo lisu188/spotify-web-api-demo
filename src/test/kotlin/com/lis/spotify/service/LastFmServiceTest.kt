@@ -2,6 +2,7 @@ package com.lis.spotify.service
 
 import com.lis.spotify.domain.Song
 import com.lis.spotify.persistence.InMemoryLastFmRecentTracksCacheStore
+import com.lis.spotify.persistence.LastFmRecentTracksCacheStore
 import com.lis.spotify.persistence.StoredLastFmRecentTracksPage
 import io.mockk.every
 import io.mockk.mockk
@@ -93,7 +94,7 @@ class LastFmServiceTest {
   fun yearlyChartlistUsesPersistentCacheAcrossServiceInstances() {
     val store = InMemoryLastFmRecentTracksCacheStore()
     val rest = mockk<RestTemplate>()
-    val firstService = service(store = store)
+    val firstService = service(store = store, persistentRecentTracksCacheEnabled = true)
     firstService.rest = rest
     every { rest.getForObject(any<URI>(), Map::class.java) } returns
       recentTracksPage(1, Song("A", "T1"))
@@ -101,7 +102,7 @@ class LastFmServiceTest {
     val firstSongs = firstService.yearlyChartlist("cid", 2020, "login")
 
     val secondRest = mockk<RestTemplate>(relaxed = true)
-    val secondService = service(store = store)
+    val secondService = service(store = store, persistentRecentTracksCacheEnabled = true)
     secondService.rest = secondRest
     val cachedSongs = secondService.yearlyChartlist("cid", 2020, "login")
 
@@ -111,6 +112,28 @@ class LastFmServiceTest {
     )
     verify(exactly = 1) { rest.getForObject(any<URI>(), Map::class.java) }
     verify(exactly = 0) { secondRest.getForObject(any<URI>(), Map::class.java) }
+  }
+
+  @Test
+  fun yearlyChartlistSkipsPersistentCacheAcrossServiceInstancesWhenDisabled() {
+    val store = InMemoryLastFmRecentTracksCacheStore()
+    val firstRest = mockk<RestTemplate>()
+    val secondRest = mockk<RestTemplate>()
+    val firstService = service(store = store)
+    val secondService = service(store = store)
+    firstService.rest = firstRest
+    secondService.rest = secondRest
+    every { firstRest.getForObject(any<URI>(), Map::class.java) } returns
+      recentTracksPage(1, Song("A", "T1"))
+    every { secondRest.getForObject(any<URI>(), Map::class.java) } returns
+      recentTracksPage(1, Song("A", "T1"))
+
+    val firstSongs = firstService.yearlyChartlist("cid", 2020, "login")
+    val secondSongs = secondService.yearlyChartlist("cid", 2020, "login")
+
+    assertEquals(firstSongs, secondSongs)
+    verify(exactly = 1) { firstRest.getForObject(any<URI>(), Map::class.java) }
+    verify(exactly = 1) { secondRest.getForObject(any<URI>(), Map::class.java) }
   }
 
   @Test
@@ -129,7 +152,12 @@ class LastFmServiceTest {
         expiresAt = Instant.parse("2026-04-15T10:00:00Z"),
       )
     )
-    val service = service(store = store, clock = fixedClock("2026-04-08T10:00:00Z"))
+    val service =
+      service(
+        store = store,
+        clock = fixedClock("2026-04-08T10:00:00Z"),
+        persistentRecentTracksCacheEnabled = true,
+      )
 
     val songs = service.yearlyChartlist("cid", 2020, "login")
 
@@ -140,7 +168,12 @@ class LastFmServiceTest {
   fun yearlyChartlistRefreshesExpiredPersistentCache() {
     val store = InMemoryLastFmRecentTracksCacheStore()
     val rest = mockk<RestTemplate>()
-    val firstService = service(store = store, clock = fixedClock("2026-04-08T10:00:00Z"))
+    val firstService =
+      service(
+        store = store,
+        clock = fixedClock("2026-04-08T10:00:00Z"),
+        persistentRecentTracksCacheEnabled = true,
+      )
     firstService.rest = rest
     every { rest.getForObject(any<URI>(), Map::class.java) } returns
       recentTracksPage(1, Song("A", "T1"))
@@ -150,7 +183,12 @@ class LastFmServiceTest {
     val expiredRest = mockk<RestTemplate>()
     every { expiredRest.getForObject(any<URI>(), Map::class.java) } returns
       recentTracksPage(1, Song("A", "T1"))
-    val secondService = service(store = store, clock = fixedClock("2026-04-16T10:00:01Z"))
+    val secondService =
+      service(
+        store = store,
+        clock = fixedClock("2026-04-16T10:00:01Z"),
+        persistentRecentTracksCacheEnabled = true,
+      )
     secondService.rest = expiredRest
 
     secondService.yearlyChartlist("cid", 2020, "login")
@@ -200,6 +238,23 @@ class LastFmServiceTest {
     }
 
     assertEquals(2, maxActiveRequests.get())
+  }
+
+  @Test
+  fun yearlyChartlistFallsBackToNetworkWhenPersistentCacheReadFails() {
+    val store = mockk<LastFmRecentTracksCacheStore>()
+    val rest = mockk<RestTemplate>()
+    val service = service(store = store, persistentRecentTracksCacheEnabled = true)
+    service.rest = rest
+    every { store.findByKey(any()) } throws IllegalStateException("boom")
+    every { store.save(any()) } answers { firstArg() }
+    every { rest.getForObject(any<URI>(), Map::class.java) } returns
+      recentTracksPage(1, Song("A", "T1"))
+
+    val songs = service.yearlyChartlist("cid", 2020, "login")
+
+    assertEquals(listOf(Song("A", "T1")), songs)
+    verify(exactly = 1) { rest.getForObject(any<URI>(), Map::class.java) }
   }
 
   @Test
@@ -451,10 +506,12 @@ class LastFmServiceTest {
 
   private fun service(
     auth: LastFmAuthenticationService = mockk(relaxed = true),
-    store: InMemoryLastFmRecentTracksCacheStore = InMemoryLastFmRecentTracksCacheStore(),
+    store: LastFmRecentTracksCacheStore = InMemoryLastFmRecentTracksCacheStore(),
     clock: Clock = fixedClock(),
     recentTracksParallelism: Int = LastFmService.DEFAULT_RECENT_TRACKS_MAX_PARALLELISM,
     cacheTtl: Duration = LastFmService.DEFAULT_CACHE_TTL,
+    persistentRecentTracksCacheEnabled: Boolean =
+      LastFmService.DEFAULT_PERSISTENT_RECENT_TRACKS_CACHE_ENABLED,
   ): LastFmService {
     return LastFmService(
       lastFmAuthService = auth,
@@ -462,6 +519,7 @@ class LastFmServiceTest {
       clock = clock,
       configuredRecentTracksParallelism = recentTracksParallelism,
       configuredCacheTtl = cacheTtl,
+      configuredPersistentRecentTracksCacheEnabled = persistentRecentTracksCacheEnabled,
     )
   }
 

@@ -59,7 +59,7 @@ class SpotifyTopPlaylistsService(
   var spotifyTopTrackService: SpotifyTopTrackService,
   var lastFmService: LastFmService,
   var spotifySearchService: SpotifySearchService,
-  @Value("\${lastfm.jobs.max-parallelism:16}")
+  @Value("\${lastfm.jobs.max-parallelism:4}")
   configuredYearlyParallelism: Int = DEFAULT_YEARLY_PARALLELISM,
 ) {
 
@@ -1096,7 +1096,7 @@ class SpotifyTopPlaylistsService(
   }
 
   companion object {
-    internal const val DEFAULT_YEARLY_PARALLELISM = 16
+    internal const val DEFAULT_YEARLY_PARALLELISM = 4
     private const val FIRST_SUPPORTED_YEAR = 2005
     private const val FORGOTTEN_OBSESSIONS_PLAYLIST_NAME = "Forgotten Obsessions"
     private const val FORGOTTEN_OBSESSIONS_MIN_PLAY_COUNT = 5

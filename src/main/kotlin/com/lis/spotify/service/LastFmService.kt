@@ -37,16 +37,20 @@ class LastFmService(
   private val lastFmAuthService: LastFmAuthenticationService,
   private val lastFmRecentTracksCacheStore: LastFmRecentTracksCacheStore,
   private val clock: Clock,
-  @Value("\${lastfm.recent-tracks.max-parallelism:16}")
+  @Value("\${lastfm.recent-tracks.max-parallelism:4}")
   configuredRecentTracksParallelism: Int = DEFAULT_RECENT_TRACKS_MAX_PARALLELISM,
   @Value("\${lastfm.recent-tracks.cache-ttl:PT168H}")
   configuredCacheTtl: Duration = DEFAULT_CACHE_TTL,
+  @Value("\${lastfm.recent-tracks.persistent-cache.enabled:false}")
+  configuredPersistentRecentTracksCacheEnabled: Boolean =
+    DEFAULT_PERSISTENT_RECENT_TRACKS_CACHE_ENABLED,
 ) {
 
   internal var rest = RestTemplate()
   internal var sleeper: LastFmSleeper = LastFmSleeper { millis -> Thread.sleep(millis) }
   internal var recentTracksParallelism = configuredRecentTracksParallelism.coerceAtLeast(1)
   internal var cacheTtl = configuredCacheTtl
+  internal var persistentRecentTracksCacheEnabled = configuredPersistentRecentTracksCacheEnabled
 
   private val logger = LoggerFactory.getLogger(LastFmService::class.java)
   private val mapper = jacksonObjectMapper()
@@ -451,8 +455,16 @@ class LastFmService(
         updatedAt = now,
         expiresAt = now.plus(cacheTtl),
       )
-    lastFmRecentTracksCacheStore.save(entry)
     recentTracksCache.put(cacheKey, entry)
+    if (!persistentRecentTracksCacheEnabled) {
+      return
+    }
+
+    try {
+      lastFmRecentTracksCacheStore.save(entry)
+    } catch (ex: Exception) {
+      logger.warn("Failed to persist Last.fm recent-tracks cache {}", cacheKey, ex)
+    }
   }
 
   private fun findFreshRecentTracksPage(
@@ -468,7 +480,17 @@ class LastFmService(
         }
     }
 
-    val storedEntry = lastFmRecentTracksCacheStore.findByKey(cacheKey) ?: return null
+    if (!persistentRecentTracksCacheEnabled) {
+      return null
+    }
+
+    val storedEntry =
+      try {
+        lastFmRecentTracksCacheStore.findByKey(cacheKey)
+      } catch (ex: Exception) {
+        logger.warn("Failed to load cached Last.fm recent-tracks page {}", cacheKey, ex)
+        null
+      } ?: return null
     if (!storedEntry.isFresh(now)) {
       return null
     }
@@ -529,8 +551,9 @@ class LastFmService(
   companion object {
     internal const val LASTFM_FETCH_ATTEMPTS = 3
     internal const val LASTFM_RETRY_DELAY_MS = 250L
-    internal const val DEFAULT_RECENT_TRACKS_MAX_PARALLELISM = 16
+    internal const val DEFAULT_RECENT_TRACKS_MAX_PARALLELISM = 4
     internal val DEFAULT_CACHE_TTL: Duration = Duration.ofDays(7)
+    internal const val DEFAULT_PERSISTENT_RECENT_TRACKS_CACHE_ENABLED = false
     private const val AUTHENTICATION_REQUIRED_CODE = 17
     private const val TRANSIENT_BACKEND_ERROR_CODE = 8
     private const val RECENT_TRACKS_PAGE_SIZE = 200
