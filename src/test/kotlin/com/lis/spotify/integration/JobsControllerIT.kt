@@ -5,6 +5,7 @@ import com.github.tomakehurst.wiremock.client.WireMock.configureFor
 import com.github.tomakehurst.wiremock.client.WireMock.reset as wireMockReset
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
 import com.lis.spotify.service.AuthenticationRequiredException
+import com.lis.spotify.service.ForgottenObsessionsPlaylistResult
 import com.lis.spotify.service.SpotifyTopPlaylistsService
 import io.mockk.clearMocks
 import io.mockk.every
@@ -72,6 +73,8 @@ constructor(
     wireMockReset()
     clearMocks(playlistService)
     every { playlistService.updateYearlyPlaylists(any(), any(), any()) } returns Unit
+    every { playlistService.updateForgottenObsessionsPlaylist(any(), any(), any()) } returns
+      ForgottenObsessionsPlaylistResult("playlist-1", 12, 18)
     every { playlistService.updateTopPlaylists(any()) } returns emptyList()
   }
 
@@ -109,12 +112,40 @@ constructor(
     assertEquals("/auth/lastfm?lastFmLogin=login", status.body?.get("redirectUrl"))
   }
 
+  @Test
+  fun forgottenObsessionsJobReturnsPlaylistIds() {
+    val headers = HttpHeaders()
+    headers.add(HttpHeaders.COOKIE, "clientId=cid")
+    val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
+
+    val resp = rest.postForEntity("/jobs/forgotten-obsessions", req, Map::class.java)
+    val jobId = resp.body?.get("jobId") as String
+    val status = rest.getForEntity("/jobs/$jobId", Map::class.java)
+
+    assertEquals(HttpStatus.OK, status.statusCode)
+    assertEquals("COMPLETED", status.body?.get("state"))
+    assertEquals(listOf("playlist-1"), status.body?.get("playlistIds"))
+  }
+
+  @Test
+  fun forgottenObsessionsJobRejectsBlankLogin() {
+    val headers = HttpHeaders()
+    headers.add(HttpHeaders.COOKIE, "clientId=cid")
+    val req = HttpEntity(mapOf("lastFmLogin" to "   "), headers)
+
+    val resp = rest.postForEntity("/jobs/forgotten-obsessions", req, Map::class.java)
+
+    assertEquals(HttpStatus.BAD_REQUEST, resp.statusCode)
+  }
+
   class Config {
     @Bean
     @Primary
     fun playlistService(taskScheduler: TaskScheduler): SpotifyTopPlaylistsService {
       val svc = mockk<SpotifyTopPlaylistsService>(relaxed = true)
       every { svc.updateYearlyPlaylists(any(), any(), any()) } returns Unit
+      every { svc.updateForgottenObsessionsPlaylist(any(), any(), any()) } returns
+        ForgottenObsessionsPlaylistResult("playlist-1", 12, 18)
       every { svc.updateTopPlaylists(any()) } returns emptyList()
       return svc
     }

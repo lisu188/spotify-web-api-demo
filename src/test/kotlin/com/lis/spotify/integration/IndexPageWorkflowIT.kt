@@ -111,21 +111,25 @@ class IndexPageWorkflowIT {
 
     val login = page.getHtmlElementById("lastFmId") as HtmlInput
     val button = page.getHtmlElementById("lastfm") as HtmlButton
+    val forgottenButton = page.getHtmlElementById("forgottenObsessions") as HtmlButton
     val status = page.getHtmlElementById("lastfmStatus") as HtmlElement
 
     assertTrue(button.isDisabled)
-    assertEquals("Enter your Last.fm login to enable yearly refresh.", status.asNormalizedText())
+    assertTrue(forgottenButton.isDisabled)
+    assertEquals("Enter your Last.fm login to enable Last.fm tools.", status.asNormalizedText())
 
     setInputValue(page, login, "missing-user")
     waitForJs()
 
     assertTrue(button.isDisabled)
+    assertTrue(forgottenButton.isDisabled)
     assertEquals("Last.fm login not found.", status.asNormalizedText())
 
     setInputValue(page, login, "valid-user")
     waitForJs()
 
     assertFalse(button.isDisabled)
+    assertFalse(forgottenButton.isDisabled)
     assertEquals("", status.asNormalizedText())
   }
 
@@ -145,7 +149,7 @@ class IndexPageWorkflowIT {
           if (options.url.indexOf('/jobs/job-1') !== -1) {
             return {
               status: 200,
-              responseText: '{"jobId":"job-1","state":"COMPLETED","progressPercent":100,"message":"Yearly playlists refreshed","redirectUrl":null}'
+              responseText: '{"jobId":"job-1","state":"COMPLETED","progressPercent":100,"message":"Yearly playlists refreshed","redirectUrl":null,"playlistIds":[]}'
             };
           }
           return { status: 404, responseText: 'null' };
@@ -190,7 +194,7 @@ class IndexPageWorkflowIT {
           if (options.url.indexOf('/jobs/job-2') !== -1) {
             return {
               status: 200,
-              responseText: '{"jobId":"job-2","state":"FAILED","progressPercent":40,"message":"Last.fm authentication required","redirectUrl":"/index.html?lastFmAuth=1"}'
+              responseText: '{"jobId":"job-2","state":"FAILED","progressPercent":40,"message":"Last.fm authentication required","redirectUrl":"/index.html?lastFmAuth=1","playlistIds":[]}'
             };
           }
           return { status: 404, responseText: 'null' };
@@ -215,6 +219,53 @@ class IndexPageWorkflowIT {
     assertFalse(progressBar.getAttribute("class").contains("progress-bar-animated"))
     assertTrue(status.asNormalizedText().contains("Last.fm authentication required"))
     assertTrue(status.asNormalizedText().contains("Redirecting"))
+  }
+
+  @Test
+  fun shouldRenderForgottenObsessionsPlaylistAfterSuccessfulJob() {
+    val page = loadIndexPage()
+    installAjaxMock(
+      page,
+      """
+        window.__uiTestMockAjax = function (options) {
+          if (options.url.indexOf('/verifyLastFmId/valid-user') !== -1) {
+            return { status: 200, responseText: 'true' };
+          }
+          if (options.url.indexOf('/jobs/forgotten-obsessions') !== -1 && options.type === 'post') {
+            return { status: 202, responseText: '{"jobId":"job-3"}', json: true };
+          }
+          if (options.url.indexOf('/jobs/job-3') !== -1) {
+            return {
+              status: 200,
+              responseText: '{"jobId":"job-3","state":"COMPLETED","progressPercent":100,"message":"Forgotten obsessions playlist refreshed (12 tracks)","redirectUrl":null,"playlistIds":["playlist-1"]}'
+            };
+          }
+          return { status: 404, responseText: 'null' };
+        };
+      """,
+    )
+
+    val login = page.getHtmlElementById("lastFmId") as HtmlInput
+    val forgottenButton = page.getHtmlElementById("forgottenObsessions") as HtmlButton
+
+    setInputValue(page, login, "valid-user")
+    waitForJs()
+    assertFalse(forgottenButton.isDisabled)
+
+    triggerClick(page, "forgottenObsessions")
+    waitForJs(4000)
+
+    val status = page.getHtmlElementById("lastfmStatus") as HtmlElement
+    val iframeCount =
+      (page
+          .executeJavaScript(
+            "document.querySelectorAll('#forgottenObsessionsPlaylists iframe').length;"
+          )
+          .javaScriptResult as Number)
+        .toInt()
+
+    assertEquals("Forgotten obsessions playlist refreshed (12 tracks)", status.asNormalizedText())
+    assertEquals(1, iframeCount)
   }
 
   private fun loadIndexPage(): HtmlPage {

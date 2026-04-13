@@ -103,4 +103,27 @@ class JobServiceTest {
     assertEquals("lastfm-login", stored?.lastFmLogin)
     assertTrue(stored!!.expiresAt.isAfter(stored.createdAt))
   }
+
+  @Test
+  fun forgottenObsessionsJobStoresPlaylistIds() {
+    val playlistService = mockk<SpotifyTopPlaylistsService>()
+    val jobStatusStore = InMemoryJobStatusStore()
+    val scheduler = mockk<TaskScheduler>()
+    val runnable = slot<Runnable>()
+    every { scheduler.schedule(capture(runnable), any<java.util.Date>()) } answers
+      {
+        runnable.captured.run()
+        mockk(relaxed = true)
+      }
+    every { playlistService.updateForgottenObsessionsPlaylist(any(), any(), any()) } returns
+      ForgottenObsessionsPlaylistResult("playlist-1", 12, 18)
+    val service = JobService(playlistService, jobStatusStore, scheduler)
+
+    val jobId = service.startForgottenObsessionsJob("c", "login")
+
+    val status = service.getJobStatus(jobId)
+    assertEquals(JobState.COMPLETED, status?.state)
+    assertEquals(listOf("playlist-1"), status?.playlistIds)
+    assertEquals("Forgotten obsessions playlist refreshed (12 tracks)", status?.message)
+  }
 }

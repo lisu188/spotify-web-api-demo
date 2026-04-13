@@ -15,6 +15,7 @@ data class StoredJobStatus(
   val progressPercent: Int,
   val message: String,
   val redirectUrl: String? = null,
+  val playlistIds: List<String> = emptyList(),
   val clientId: String,
   val lastFmLogin: String,
   val createdAt: Instant,
@@ -28,6 +29,7 @@ data class StoredJobStatus(
       progressPercent = progressPercent,
       message = message,
       redirectUrl = redirectUrl,
+      playlistIds = playlistIds,
     )
   }
 
@@ -45,6 +47,9 @@ data class StoredJobStatus(
         "expiresAt" to expiresAt.toFirestoreTimestamp(),
       )
     redirectUrl?.let { data["redirectUrl"] = it }
+    if (playlistIds.isNotEmpty()) {
+      data["playlistIds"] = playlistIds
+    }
     return data
   }
 
@@ -60,6 +65,9 @@ data class StoredJobStatus(
           ?: return null
       val progressPercent = document.getLong("progressPercent")?.toInt() ?: 0
       val message = document.getString("message").orEmpty()
+      @Suppress("UNCHECKED_CAST")
+      val playlistIds =
+        (document.get("playlistIds") as? List<*>)?.filterIsInstance<String>().orEmpty()
       val clientId = document.getString("clientId").orEmpty()
       val lastFmLogin = document.getString("lastFmLogin").orEmpty()
       val createdAt = document.getInstant("createdAt") ?: return null
@@ -72,6 +80,7 @@ data class StoredJobStatus(
         progressPercent = progressPercent,
         message = message,
         redirectUrl = document.getString("redirectUrl"),
+        playlistIds = playlistIds,
         clientId = clientId,
         lastFmLogin = lastFmLogin,
         createdAt = createdAt,

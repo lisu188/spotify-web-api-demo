@@ -30,15 +30,23 @@
     </button>
 </div>
 <div id="lastFmSection">
-    <button class="btn btn-secondary btn-lg" disabled id="lastfm" type="button">LAST.FM</button>
     <input class="form-control" id="lastFmId" placeholder="Enter last.fm login..." type="text"/>
-    <div class="text-muted small mt-1" id="lastfmStatus">Enter your Last.fm login to enable yearly refresh.</div>
+    <div class="row mt-2">
+        <div class="col-md-6">
+            <button class="btn btn-secondary btn-lg" disabled id="lastfm" type="button">YEARLY LAST.FM</button>
+        </div>
+        <div class="col-md-6 mt-2 mt-md-0">
+            <button class="btn btn-secondary btn-lg" disabled id="forgottenObsessions" type="button">FORGOTTEN OBSESSIONS</button>
+        </div>
+    </div>
+    <div class="text-muted small mt-1" id="lastfmStatus">Enter your Last.fm login to enable Last.fm tools.</div>
     <div class="progress mt-2 d-none" id="lastfmProgress">
         <div aria-valuemax="100" aria-valuemin="0" aria-valuenow="0"
              class="progress-bar progress-bar-striped progress-bar-animated" id="lastfmProgressBar"
              role="progressbar" style="width: 0%;">0%
         </div>
     </div>
+    <div class="mt-3" id="forgottenObsessionsPlaylists"></div>
 </div>
 
 <div class="mt-4" id="bandSection">
