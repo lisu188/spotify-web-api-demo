@@ -65,8 +65,7 @@ class JobService(
         when {
           result.playlistId != null ->
             JobCompletion(
-              message =
-                "Forgotten obsessions playlist refreshed (${result.matchedTrackCount} tracks)",
+              message = forgottenObsessionsCompletionMessage(result),
               playlistIds = listOf(result.playlistId),
             )
           result.candidateCount == 0 -> JobCompletion("No forgotten obsessions found yet")
@@ -169,6 +168,19 @@ class JobService(
             createdAt = createdAt,
             expiresAt = expiresAt,
           )
+        } catch (e: PlaylistUpdateException) {
+          logger.error("Playlist update failed during job {}", id, e)
+          updateJob(
+            jobId = id,
+            state = JobState.FAILED,
+            progressPercent = currentProgress(id),
+            message = failureMessage,
+            playlistIds = e.playlistIds,
+            clientId = clientId,
+            lastFmLogin = lastFmLogin,
+            createdAt = createdAt,
+            expiresAt = expiresAt,
+          )
         } catch (e: Exception) {
           logger.error("Job {} failed", id, e)
           updateJob(
@@ -225,6 +237,16 @@ class JobService(
       message,
     )
     return status
+  }
+
+  private fun forgottenObsessionsCompletionMessage(
+    result: ForgottenObsessionsPlaylistResult
+  ): String {
+    return if (result.spotifyMatchCount > result.playlistTrackCount) {
+      "Forgotten obsessions playlist refreshed (${result.playlistTrackCount} of ${result.spotifyMatchCount} Spotify matches)"
+    } else {
+      "Forgotten obsessions playlist refreshed (${result.playlistTrackCount} tracks)"
+    }
   }
 
   companion object {

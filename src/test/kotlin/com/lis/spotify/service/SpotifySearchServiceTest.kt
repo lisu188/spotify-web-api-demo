@@ -48,6 +48,65 @@ class SpotifySearchServiceTest {
   }
 
   @Test
+  fun searchPrefersClosestTrackMatchOverFirstResult() {
+    val rest = mockk<SpotifyRestService>()
+    val service = SpotifySearchService(rest, InMemorySpotifySearchCacheStore(), fixedClock())
+    val result =
+      SearchResult(
+        SearchResultInternal(
+          listOf(
+            Track(
+              "wrong",
+              "Completely Different Song",
+              listOf(Artist("wrong-artist", "Another Artist")),
+              Album("wrong-album", "Wrong Album", emptyList()),
+            ),
+            Track(
+              "best",
+              "The Less I Know The Better",
+              listOf(Artist("artist-1", "Tame Impala")),
+              Album("album-1", "Currents", emptyList()),
+            ),
+          )
+        )
+      )
+
+    val bestId =
+      service.selectClosestTrackId(Song("Tame Impala", "The Less I Know The Better"), result)
+
+    assertEquals("best", bestId)
+  }
+
+  @Test
+  fun searchTreatsVersionedTrackNamesAsSameSong() {
+    val rest = mockk<SpotifyRestService>()
+    val service = SpotifySearchService(rest, InMemorySpotifySearchCacheStore(), fixedClock())
+    val result =
+      SearchResult(
+        SearchResultInternal(
+          listOf(
+            Track(
+              "best",
+              "Dreams - 2004 Remaster",
+              listOf(Artist("artist-1", "Fleetwood Mac")),
+              Album("album-1", "Rumours", emptyList()),
+            ),
+            Track(
+              "worse",
+              "Dreams",
+              listOf(Artist("artist-2", "Different Artist")),
+              Album("album-2", "Compilation", emptyList()),
+            ),
+          )
+        )
+      )
+
+    val bestId = service.selectClosestTrackId(Song("Fleetwood Mac", "Dreams"), result)
+
+    assertEquals("best", bestId)
+  }
+
+  @Test
   fun searchCacheIsScopedByClientId() {
     val rest = mockk<SpotifyRestService>()
     val service = SpotifySearchService(rest, InMemorySpotifySearchCacheStore(), fixedClock())
@@ -121,8 +180,6 @@ class SpotifySearchServiceTest {
     val maxActiveRequests = AtomicInteger()
     val startedRequests = CountDownLatch(2)
     val releaseRequests = CountDownLatch(1)
-    val ids = AtomicInteger()
-
     every { rest.doRequest(any<() -> Any>()) } answers
       {
         val active = activeRequests.incrementAndGet()
@@ -131,17 +188,16 @@ class SpotifySearchServiceTest {
         startedRequests.await(2, TimeUnit.SECONDS)
         releaseRequests.await(2, TimeUnit.SECONDS)
         activeRequests.decrementAndGet()
-        val id = ids.incrementAndGet().toString()
         SearchResult(
           SearchResultInternal(
-            listOf(
+            (1..4).map { trackIndex ->
               Track(
-                id,
-                "track-$id",
-                listOf(Artist("artist-$id", "artist-$id")),
-                Album("album-$id", "album-$id", emptyList()),
+                trackIndex.toString(),
+                "title-$trackIndex",
+                listOf(Artist("artist-$trackIndex", "artist-$trackIndex")),
+                Album("album-$trackIndex", "album-$trackIndex", emptyList()),
               )
-            )
+            }
           )
         )
       }
@@ -211,7 +267,14 @@ class SpotifySearchServiceTest {
     val result =
       SearchResult(
         SearchResultInternal(
-          listOf(Track("ok", "ok", listOf(Artist("2", "a")), Album("3", "al", emptyList())))
+          listOf(
+            Track(
+              "ok",
+              "good track",
+              listOf(Artist("2", "good artist")),
+              Album("3", "al", emptyList()),
+            )
+          )
         )
       )
     val exception =
@@ -229,7 +292,11 @@ class SpotifySearchServiceTest {
       exception andThen
       result
 
-    val ids = service.doSearch(listOf(Song("bad", "track"), Song("good", "track")), "cid")
+    val ids =
+      service.doSearch(
+        listOf(Song("good artist", "good track"), Song("good artist", "good track")),
+        "cid",
+      )
 
     assertEquals(listOf("ok"), ids)
     assertEquals(

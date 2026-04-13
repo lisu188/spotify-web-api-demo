@@ -280,7 +280,7 @@ class IndexPageWorkflowIT {
       """
         var event = document.createEvent('Event');
         event.initEvent('input', true, true);
-        document.getElementById('lastFmId').dispatchEvent(event);
+        document.getElementById('${input.id}').dispatchEvent(event);
       """
         .trimIndent()
     )

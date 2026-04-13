@@ -74,7 +74,7 @@ constructor(
     clearMocks(playlistService)
     every { playlistService.updateYearlyPlaylists(any(), any(), any()) } returns Unit
     every { playlistService.updateForgottenObsessionsPlaylist(any(), any(), any()) } returns
-      ForgottenObsessionsPlaylistResult("playlist-1", 12, 18)
+      ForgottenObsessionsPlaylistResult("playlist-1", 12, 12, 18)
     every { playlistService.updateTopPlaylists(any()) } returns emptyList()
   }
 
@@ -145,7 +145,7 @@ constructor(
       val svc = mockk<SpotifyTopPlaylistsService>(relaxed = true)
       every { svc.updateYearlyPlaylists(any(), any(), any()) } returns Unit
       every { svc.updateForgottenObsessionsPlaylist(any(), any(), any()) } returns
-        ForgottenObsessionsPlaylistResult("playlist-1", 12, 18)
+        ForgottenObsessionsPlaylistResult("playlist-1", 12, 12, 18)
       every { svc.updateTopPlaylists(any()) } returns emptyList()
       return svc
     }

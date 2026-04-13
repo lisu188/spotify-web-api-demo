@@ -17,10 +17,12 @@ import com.google.common.cache.Cache
 import com.google.common.cache.CacheBuilder
 import com.lis.spotify.domain.SearchResult
 import com.lis.spotify.domain.Song
+import com.lis.spotify.domain.Track
 import com.lis.spotify.persistence.SpotifySearchCacheStore
 import com.lis.spotify.persistence.StoredSpotifySearchCacheEntry
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
+import java.text.Normalizer
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -55,6 +57,12 @@ class SpotifySearchService(
     internal const val SPOTIFY_SEARCH_ATTEMPTS = 3
     internal const val SPOTIFY_SEARCH_RETRY_DELAY_MS = 250L
     private val WHITESPACE_REGEX = "\\s+".toRegex()
+    private val DIACRITICS_REGEX = "\\p{M}+".toRegex()
+    private val NON_ALPHANUMERIC_REGEX = "[^a-z0-9 ]+".toRegex()
+    private val BRACKETED_SUFFIX_REGEX = "\\s*[\\[(].*?[\\])]\\s*".toRegex()
+    private val VERSION_SUFFIX_REGEX =
+      "\\s+-\\s+((\\d{2,4}\\s+)?)?(remaster(ed)?|live|mono|stereo|acoustic|demo|radio edit|edit|mix|version).*$"
+        .toRegex()
   }
 
   internal var maxParallelism = configuredMaxParallelism.coerceAtLeast(1)
@@ -110,7 +118,7 @@ class SpotifySearchService(
             semaphore.withPermit {
               val result = doSearch(song, clientId)
               progress()
-              result?.tracks?.items?.firstOrNull()?.id
+              selectClosestTrackId(song, result)
             }
           }
         }
@@ -238,6 +246,48 @@ class SpotifySearchService(
     return "track:${song.title.normalizeForQuery()} artist:${song.artist.normalizeForQuery()}"
   }
 
+  internal fun selectClosestTrackId(song: Song, result: SearchResult?): String? {
+    val bestMatch =
+      result
+        ?.tracks
+        ?.items
+        ?.map { track -> track to matchScore(song, track) }
+        ?.filter { (_, score) -> score > 0 }
+        ?.maxByOrNull { it.second } ?: return null
+    return bestMatch.first.id
+  }
+
+  private fun matchScore(song: Song, track: Track): Int {
+    val normalizedSongTitle = song.title.normalizeForMatch()
+    val normalizedTrackTitle = track.name.normalizeForMatch()
+    val simplifiedSongTitle = song.title.normalizeTitleForMatch()
+    val simplifiedTrackTitle = track.name.normalizeTitleForMatch()
+
+    val titleScore =
+      when {
+        normalizedSongTitle == normalizedTrackTitle -> 1000
+        simplifiedSongTitle.isNotBlank() && simplifiedSongTitle == simplifiedTrackTitle -> 900
+        else -> (tokenSimilarity(normalizedSongTitle, normalizedTrackTitle) * 600).toInt()
+      }
+
+    val normalizedSongArtist = song.artist.normalizeForMatch()
+    val artistScores =
+      track.artists.map { artist ->
+        val normalizedTrackArtist = artist.name.normalizeForMatch()
+        when {
+          normalizedSongArtist == normalizedTrackArtist -> 1000
+          else -> (tokenSimilarity(normalizedSongArtist, normalizedTrackArtist) * 700).toInt()
+        }
+      }
+    val artistScore = artistScores.maxOrNull() ?: 0
+
+    if (titleScore < 250 || artistScore < 250) {
+      return 0
+    }
+
+    return titleScore + artistScore
+  }
+
   private fun cacheKey(clientId: String, query: String): String {
     return sha256("$clientId|$query")
   }
@@ -250,6 +300,38 @@ class SpotifySearchService(
 
   private fun String.normalizeForQuery(): String {
     return trim().replace(WHITESPACE_REGEX, " ")
+  }
+
+  private fun String.normalizeForMatch(): String {
+    val decomposed = Normalizer.normalize(trim().lowercase(), Normalizer.Form.NFD)
+    return decomposed
+      .replace(DIACRITICS_REGEX, "")
+      .replace('&', ' ')
+      .replace(NON_ALPHANUMERIC_REGEX, " ")
+      .replace(WHITESPACE_REGEX, " ")
+      .trim()
+  }
+
+  private fun String.normalizeTitleForMatch(): String {
+    val simplified =
+      trim().lowercase().replace(BRACKETED_SUFFIX_REGEX, " ").replace(VERSION_SUFFIX_REGEX, " ")
+    return simplified.normalizeForMatch()
+  }
+
+  private fun tokenSimilarity(left: String, right: String): Double {
+    if (left.isBlank() || right.isBlank()) {
+      return 0.0
+    }
+
+    val leftTokens = left.split(' ').filter { it.isNotBlank() }.toSet()
+    val rightTokens = right.split(' ').filter { it.isNotBlank() }.toSet()
+    if (leftTokens.isEmpty() || rightTokens.isEmpty()) {
+      return 0.0
+    }
+
+    val intersectionSize = leftTokens.intersect(rightTokens).size
+    val unionSize = leftTokens.union(rightTokens).size.coerceAtLeast(1)
+    return intersectionSize.toDouble() / unionSize.toDouble()
   }
 
   internal fun clearCache() {
