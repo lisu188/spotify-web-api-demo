@@ -233,20 +233,53 @@ class SpotifyTopPlaylistsService(
       )
     }
 
-    progress(((years.size + 1) * 100) / totalSteps, "Matching forgotten obsessions on Spotify")
+    val matchingProgressStart = ((years.size + 1) * 100) / totalSteps
+    val totalMatchingBatches =
+      ((candidates.size + FORGOTTEN_OBSESSIONS_SEARCH_BATCH_SIZE - 1) /
+          FORGOTTEN_OBSESSIONS_SEARCH_BATCH_SIZE)
+        .coerceAtLeast(1)
+    progress(matchingProgressStart, "Matching forgotten obsessions on Spotify")
+    logger.info(
+      "Matching {} forgotten obsessions candidates on Spotify across {} batches",
+      candidates.size,
+      totalMatchingBatches,
+    )
     val trackIds = mutableListOf<String>()
     var spotifyMatchCount = 0
     var candidateOffset = 0
-    while (candidateOffset < candidates.size) {
+    var batchIndex = 0
+    while (
+      candidateOffset < candidates.size && trackIds.size < FORGOTTEN_OBSESSIONS_TARGET_TRACK_COUNT
+    ) {
       val batch = candidates.drop(candidateOffset).take(FORGOTTEN_OBSESSIONS_SEARCH_BATCH_SIZE)
       val matchedBatch =
         runBlocking(Dispatchers.IO) { spotifySearchService.searchTrackIds(batch, clientId) }
       spotifyMatchCount += matchedBatch.size
-      if (trackIds.size < FORGOTTEN_OBSESSIONS_TARGET_TRACK_COUNT) {
-        val remainingCapacity = FORGOTTEN_OBSESSIONS_TARGET_TRACK_COUNT - trackIds.size
-        trackIds += matchedBatch.filterNot { it in trackIds }.take(remainingCapacity)
-      }
+      val remainingCapacity = FORGOTTEN_OBSESSIONS_TARGET_TRACK_COUNT - trackIds.size
+      trackIds += matchedBatch.filterNot { it in trackIds }.take(remainingCapacity)
       candidateOffset += batch.size
+      batchIndex++
+      val matchingProgress =
+        if (
+          candidateOffset >= candidates.size ||
+            trackIds.size >= FORGOTTEN_OBSESSIONS_TARGET_TRACK_COUNT
+        ) {
+          99
+        } else {
+          val matchingRange = (99 - matchingProgressStart).coerceAtLeast(1)
+          matchingProgressStart + ((batchIndex * matchingRange) / totalMatchingBatches)
+        }
+      progress(
+        matchingProgress.coerceIn(matchingProgressStart, 99),
+        "Matching forgotten obsessions on Spotify ($batchIndex/$totalMatchingBatches)",
+      )
+      logger.info(
+        "Forgotten obsessions matching batch {}/{} complete: {} playlist tracks collected from {} Spotify matches",
+        batchIndex,
+        totalMatchingBatches,
+        trackIds.size,
+        spotifyMatchCount,
+      )
     }
 
     if (trackIds.isEmpty()) {
