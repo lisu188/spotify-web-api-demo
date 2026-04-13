@@ -12,7 +12,7 @@
 
 const ORIGIN = window.location.origin;
 const URL = ORIGIN;
-const PRIVATE_MOOD_LABELS = ['Anchor', 'Surge', 'Night Drift', 'Frontier'];
+const PRIVATE_MOOD_LABELS = ['Anchor', 'Happy', 'Sad', 'Surge', 'Night Drift', 'Frontier'];
 
 var lastFmIdValid = false;
 var lastFmJobRunning = false;
@@ -116,7 +116,7 @@ function updateLastfmButtonState() {
     $('#lastfm').toggleClass('btn-secondary', !enabled);
     $('#forgottenObsessions').toggleClass('btn-warning', enabled);
     $('#forgottenObsessions').toggleClass('btn-secondary', !enabled);
-    $('#privateMoodTaxonomy').toggleClass('btn-dark', enabled);
+    $('#privateMoodTaxonomy').toggleClass('btn-primary', enabled);
     $('#privateMoodTaxonomy').toggleClass('btn-secondary', !enabled);
 }
 

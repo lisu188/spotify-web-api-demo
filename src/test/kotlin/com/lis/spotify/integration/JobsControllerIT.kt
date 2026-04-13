@@ -81,6 +81,8 @@ constructor(
       PrivateMoodTaxonomyResult(
         listOf(
           PrivateMoodPlaylistResult("Anchor", "Private Mood - Anchor", "anchor-id", 12, 20),
+          PrivateMoodPlaylistResult("Happy", "Private Mood - Happy", "happy-id", 10, 16),
+          PrivateMoodPlaylistResult("Sad", "Private Mood - Sad", "sad-id", 9, 15),
           PrivateMoodPlaylistResult("Surge", "Private Mood - Surge", "surge-id", 8, 14),
           PrivateMoodPlaylistResult("Night Drift", "Private Mood - Night Drift", "night-id", 6, 9),
           PrivateMoodPlaylistResult("Frontier", "Private Mood - Frontier", "frontier-id", 15, 24),
@@ -162,7 +164,7 @@ constructor(
     assertEquals(HttpStatus.OK, status.statusCode)
     assertEquals("COMPLETED", status.body?.get("state"))
     assertEquals(
-      listOf("anchor-id", "surge-id", "night-id", "frontier-id"),
+      listOf("anchor-id", "happy-id", "sad-id", "surge-id", "night-id", "frontier-id"),
       status.body?.get("playlistIds"),
     )
   }
@@ -190,6 +192,8 @@ constructor(
         PrivateMoodTaxonomyResult(
           listOf(
             PrivateMoodPlaylistResult("Anchor", "Private Mood - Anchor", "anchor-id", 12, 20),
+            PrivateMoodPlaylistResult("Happy", "Private Mood - Happy", "happy-id", 10, 16),
+            PrivateMoodPlaylistResult("Sad", "Private Mood - Sad", "sad-id", 9, 15),
             PrivateMoodPlaylistResult("Surge", "Private Mood - Surge", "surge-id", 8, 14),
             PrivateMoodPlaylistResult(
               "Night Drift",

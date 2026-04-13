@@ -164,6 +164,8 @@ class JobServiceTest {
       PrivateMoodTaxonomyResult(
         listOf(
           PrivateMoodPlaylistResult("Anchor", "Private Mood - Anchor", "anchor-id", 12, 20),
+          PrivateMoodPlaylistResult("Happy", "Private Mood - Happy", "happy-id", 10, 16),
+          PrivateMoodPlaylistResult("Sad", "Private Mood - Sad", "sad-id", 9, 15),
           PrivateMoodPlaylistResult("Surge", "Private Mood - Surge", "surge-id", 8, 14),
           PrivateMoodPlaylistResult("Night Drift", "Private Mood - Night Drift", "night-id", 6, 10),
           PrivateMoodPlaylistResult("Frontier", "Private Mood - Frontier", "frontier-id", 15, 24),
@@ -175,9 +177,12 @@ class JobServiceTest {
 
     val status = service.getJobStatus(jobId)
     assertEquals(JobState.COMPLETED, status?.state)
-    assertEquals(listOf("anchor-id", "surge-id", "night-id", "frontier-id"), status?.playlistIds)
     assertEquals(
-      "Private mood taxonomy refreshed (Anchor 12, Surge 8, Night Drift 6, Frontier 15)",
+      listOf("anchor-id", "happy-id", "sad-id", "surge-id", "night-id", "frontier-id"),
+      status?.playlistIds,
+    )
+    assertEquals(
+      "Private mood taxonomy refreshed (Anchor 12, Happy 10, Sad 9, Surge 8, Night Drift 6, Frontier 15)",
       status?.message,
     )
   }
