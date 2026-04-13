@@ -5,6 +5,7 @@ import com.lis.spotify.domain.Playlist
 import com.lis.spotify.domain.Song
 import com.lis.spotify.domain.Track
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -235,5 +236,49 @@ class SpotifyTopPlaylistsServiceTest {
     assertEquals(1, result.playlistTrackCount)
     assertEquals(1, result.spotifyMatchCount)
     assertEquals(1, result.candidateCount)
+  }
+
+  @Test
+  fun updateForgottenObsessionsPlaylistStopsSearchingAfterPlaylistIsFull() {
+    val playlistService = mockk<SpotifyPlaylistService>(relaxed = true)
+    val trackService = mockk<SpotifyTopTrackService>(relaxed = true)
+    val lastFmService = mockk<LastFmService>()
+    val searchService = mockk<SpotifySearchService>()
+    val playlist = Playlist("forgotten-id", "Forgotten Obsessions")
+    val service =
+      SpotifyTopPlaylistsService(playlistService, trackService, lastFmService, searchService)
+    val progressMessages = mutableListOf<String>()
+
+    service.firstSupportedYear = 2024
+    service.currentYearProvider = { 2024 }
+
+    every { lastFmService.yearlyChartlist("cid", 2024, "login", Int.MAX_VALUE) } returns
+      (1..110).flatMap { index ->
+        (1..5).map { play ->
+          Song(
+            artist = "Artist $index",
+            title = "Song $index",
+            playedAtEpochSecond = 1_500_000_000L + play,
+          )
+        }
+      }
+    coEvery { searchService.searchTrackIds(any(), "cid") } returns (1..50).map { "track-$it" }
+    every { playlistService.getCurrentUserPlaylists("cid") } returns mutableListOf()
+    every { playlistService.createPlaylist("Forgotten Obsessions", "cid") } returns playlist
+    every {
+      playlistService.modifyPlaylist("forgotten-id", (1..50).map { "track-$it" }, "cid")
+    } returns emptyMap()
+
+    val result =
+      service.updateForgottenObsessionsPlaylist("cid", "login") { _, message ->
+        progressMessages += message
+      }
+
+    assertEquals("forgotten-id", result.playlistId)
+    assertEquals(50, result.playlistTrackCount)
+    assertEquals(50, result.spotifyMatchCount)
+    assertEquals(110, result.candidateCount)
+    assertTrue(progressMessages.contains("Matching forgotten obsessions on Spotify (1/2)"))
+    coVerify(exactly = 1) { searchService.searchTrackIds(match { it.size == 100 }, "cid") }
   }
 }
