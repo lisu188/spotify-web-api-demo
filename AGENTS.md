@@ -11,6 +11,10 @@ This Gradle-based Kotlin/Spring Boot service keeps production sources in `src/ma
 - `./gradlew bootRun` — start the API with dev settings.
 - `docker build -t spotify-web-api-demo .` / `docker run --rm -p 8080:8080 spotify-web-api-demo` — package and run the image; verify via `curl http://localhost:8080`.
 
+## Deployment
+The current deployed application is available at `https://spotify-web-api-demo-1040938023586.us-central1.run.app/`.
+The Cloud Run service metrics page is available at `https://console.cloud.google.com/run/detail/us-central1/spotify-web-api-demo/observability/metrics?project=semiotic-mender-415520`.
+
 ## Coding Style & Naming Conventions
 Indent Kotlin code with two spaces, keep companion objects at the bottom of their class, and prefer expressive, camelCase identifiers (`LastFmClient`, `refreshYearlyCharts`). Each class should expose `private val logger = LoggerFactory.getLogger(...)` and use INFO for lifecycle events, DEBUG for details, WARN for recoverable errors, and ERROR for failures. Run ktfmt before committing.
 
