@@ -21,6 +21,6 @@ data class AuthToken(
   var clientId: String?,
 )
 
-data class Song(val artist: String, val title: String)
+data class Song(val artist: String, val title: String, val playedAtEpochSecond: Long? = null)
 
 data class BandPlaylistRequest(val bands: List<String>)

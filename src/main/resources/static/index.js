@@ -17,6 +17,7 @@ var lastFmIdValid = false;
 var lastFmJobRunning = false;
 var lastFmProgressPoll = null;
 var lastFmRedirectTimer = null;
+var lastFmPlaylistTarget = null;
 var verifyRequest;
 
 function buildPlayButtonUrl(id) {
@@ -84,9 +85,12 @@ function updateBandButtonState() {
 function updateLastfmButtonState() {
     var enabled = lastFmIdValid && !lastFmJobRunning;
     $('#lastfm').prop('disabled', !enabled);
+    $('#forgottenObsessions').prop('disabled', !enabled);
     $('#lastFmId').prop('disabled', lastFmJobRunning);
     $('#lastfm').toggleClass('btn-info', enabled);
     $('#lastfm').toggleClass('btn-secondary', !enabled);
+    $('#forgottenObsessions').toggleClass('btn-warning', enabled);
+    $('#forgottenObsessions').toggleClass('btn-secondary', !enabled);
 }
 
 function resetLastfmProgress() {
@@ -153,7 +157,7 @@ function verifyLastfmLogin(login) {
     updateLastfmButtonState();
 
     if (!login) {
-        setLastfmStatus('Enter your Last.fm login to enable yearly refresh.');
+        setLastfmStatus('Enter your Last.fm login to enable Last.fm tools.');
         return;
     }
 
@@ -220,12 +224,49 @@ function pollLastfmJob(jobId) {
         stopLastfmPolling();
         lastFmJobRunning = false;
         updateLastfmButtonState();
+        if (job.state === 'COMPLETED' && job.playlistIds && job.playlistIds.length > 0 && lastFmPlaylistTarget) {
+            $('#' + lastFmPlaylistTarget).empty();
+            appendPlayButton(lastFmPlaylistTarget, job.playlistIds[0]);
+        }
     }).fail(function () {
         stopLastfmPolling();
         lastFmJobRunning = false;
         updateLastfmButtonState();
         renderLastfmProgress({state: 'FAILED', progressPercent: currentLastfmProgress()});
         setLastfmStatus('Unable to load Last.fm refresh progress right now.');
+    });
+}
+
+function startLastfmJob(jobPath, startMessage, failureMessage, playlistTargetId) {
+    if (!lastFmIdValid || lastFmJobRunning) {
+        return;
+    }
+
+    lastFmJobRunning = true;
+    lastFmPlaylistTarget = playlistTargetId || null;
+    updateLastfmButtonState();
+    resetLastfmProgress();
+    $('#lastfmProgress').removeClass('d-none');
+    setLastfmStatus(startMessage);
+
+    $.ajax({
+        type: 'post',
+        url: URL + jobPath,
+        contentType: 'application/json',
+        data: JSON.stringify({lastFmLogin: $('#lastFmId').val().trim()}),
+        success: function (data) {
+            if (lastFmPlaylistTarget) {
+                $('#' + lastFmPlaylistTarget).empty();
+            }
+            pollLastfmJob(data.jobId);
+        },
+        error: function () {
+            lastFmJobRunning = false;
+            lastFmPlaylistTarget = null;
+            updateLastfmButtonState();
+            resetLastfmProgress();
+            setLastfmStatus(failureMessage);
+        }
     });
 }
 
@@ -248,34 +289,25 @@ $('#top').on('click', function () {
 });
 
 $('#lastfm').on('click', function () {
-    if (!lastFmIdValid || lastFmJobRunning) {
-        return;
-    }
+    startLastfmJob(
+        '/jobs',
+        'Starting yearly playlist refresh...',
+        'Unable to start Last.fm refresh right now.',
+        null
+    );
+});
 
-    lastFmJobRunning = true;
-    updateLastfmButtonState();
-    resetLastfmProgress();
-    $('#lastfmProgress').removeClass('d-none');
-    setLastfmStatus('Starting yearly playlist refresh...');
-
-    $.ajax({
-        type: 'post',
-        url: URL + '/jobs',
-        contentType: 'application/json',
-        data: JSON.stringify({lastFmLogin: $('#lastFmId').val().trim()}),
-        success: function (data) {
-            pollLastfmJob(data.jobId);
-        },
-        error: function () {
-            lastFmJobRunning = false;
-            updateLastfmButtonState();
-            resetLastfmProgress();
-            setLastfmStatus('Unable to start Last.fm refresh right now.');
-        }
-    });
+$('#forgottenObsessions').on('click', function () {
+    startLastfmJob(
+        '/jobs/forgotten-obsessions',
+        'Scanning Last.fm history for forgotten obsessions...',
+        'Unable to start forgotten obsessions scan right now.',
+        'forgottenObsessionsPlaylists'
+    );
 });
 
 $('#lastFmId').on('input', function () {
+    $('#forgottenObsessionsPlaylists').empty();
     verifyLastfmLogin($('#lastFmId').val().trim());
 });
 

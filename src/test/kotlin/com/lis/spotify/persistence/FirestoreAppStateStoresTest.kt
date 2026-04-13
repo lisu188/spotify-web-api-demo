@@ -58,6 +58,7 @@ class FirestoreAppStateStoresTest {
     every { snapshot.getLong("progressPercent") } returns 40L
     every { snapshot.getString("message") } returns "Processing 2024"
     every { snapshot.getString("redirectUrl") } returns "/auth/lastfm?lastFmLogin=login"
+    every { snapshot.get("playlistIds") } returns emptyList<String>()
     every { snapshot.getString("clientId") } returns "cid"
     every { snapshot.getString("lastFmLogin") } returns "login"
     every { snapshot.get("createdAt") } returns createdAt.toFirestoreTimestamp()

@@ -2,14 +2,18 @@ package com.lis.spotify.service
 
 import com.lis.spotify.domain.Song
 import com.lis.spotify.persistence.InMemoryLastFmRecentTracksCacheStore
+import com.lis.spotify.persistence.StoredLastFmRecentTracksPage
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
 import io.mockk.verify
 import java.net.URI
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -37,6 +41,19 @@ class LastFmServiceTest {
     val songs = service.yearlyChartlist("cid", 2020, "login")
 
     assertEquals(listOf(Song("A", "T")), songs)
+  }
+
+  @Test
+  fun yearlyChartlistParsesPlayedAtEpochSecond() {
+    val rest = mockk<RestTemplate>()
+    val service = service()
+    service.rest = rest
+    every { rest.getForObject(any<URI>(), Map::class.java) } returns
+      recentTracksPage(1, Song("A", "T", playedAtEpochSecond = 1_700_000_000))
+
+    val songs = service.yearlyChartlist("cid", 2020, "login")
+
+    assertEquals(listOf(Song("A", "T", playedAtEpochSecond = 1_700_000_000)), songs)
   }
 
   @Test
@@ -88,9 +105,35 @@ class LastFmServiceTest {
     secondService.rest = secondRest
     val cachedSongs = secondService.yearlyChartlist("cid", 2020, "login")
 
-    assertEquals(firstSongs, cachedSongs)
+    assertEquals(
+      firstSongs.map { it.copy(playedAtEpochSecond = null) },
+      cachedSongs.map { it.copy(playedAtEpochSecond = null) },
+    )
     verify(exactly = 1) { rest.getForObject(any<URI>(), Map::class.java) }
     verify(exactly = 0) { secondRest.getForObject(any<URI>(), Map::class.java) }
+  }
+
+  @Test
+  fun yearlyChartlistBackfillsPlayedAtFromLegacyCacheEntries() {
+    val store = InMemoryLastFmRecentTracksCacheStore()
+    store.save(
+      StoredLastFmRecentTracksPage(
+        cacheKey = legacyCacheKey("login", 2020),
+        login = "login",
+        from = 1_577_836_800,
+        to = 1_609_459_199,
+        page = 1,
+        sessionKey = "",
+        payloadJson = """{"totalPages":1,"songs":[{"artist":"A","title":"T1"}]}""",
+        updatedAt = Instant.parse("2026-04-08T10:00:00Z"),
+        expiresAt = Instant.parse("2026-04-15T10:00:00Z"),
+      )
+    )
+    val service = service(store = store, clock = fixedClock("2026-04-08T10:00:00Z"))
+
+    val songs = service.yearlyChartlist("cid", 2020, "login")
+
+    assertEquals(listOf(Song("A", "T1", playedAtEpochSecond = 1_609_459_199)), songs)
   }
 
   @Test
@@ -376,7 +419,11 @@ class LastFmServiceTest {
           "@attr" to mapOf("totalPages" to totalPages.toString()),
           "track" to
             songs.map { song ->
-              mapOf("artist" to mapOf("#text" to song.artist), "name" to song.title)
+              buildMap<String, Any> {
+                put("artist", mapOf("#text" to song.artist))
+                put("name", song.title)
+                song.playedAtEpochSecond?.let { put("date", mapOf("uts" to it.toString())) }
+              }
             },
         )
     )
@@ -392,5 +439,14 @@ class LastFmServiceTest {
 
   private fun fixedClock(instant: String = "2026-04-08T10:00:00Z"): Clock {
     return Clock.fixed(Instant.parse(instant), ZoneOffset.UTC)
+  }
+
+  private fun legacyCacheKey(user: String, year: Int): String {
+    val from = LocalDate.of(year, 1, 1).atStartOfDay().toEpochSecond(ZoneOffset.UTC)
+    val to = LocalDate.of(year, 12, 31).atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC)
+    val digest =
+      MessageDigest.getInstance("SHA-256")
+        .digest("$user|$from|$to|1|".toByteArray(StandardCharsets.UTF_8))
+    return digest.joinToString(separator = "") { byte -> "%02x".format(byte) }
   }
 }

@@ -29,15 +29,30 @@ body {
 
 iframe {
   float: left;
-  width: 25%;
+  width: 100%;
+  max-width: 360px;
   height: 360px;
-  margin: 0;
+  margin: 0 0 1rem 0;
   padding: 0;
-  background: blue;
+  background: #1db954;
   border: 0;
   display: block;
 }
 
 #lastfmProgress {
   height: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  iframe {
+    width: calc(50% - 1rem);
+    margin: 0 1rem 1rem 0;
+  }
+}
+
+@media (min-width: 1200px) {
+  iframe {
+    width: calc(25% - 1rem);
+    margin: 0 1rem 1rem 0;
+  }
 }

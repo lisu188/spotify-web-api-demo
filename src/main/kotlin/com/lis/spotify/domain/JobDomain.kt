@@ -15,4 +15,5 @@ data class JobStatus(
   val progressPercent: Int,
   val message: String,
   val redirectUrl: String? = null,
+  val playlistIds: List<String> = emptyList(),
 )

@@ -28,9 +28,39 @@ class JobsController(private val jobService: JobService) {
     @CookieValue("clientId") clientId: String,
     @RequestBody request: StartRequest,
   ): ResponseEntity<JobId> {
-    logger.info("Starting yearly job for clientId={} lastFmLogin={}", clientId, request.lastFmLogin)
-    val id = jobService.startYearlyJob(clientId, request.lastFmLogin)
+    val lastFmLogin = request.lastFmLogin.trim()
+    if (lastFmLogin.isEmpty()) {
+      logger.warn("Rejecting yearly job without Last.fm login for clientId={}", clientId)
+      return ResponseEntity.badRequest().build()
+    }
+
+    logger.info("Starting yearly job for clientId={} lastFmLogin={}", clientId, lastFmLogin)
+    val id = jobService.startYearlyJob(clientId, lastFmLogin)
     logger.info("Yearly job {} scheduled", id)
+    return ResponseEntity.accepted().body(JobId(id))
+  }
+
+  @PostMapping("/forgotten-obsessions")
+  fun startForgottenObsessions(
+    @CookieValue("clientId") clientId: String,
+    @RequestBody request: StartRequest,
+  ): ResponseEntity<JobId> {
+    val lastFmLogin = request.lastFmLogin.trim()
+    if (lastFmLogin.isEmpty()) {
+      logger.warn(
+        "Rejecting forgotten obsessions job without Last.fm login for clientId={}",
+        clientId,
+      )
+      return ResponseEntity.badRequest().build()
+    }
+
+    logger.info(
+      "Starting forgotten obsessions job for clientId={} lastFmLogin={}",
+      clientId,
+      lastFmLogin,
+    )
+    val id = jobService.startForgottenObsessionsJob(clientId, lastFmLogin)
+    logger.info("Forgotten obsessions job {} scheduled", id)
     return ResponseEntity.accepted().body(JobId(id))
   }
 

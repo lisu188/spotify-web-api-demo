@@ -271,12 +271,25 @@ class LastFmService(
         val artist =
           (map["artist"] as? Map<*, *>)?.get("#text") as? String ?: return@mapNotNull null
         val title = map["name"] as? String ?: return@mapNotNull null
-        Song(artist = artist, title = title)
+        Song(
+          artist = artist,
+          title = title,
+          playedAtEpochSecond = extractPlayedAtEpochSecond(map["date"]),
+        )
       }
     return CachedLastFmRecentTracksPage(
       totalPages = totalPages.coerceAtLeast(currentPage),
       songs = songs,
     )
+  }
+
+  private fun extractPlayedAtEpochSecond(value: Any?): Long? {
+    val date = value as? Map<*, *> ?: return null
+    return when (val uts = date["uts"]) {
+      is Number -> uts.toLong()
+      is String -> uts.toLongOrNull()
+      else -> null
+    }
   }
 
   private fun pagesToFetch(totalPages: Int, startPage: Int, limit: Int): List<Int> {
@@ -352,6 +365,23 @@ class LastFmService(
   ): CachedLastFmRecentTracksPage? {
     return runCatching {
         mapper.readValue(entry.payloadJson, CachedLastFmRecentTracksPage::class.java)
+      }
+      .map { page ->
+        val fallbackPlayedAtEpochSecond = entry.to.takeIf { it > 0 }
+        if (fallbackPlayedAtEpochSecond == null) {
+          page
+        } else {
+          page.copy(
+            songs =
+              page.songs.map { song ->
+                if (song.playedAtEpochSecond != null) {
+                  song
+                } else {
+                  song.copy(playedAtEpochSecond = fallbackPlayedAtEpochSecond)
+                }
+              }
+          )
+        }
       }
       .onFailure {
         logger.warn("Failed to deserialize cached Last.fm recent-tracks page {}", cacheKey, it)

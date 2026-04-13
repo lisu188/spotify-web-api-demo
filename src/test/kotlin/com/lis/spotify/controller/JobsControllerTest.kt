@@ -23,6 +23,26 @@ class JobsControllerTest {
   }
 
   @Test
+  fun startForgottenObsessionsReturnsId() {
+    every { service.startForgottenObsessionsJob("c", "login") } returns "forgotten-id"
+    val resp = controller.startForgottenObsessions("c", JobsController.StartRequest("login"))
+    assertEquals(JobId("forgotten-id"), resp.body)
+    assertEquals(HttpStatus.ACCEPTED, resp.statusCode)
+  }
+
+  @Test
+  fun startRejectsBlankLogin() {
+    val resp = controller.start("c", JobsController.StartRequest("   "))
+    assertEquals(HttpStatus.BAD_REQUEST, resp.statusCode)
+  }
+
+  @Test
+  fun startForgottenObsessionsRejectsBlankLogin() {
+    val resp = controller.startForgottenObsessions("c", JobsController.StartRequest("   "))
+    assertEquals(HttpStatus.BAD_REQUEST, resp.statusCode)
+  }
+
+  @Test
   fun getStatusReturnsJobStatus() {
     val status = JobStatus("id", JobState.RUNNING, 25, "Processing 2025 (1/21)")
     every { service.getJobStatus("id") } returns status
