@@ -23,8 +23,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -242,26 +240,54 @@ class LastFmService(
       }
 
       val pagesToFetch = pagesToFetch(firstPage.totalPages, startPage, limit)
-      val pageResults = mutableListOf(startPage to firstPage)
-      if (pagesToFetch.isNotEmpty()) {
-        val semaphore = Semaphore(recentTracksParallelism.coerceAtLeast(1))
-        pageResults += coroutineScope {
-          pagesToFetch
-            .map { page ->
-              async(Dispatchers.IO) {
-                semaphore.withPermit {
+      val songs = mutableListOf<Song>()
+      appendSongsWithinLimit(songs, firstPage.songs, limit)
+      var fetchedPages = 1
+      val pageBatches = pagesToFetch.chunked(recentTracksParallelism.coerceAtLeast(1))
+
+      if (songs.size < limit && pageBatches.isNotEmpty()) {
+        var limitReached = false
+        for ((index, pageBatch) in pageBatches.withIndex()) {
+          val batchResults = coroutineScope {
+            pageBatch
+              .map { page ->
+                async(Dispatchers.IO) {
                   page to fetchRecent(lastFmLogin, from, to, page, sessionKey)
                 }
               }
+              .awaitAll()
+              .sortedBy { it.first }
+          }
+          fetchedPages += batchResults.size
+          for ((_, pageResult) in batchResults) {
+            if (appendSongsWithinLimit(songs, pageResult.songs, limit)) {
+              limitReached = true
+              break
             }
-            .awaitAll()
+          }
+          logger.debug(
+            "yearlyChartlist {} {} completed batch {}/{} ({} pages fetched, {} songs accumulated)",
+            lastFmLogin,
+            year,
+            index + 1,
+            pageBatches.size,
+            fetchedPages,
+            songs.size,
+          )
+          if (limitReached) {
+            break
+          }
         }
       }
 
-      val songs = pageResults.sortedBy { it.first }.flatMap { it.second.songs }
-      val result = if (limit == Int.MAX_VALUE) songs else songs.take(limit)
-      logger.debug("yearlyChartlist {} {} fetched {} pages", lastFmLogin, year, pageResults.size)
-      result
+      logger.debug(
+        "yearlyChartlist {} {} fetched {} pages and returned {} songs",
+        lastFmLogin,
+        year,
+        fetchedPages,
+        songs.size,
+      )
+      songs
     }
   }
 
@@ -578,6 +604,28 @@ class LastFmService(
       return emptyList()
     }
     return (startPage + 1..lastPage).toList()
+  }
+
+  private fun appendSongsWithinLimit(
+    accumulatedSongs: MutableList<Song>,
+    songs: List<Song>,
+    limit: Int,
+  ): Boolean {
+    if (songs.isEmpty()) {
+      return limit != Int.MAX_VALUE && accumulatedSongs.size >= limit
+    }
+    if (limit == Int.MAX_VALUE) {
+      accumulatedSongs += songs
+      return false
+    }
+
+    val remaining = (limit - accumulatedSongs.size).coerceAtLeast(0)
+    if (remaining == 0) {
+      return true
+    }
+
+    accumulatedSongs += songs.take(remaining)
+    return accumulatedSongs.size >= limit
   }
 
   private fun saveRecentTracksPage(
