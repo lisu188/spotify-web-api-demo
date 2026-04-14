@@ -207,7 +207,8 @@ The current flow preserves the login across Last.fm auth redirects so the retry
 path can continue after the user authorizes access.
 
 Use **PRIVATE MOOD TAXONOMY** to build six private playlists from deterministic
-Spotify + Last.fm listening heuristics:
+Spotify + Last.fm listening heuristics, then rerank the mood playlists using
+song lyrics fetched from LRCLIB:
 
 - `Private Mood - Anchor`
 - `Private Mood - Happy`
@@ -216,10 +217,13 @@ Spotify + Last.fm listening heuristics:
 - `Private Mood - Night Drift`
 - `Private Mood - Frontier`
 
-The app uses only listening history, Spotify top tracks, and Last.fm similar
-tracks/artists. It does not use Last.fm tags, Spotify recommendations, audio
-features, audio analysis, or any trained model. The UI reuses the background
-job polling flow and shows the resulting playlists as embedded Spotify iframes.
+The app uses listening history, Spotify top tracks, Last.fm similar
+tracks/artists, and lyric keyword scoring from LRCLIB. It does not use Last.fm
+tags, Spotify recommendations, audio features, audio analysis, or any trained
+model. The lyric lookup is best-effort: if lyrics are unavailable for a song,
+the existing listening heuristics remain as the fallback. The UI reuses the
+background job polling flow and shows the resulting playlists as embedded
+Spotify iframes.
 
 The underlying API accepts an optional playlist size when starting the job:
 

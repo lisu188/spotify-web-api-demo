@@ -23,6 +23,7 @@ import java.util.Calendar
 import java.util.LinkedHashMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.sqrt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -59,6 +60,7 @@ class SpotifyTopPlaylistsService(
   var spotifyTopTrackService: SpotifyTopTrackService,
   var lastFmService: LastFmService,
   var spotifySearchService: SpotifySearchService,
+  var lyricsService: LyricsService,
   @Value("\${lastfm.jobs.max-parallelism:4}")
   configuredYearlyParallelism: Int = DEFAULT_YEARLY_PARALLELISM,
 ) {
@@ -407,11 +409,53 @@ class SpotifyTopPlaylistsService(
         zoneId = analysisZoneIdProvider(),
       )
     val statsByKey = stats.associateBy { it.normalizedKey }
-    val anchorCandidates = selectAnchorCandidates(stats, spotifySignals)
-    val surgeCandidates = selectSurgeCandidates(stats, spotifySignals)
-    val happyCandidates = selectHappyCandidates(stats, spotifySignals)
-    val sadCandidates = selectSadCandidates(stats, spotifySignals)
-    val nightDriftCandidates = selectNightDriftCandidates(stats, spotifySignals)
+    val lyricCandidateLimit = normalizedLyricCandidateLimit(normalizedPlaylistSize)
+    val anchorBaseCandidates = selectAnchorCandidates(stats, spotifySignals, lyricCandidateLimit)
+    val surgeBaseCandidates = selectSurgeCandidates(stats, spotifySignals, lyricCandidateLimit)
+    val happyBaseCandidates = selectHappyCandidates(stats, spotifySignals, lyricCandidateLimit)
+    val sadBaseCandidates = selectSadCandidates(stats, spotifySignals, lyricCandidateLimit)
+    val nightDriftBaseCandidates =
+      selectNightDriftCandidates(stats, spotifySignals, lyricCandidateLimit)
+
+    progress(76, "Assessing lyrical mood")
+    val lyricProfiles =
+      buildPrivateMoodLyricsProfiles(
+        anchorBaseCandidates +
+          happyBaseCandidates +
+          sadBaseCandidates +
+          surgeBaseCandidates +
+          nightDriftBaseCandidates
+      )
+    val anchorCandidates =
+      rerankPrivateMoodCandidatesByLyrics(
+        PrivateMoodPlaylistKind.ANCHOR,
+        anchorBaseCandidates,
+        lyricProfiles,
+      )
+    val surgeCandidates =
+      rerankPrivateMoodCandidatesByLyrics(
+        PrivateMoodPlaylistKind.SURGE,
+        surgeBaseCandidates,
+        lyricProfiles,
+      )
+    val happyCandidates =
+      rerankPrivateMoodCandidatesByLyrics(
+        PrivateMoodPlaylistKind.HAPPY,
+        happyBaseCandidates,
+        lyricProfiles,
+      )
+    val sadCandidates =
+      rerankPrivateMoodCandidatesByLyrics(
+        PrivateMoodPlaylistKind.SAD,
+        sadBaseCandidates,
+        lyricProfiles,
+      )
+    val nightDriftCandidates =
+      rerankPrivateMoodCandidatesByLyrics(
+        PrivateMoodPlaylistKind.NIGHT_DRIFT,
+        nightDriftBaseCandidates,
+        lyricProfiles,
+      )
 
     progress(80, "Exploring frontier candidates")
     val frontierCandidates =
@@ -825,6 +869,133 @@ class SpotifyTopPlaylistsService(
       .toList()
   }
 
+  private fun normalizedLyricCandidateLimit(playlistSize: Int): Int {
+    return maxOf(
+      playlistSize * PRIVATE_MOOD_LYRIC_CANDIDATE_MULTIPLIER,
+      PRIVATE_MOOD_LYRIC_MIN_CANDIDATE_COUNT,
+    )
+  }
+
+  private fun buildPrivateMoodLyricsProfiles(
+    candidates: Collection<PrivateMoodCandidateSong>
+  ): Map<Pair<String, String>, PrivateMoodLyricsProfile> {
+    return lyricsService
+      .fetchLyrics(candidates.map { it.song })
+      .mapValues { (_, lyrics) -> analyzePrivateMoodLyrics(lyrics) }
+      .filterValues { it.coverageScore > 0.0 }
+  }
+
+  internal fun analyzePrivateMoodLyrics(lyrics: String): PrivateMoodLyricsProfile {
+    val normalizedLyrics =
+      lyrics
+        .lowercase()
+        .replace("[^a-z0-9'\\s]+".toRegex(), " ")
+        .replace("\\s+".toRegex(), " ")
+        .trim()
+    if (normalizedLyrics.isBlank()) {
+      return PrivateMoodLyricsProfile.empty()
+    }
+
+    val tokens = normalizedLyrics.split(' ').filter { it.length >= 2 }
+    if (tokens.isEmpty()) {
+      return PrivateMoodLyricsProfile.empty()
+    }
+
+    val positiveScore =
+      weightedLyricScore(
+        normalizedLyrics,
+        tokens,
+        PRIVATE_MOOD_POSITIVE_WORD_WEIGHTS,
+        PRIVATE_MOOD_POSITIVE_PHRASE_WEIGHTS,
+      )
+    val negativeScore =
+      weightedLyricScore(
+        normalizedLyrics,
+        tokens,
+        PRIVATE_MOOD_NEGATIVE_WORD_WEIGHTS,
+        PRIVATE_MOOD_NEGATIVE_PHRASE_WEIGHTS,
+      )
+    val energyScore =
+      weightedLyricScore(
+        normalizedLyrics,
+        tokens,
+        PRIVATE_MOOD_ENERGY_WORD_WEIGHTS,
+        PRIVATE_MOOD_ENERGY_PHRASE_WEIGHTS,
+      )
+    val nightScore =
+      weightedLyricScore(
+        normalizedLyrics,
+        tokens,
+        PRIVATE_MOOD_NIGHT_WORD_WEIGHTS,
+        PRIVATE_MOOD_NIGHT_PHRASE_WEIGHTS,
+      )
+    val comfortScore =
+      weightedLyricScore(
+        normalizedLyrics,
+        tokens,
+        PRIVATE_MOOD_COMFORT_WORD_WEIGHTS,
+        PRIVATE_MOOD_COMFORT_PHRASE_WEIGHTS,
+      )
+    val wanderScore =
+      weightedLyricScore(
+        normalizedLyrics,
+        tokens,
+        PRIVATE_MOOD_WANDER_WORD_WEIGHTS,
+        PRIVATE_MOOD_WANDER_PHRASE_WEIGHTS,
+      )
+
+    return PrivateMoodLyricsProfile(
+      happyScore =
+        positiveScore * 1.8 + comfortScore * 0.3 + energyScore * 0.2 -
+          negativeScore * 1.1 -
+          nightScore * 0.15,
+      sadScore = negativeScore * 1.8 + nightScore * 0.35 - positiveScore * 0.5,
+      surgeScore =
+        energyScore * 1.9 + positiveScore * 0.35 - comfortScore * 0.15 - negativeScore * 0.1,
+      nightDriftScore =
+        nightScore * 1.9 + negativeScore * 0.25 + comfortScore * 0.15 - energyScore * 0.1,
+      anchorScore = comfortScore * 1.9 + positiveScore * 0.35 - wanderScore * 0.35,
+      frontierScore =
+        wanderScore * 1.9 + energyScore * 0.25 + positiveScore * 0.15 - comfortScore * 0.1,
+      coverageScore =
+        positiveScore + negativeScore + energyScore + nightScore + comfortScore + wanderScore,
+      tokenCount = tokens.size,
+    )
+  }
+
+  internal fun rerankPrivateMoodCandidatesByLyrics(
+    kind: PrivateMoodPlaylistKind,
+    candidates: List<PrivateMoodCandidateSong>,
+    lyricProfiles: Map<Pair<String, String>, PrivateMoodLyricsProfile>,
+  ): List<PrivateMoodCandidateSong> {
+    return candidates
+      .map { candidate ->
+        val lyricScore = lyricProfiles[candidate.normalizedKey]?.scoreFor(kind) ?: 0.0
+        candidate.copy(
+          score =
+            lyricScore * PRIVATE_MOOD_LYRIC_SCORE_WEIGHT +
+              candidate.score * PRIVATE_MOOD_FALLBACK_SCORE_WEIGHT
+        )
+      }
+      .sortedWith(privateMoodCandidateComparator())
+  }
+
+  private fun weightedLyricScore(
+    normalizedLyrics: String,
+    tokens: List<String>,
+    tokenWeights: Map<String, Double>,
+    phraseWeights: Map<String, Double>,
+  ): Double {
+    val tokenScore = tokens.sumOf { tokenWeights[it] ?: 0.0 }
+    val phraseScore =
+      phraseWeights.entries.sumOf { (phrase, weight) ->
+        normalizedLyrics.windowed(phrase.length, partialWindows = false).count { it == phrase } *
+          weight
+      }
+    val normalizationFactor = sqrt(tokens.size.toDouble().coerceAtLeast(1.0))
+    return (tokenScore + phraseScore) / normalizationFactor
+  }
+
   private fun buildFrontierCandidates(
     statsByKey: Map<Pair<String, String>, PrivateMoodSongStats>,
     spotifySignals: PrivateMoodSpotifySignals,
@@ -1107,6 +1278,10 @@ class SpotifyTopPlaylistsService(
     private const val PRIVATE_MOOD_DEFAULT_PLAYLIST_SIZE = 50
     private const val PRIVATE_MOOD_MAX_PLAYLIST_SIZE = 100
     private const val PRIVATE_MOOD_SEARCH_BATCH_SIZE = 100
+    private const val PRIVATE_MOOD_LYRIC_CANDIDATE_MULTIPLIER = 2
+    private const val PRIVATE_MOOD_LYRIC_MIN_CANDIDATE_COUNT = 60
+    private const val PRIVATE_MOOD_LYRIC_SCORE_WEIGHT = 60.0
+    private const val PRIVATE_MOOD_FALLBACK_SCORE_WEIGHT = 0.35
     private const val PRIVATE_MOOD_ANCHOR_MIN_TOTAL_PLAYS = 4
     private const val PRIVATE_MOOD_SURGE_MIN_SPIKE_RATIO = 1.35
     private const val PRIVATE_MOOD_HAPPY_MIN_DAYTIME_RATIO = 0.45
@@ -1129,6 +1304,176 @@ class SpotifyTopPlaylistsService(
     private const val SECONDS_PER_DAY = 86_400L
     private val PRIVATE_MOOD_REQUIRED_SCOPES =
       setOf("playlist-modify-private", "playlist-read-private")
+    private val PRIVATE_MOOD_POSITIVE_WORD_WEIGHTS =
+      mapOf(
+        "alive" to 2.2,
+        "bright" to 1.6,
+        "celebrate" to 2.2,
+        "dance" to 2.2,
+        "dancing" to 2.2,
+        "free" to 2.1,
+        "glow" to 1.6,
+        "golden" to 1.5,
+        "happy" to 2.5,
+        "joy" to 2.4,
+        "laugh" to 1.8,
+        "laughing" to 1.8,
+        "light" to 1.4,
+        "smile" to 2.4,
+        "smiling" to 2.4,
+        "sunlight" to 1.8,
+        "sunshine" to 2.1,
+      )
+    private val PRIVATE_MOOD_POSITIVE_PHRASE_WEIGHTS =
+      mapOf("all right" to 2.0, "feel alive" to 2.8, "good time" to 2.4)
+    private val PRIVATE_MOOD_NEGATIVE_WORD_WEIGHTS =
+      mapOf(
+        "alone" to 2.2,
+        "broken" to 2.5,
+        "cry" to 2.4,
+        "crying" to 2.4,
+        "dark" to 1.2,
+        "die" to 2.0,
+        "dying" to 2.0,
+        "empty" to 2.0,
+        "goodbye" to 2.2,
+        "heartache" to 2.6,
+        "heartbreak" to 2.7,
+        "hurt" to 2.2,
+        "hurting" to 2.2,
+        "lonely" to 2.7,
+        "miss" to 1.8,
+        "missing" to 1.8,
+        "pain" to 2.3,
+        "regret" to 2.0,
+        "sorry" to 1.7,
+        "tears" to 2.3,
+      )
+    private val PRIVATE_MOOD_NEGATIVE_PHRASE_WEIGHTS =
+      mapOf("broken heart" to 3.0, "don't belong" to 2.6, "fall apart" to 2.8, "without you" to 2.4)
+    private val PRIVATE_MOOD_ENERGY_WORD_WEIGHTS =
+      mapOf(
+        "break" to 1.8,
+        "breaking" to 1.8,
+        "burn" to 2.2,
+        "burning" to 2.2,
+        "electric" to 2.1,
+        "explode" to 2.0,
+        "fight" to 2.4,
+        "fighting" to 2.4,
+        "fire" to 2.5,
+        "loud" to 1.6,
+        "power" to 2.4,
+        "rebel" to 2.1,
+        "rise" to 2.0,
+        "run" to 1.8,
+        "running" to 1.8,
+        "rush" to 2.2,
+        "scream" to 2.0,
+        "shake" to 1.7,
+        "thunder" to 2.0,
+        "wild" to 2.0,
+      )
+    private val PRIVATE_MOOD_ENERGY_PHRASE_WEIGHTS =
+      mapOf(
+        "burn it down" to 3.0,
+        "light it up" to 2.8,
+        "set me free" to 2.6,
+        "take control" to 2.8,
+      )
+    private val PRIVATE_MOOD_NIGHT_WORD_WEIGHTS =
+      mapOf(
+        "blue" to 1.3,
+        "city" to 1.2,
+        "dark" to 1.8,
+        "dawn" to 1.4,
+        "dream" to 1.9,
+        "dreaming" to 1.9,
+        "dusk" to 1.7,
+        "haze" to 1.8,
+        "midnight" to 2.6,
+        "moon" to 2.3,
+        "moonlight" to 2.3,
+        "neon" to 1.8,
+        "night" to 2.7,
+        "shadow" to 1.8,
+        "shadows" to 1.8,
+        "silence" to 1.7,
+        "sleep" to 1.6,
+        "sleeping" to 1.6,
+        "stars" to 2.0,
+        "twilight" to 2.1,
+      )
+    private val PRIVATE_MOOD_NIGHT_PHRASE_WEIGHTS =
+      mapOf(
+        "after midnight" to 3.0,
+        "city lights" to 2.2,
+        "in the dark" to 2.8,
+        "late at night" to 3.0,
+        "under the moon" to 2.8,
+      )
+    private val PRIVATE_MOOD_COMFORT_WORD_WEIGHTS =
+      mapOf(
+        "always" to 1.7,
+        "close" to 1.4,
+        "familiar" to 1.9,
+        "heartbeat" to 1.9,
+        "hold" to 1.8,
+        "holding" to 1.8,
+        "home" to 2.6,
+        "keep" to 1.5,
+        "rest" to 1.5,
+        "return" to 1.6,
+        "roots" to 2.0,
+        "safe" to 2.4,
+        "shelter" to 2.2,
+        "stay" to 1.8,
+        "staying" to 1.8,
+        "steady" to 2.1,
+        "together" to 1.9,
+        "warm" to 1.6,
+      )
+    private val PRIVATE_MOOD_COMFORT_PHRASE_WEIGHTS =
+      mapOf(
+        "always there" to 2.4,
+        "come home" to 3.0,
+        "hold me" to 2.6,
+        "keep me safe" to 3.0,
+        "stay with me" to 2.8,
+      )
+    private val PRIVATE_MOOD_WANDER_WORD_WEIGHTS =
+      mapOf(
+        "beyond" to 2.0,
+        "far" to 1.7,
+        "farther" to 2.0,
+        "highway" to 2.2,
+        "horizon" to 2.5,
+        "mountain" to 2.1,
+        "ocean" to 2.2,
+        "open" to 1.4,
+        "road" to 2.3,
+        "roads" to 2.3,
+        "runaway" to 1.8,
+        "sea" to 1.8,
+        "sky" to 2.1,
+        "skies" to 2.1,
+        "strangers" to 1.8,
+        "travel" to 2.0,
+        "travelling" to 2.0,
+        "unknown" to 2.2,
+        "wander" to 2.5,
+        "wandering" to 2.5,
+        "waves" to 1.7,
+        "world" to 1.9,
+      )
+    private val PRIVATE_MOOD_WANDER_PHRASE_WEIGHTS =
+      mapOf(
+        "across the sea" to 3.0,
+        "far away" to 2.5,
+        "into the wild" to 3.0,
+        "new horizon" to 2.8,
+        "open road" to 3.0,
+      )
   }
 
   private data class ForgottenObsessionCandidate(
@@ -1187,6 +1532,38 @@ class SpotifyTopPlaylistsService(
     val score: Double,
   )
 
+  internal data class PrivateMoodLyricsProfile(
+    val happyScore: Double,
+    val sadScore: Double,
+    val surgeScore: Double,
+    val nightDriftScore: Double,
+    val anchorScore: Double,
+    val frontierScore: Double,
+    val coverageScore: Double,
+    val tokenCount: Int,
+  ) {
+    fun scoreFor(kind: PrivateMoodPlaylistKind): Double {
+      if (coverageScore <= 0.0 || tokenCount == 0) {
+        return 0.0
+      }
+
+      return when (kind) {
+        PrivateMoodPlaylistKind.ANCHOR -> anchorScore
+        PrivateMoodPlaylistKind.HAPPY -> happyScore
+        PrivateMoodPlaylistKind.SAD -> sadScore
+        PrivateMoodPlaylistKind.SURGE -> surgeScore
+        PrivateMoodPlaylistKind.NIGHT_DRIFT -> nightDriftScore
+        PrivateMoodPlaylistKind.FRONTIER -> frontierScore
+      }
+    }
+
+    companion object {
+      fun empty(): PrivateMoodLyricsProfile {
+        return PrivateMoodLyricsProfile(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0)
+      }
+    }
+  }
+
   private data class PrivateMoodSpotifySignals(
     val shortTermSongs: List<Song>,
     val midTermSongs: List<Song>,
@@ -1210,7 +1587,7 @@ class SpotifyTopPlaylistsService(
     val attemptedKeys: Set<Pair<String, String>>,
   )
 
-  private enum class PrivateMoodPlaylistKind(val label: String) {
+  internal enum class PrivateMoodPlaylistKind(val label: String) {
     ANCHOR("Anchor"),
     HAPPY("Happy"),
     SAD("Sad"),

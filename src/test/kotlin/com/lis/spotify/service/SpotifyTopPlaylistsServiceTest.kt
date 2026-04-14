@@ -30,6 +30,7 @@ class SpotifyTopPlaylistsServiceTest {
         mockk(relaxed = true),
         mockk(relaxed = true),
         mockk(relaxed = true),
+        mockk(relaxed = true),
       )
     assertNotNull(service)
   }
@@ -51,7 +52,13 @@ class SpotifyTopPlaylistsServiceTest {
     every { playlistService.modifyPlaylist(any(), any(), any()) } returns emptyMap()
 
     val service =
-      SpotifyTopPlaylistsService(playlistService, trackService, lastFmService, searchService)
+      SpotifyTopPlaylistsService(
+        playlistService,
+        trackService,
+        lastFmService,
+        searchService,
+        mockk(relaxed = true),
+      )
     val ids = service.updateTopPlaylists("cid")
     assertEquals(4, ids.size)
     verify(exactly = 4) { playlistService.modifyPlaylist(any(), any(), any()) }
@@ -69,7 +76,13 @@ class SpotifyTopPlaylistsServiceTest {
     every { trackService.getTopTracksLongTerm(any()) } returns emptyList()
 
     val service =
-      SpotifyTopPlaylistsService(playlistService, trackService, lastFmService, searchService)
+      SpotifyTopPlaylistsService(
+        playlistService,
+        trackService,
+        lastFmService,
+        searchService,
+        mockk(relaxed = true),
+      )
     val ids = service.updateTopPlaylists("cid")
     assertEquals(emptyList<String>(), ids)
     verify(exactly = 0) { playlistService.getOrCreatePlaylist(any(), any()) }
@@ -87,7 +100,13 @@ class SpotifyTopPlaylistsServiceTest {
     every { lastFmService.yearlyChartlist(any(), any(), any(), any()) } returns emptyList()
 
     val service =
-      SpotifyTopPlaylistsService(playlistService, trackService, lastFmService, searchService)
+      SpotifyTopPlaylistsService(
+        playlistService,
+        trackService,
+        lastFmService,
+        searchService,
+        mockk(relaxed = true),
+      )
 
     service.updateYearlyPlaylists("cid", "login") { progressPercent, _ ->
       progressUpdates += progressPercent
@@ -122,7 +141,13 @@ class SpotifyTopPlaylistsServiceTest {
       }
 
     val service =
-      SpotifyTopPlaylistsService(playlistService, trackService, lastFmService, searchService)
+      SpotifyTopPlaylistsService(
+        playlistService,
+        trackService,
+        lastFmService,
+        searchService,
+        mockk(relaxed = true),
+      )
     service.firstSupportedYear = 2005
     service.currentYearProvider = { 2008 }
     service.yearlyParallelism = 2
@@ -160,6 +185,7 @@ class SpotifyTopPlaylistsServiceTest {
   fun selectForgottenObsessionsFiltersRecentSongsAndRanksDormantFavorites() {
     val service =
       SpotifyTopPlaylistsService(
+        mockk(relaxed = true),
         mockk(relaxed = true),
         mockk(relaxed = true),
         mockk(relaxed = true),
@@ -204,7 +230,13 @@ class SpotifyTopPlaylistsServiceTest {
     val searchService = mockk<SpotifySearchService>()
     val playlist = Playlist("forgotten-id", "Forgotten Obsessions")
     val service =
-      SpotifyTopPlaylistsService(playlistService, trackService, lastFmService, searchService)
+      SpotifyTopPlaylistsService(
+        playlistService,
+        trackService,
+        lastFmService,
+        searchService,
+        mockk(relaxed = true),
+      )
 
     service.firstSupportedYear = 2024
     service.currentYearProvider = { 2025 }
@@ -248,7 +280,13 @@ class SpotifyTopPlaylistsServiceTest {
     val searchService = mockk<SpotifySearchService>()
     val playlist = Playlist("forgotten-id", "Forgotten Obsessions")
     val service =
-      SpotifyTopPlaylistsService(playlistService, trackService, lastFmService, searchService)
+      SpotifyTopPlaylistsService(
+        playlistService,
+        trackService,
+        lastFmService,
+        searchService,
+        mockk(relaxed = true),
+      )
     val progressMessages = mutableListOf<String>()
 
     service.firstSupportedYear = 2024
@@ -292,6 +330,7 @@ class SpotifyTopPlaylistsServiceTest {
         mockk(relaxed = true),
         mockk(relaxed = true),
         mockk(relaxed = true),
+        mockk(relaxed = true),
       )
 
     val stats =
@@ -316,13 +355,101 @@ class SpotifyTopPlaylistsServiceTest {
   }
 
   @Test
+  fun analyzePrivateMoodLyricsSeparatesHappyAndSadSignals() {
+    val service =
+      SpotifyTopPlaylistsService(
+        mockk(relaxed = true),
+        mockk(relaxed = true),
+        mockk(relaxed = true),
+        mockk(relaxed = true),
+        mockk(relaxed = true),
+      )
+
+    val happyProfile =
+      service.analyzePrivateMoodLyrics(
+        "We dance in the sunshine, smiling, feeling alive all night long"
+      )
+    val sadProfile =
+      service.analyzePrivateMoodLyrics(
+        "Lonely tears and a broken heart, I cry in the dark without you"
+      )
+
+    assertTrue(happyProfile.happyScore > happyProfile.sadScore)
+    assertTrue(sadProfile.sadScore > sadProfile.happyScore)
+  }
+
+  @Test
+  fun rerankPrivateMoodCandidatesByLyricsPrefersMatchingLyrics() {
+    val service =
+      SpotifyTopPlaylistsService(
+        mockk(relaxed = true),
+        mockk(relaxed = true),
+        mockk(relaxed = true),
+        mockk(relaxed = true),
+        mockk(relaxed = true),
+      )
+
+    val happySong = Song("Artist Happy", "Happy Song")
+    val sadSong = Song("Artist Sad", "Sad Song")
+    val candidates =
+      listOf(
+        SpotifyTopPlaylistsService.PrivateMoodCandidateSong(
+          song = happySong,
+          normalizedKey = "artist happy" to "happy song",
+          score = 120.0,
+        ),
+        SpotifyTopPlaylistsService.PrivateMoodCandidateSong(
+          song = sadSong,
+          normalizedKey = "artist sad" to "sad song",
+          score = 80.0,
+        ),
+      )
+
+    val lyricProfiles =
+      mapOf(
+        happySong.artist.lowercase() to
+          happySong.title.lowercase() to
+          service.analyzePrivateMoodLyrics(
+            "We dance in the sunshine, smiling, feeling alive and free"
+          ),
+        sadSong.artist.lowercase() to
+          sadSong.title.lowercase() to
+          service.analyzePrivateMoodLyrics(
+            "Lonely tears and a broken heart, I cry in the dark without you"
+          ),
+      )
+
+    val sadRanked =
+      service.rerankPrivateMoodCandidatesByLyrics(
+        SpotifyTopPlaylistsService.PrivateMoodPlaylistKind.SAD,
+        candidates,
+        lyricProfiles,
+      )
+    val happyRanked =
+      service.rerankPrivateMoodCandidatesByLyrics(
+        SpotifyTopPlaylistsService.PrivateMoodPlaylistKind.HAPPY,
+        candidates,
+        lyricProfiles,
+      )
+
+    assertEquals("Sad Song", sadRanked.first().song.title)
+    assertEquals("Happy Song", happyRanked.first().song.title)
+  }
+
+  @Test
   fun updatePrivateMoodTaxonomyPlaylistsCreatesPrivatePlaylists() {
     val playlistService = mockk<SpotifyPlaylistService>()
     val trackService = mockk<SpotifyTopTrackService>()
     val lastFmService = mockk<LastFmService>()
     val searchService = mockk<SpotifySearchService>()
     val service =
-      SpotifyTopPlaylistsService(playlistService, trackService, lastFmService, searchService)
+      SpotifyTopPlaylistsService(
+        playlistService,
+        trackService,
+        lastFmService,
+        searchService,
+        mockk(relaxed = true),
+      )
 
     service.firstSupportedYear = 2023
     service.currentYearProvider = { 2024 }
@@ -424,6 +551,7 @@ class SpotifyTopPlaylistsServiceTest {
     val service =
       SpotifyTopPlaylistsService(
         playlistService,
+        mockk(relaxed = true),
         mockk(relaxed = true),
         mockk(relaxed = true),
         mockk(relaxed = true),
