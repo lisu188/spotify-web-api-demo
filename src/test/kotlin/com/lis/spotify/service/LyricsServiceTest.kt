@@ -65,14 +65,14 @@ class LyricsServiceTest {
   }
 
   @Test
-  fun buildPrivateMoodLyricsProfilesUsesGeminiAndFallsBackForMissingAssessments() {
+  fun buildPrivateMoodLyricsProfilesUsesOpenAiAndFallsBackForMissingAssessments() {
     val rest = mockk<RestTemplate>()
     val service = LyricsService()
     var request: HttpEntity<*>? = null
     service.rest = rest
     service.fetchParallelism = 1
-    service.moodProvider = "gemini"
-    service.geminiApiKey = "test-key"
+    service.moodProvider = "openai"
+    service.openAiApiKey = "test-key"
 
     every { rest.getForObject(any<URI>(), Map::class.java) } answers
       {
@@ -89,21 +89,16 @@ class LyricsServiceTest {
       {
         request = secondArg<HttpEntity<*>>()
         mapOf(
-          "candidates" to
+          "choices" to
             listOf(
               mapOf(
-                "content" to
+                "message" to
                   mapOf(
-                    "parts" to
-                      listOf(
-                        mapOf(
-                          "text" to
-                            """
-                            {"assessments":[{"id":"song-0","anchorScore":1,"happyScore":9,"sadScore":0.5,"surgeScore":4,"nightDriftScore":0.5,"frontierScore":1.5,"coverageScore":8,"tokenCount":4}]}
-                            """
-                              .trimIndent()
-                        )
-                      )
+                    "content" to
+                      """
+                      {"assessments":[{"id":"song-0","anchorScore":1,"happyScore":9,"sadScore":0.5,"surgeScore":4,"nightDriftScore":0.5,"frontierScore":1.5,"coverageScore":8,"tokenCount":4}]}
+                      """
+                        .trimIndent()
                   )
               )
             )
@@ -133,21 +128,27 @@ class LyricsServiceTest {
     assertEquals(2, profiles.size)
     assertEquals(9.0, profiles.getValue("artist a" to "song a").happyScore)
     assertEquals(8.0, profiles.getValue("artist b" to "song b").sadScore)
-    assertEquals("test-key", request?.headers?.getFirst("x-goog-api-key"))
+    assertEquals("Bearer test-key", request?.headers?.getFirst("Authorization"))
+    val body = request?.body as Map<*, *>
+    val responseFormat = body["response_format"] as Map<*, *>
+    val jsonSchema = responseFormat["json_schema"] as Map<*, *>
+    assertEquals("gpt-5.4-mini", body["model"])
+    assertEquals("json_schema", responseFormat["type"])
+    assertEquals("private_mood_lyrics_batch", jsonSchema["name"])
     assertTrue(
-      request?.body.toString().contains("responseMimeType=application/json"),
-      "Expected Gemini request to ask for JSON output",
+      jsonSchema.containsKey("schema"),
+      "Expected OpenAI request to include a strict JSON schema",
     )
   }
 
   @Test
-  fun buildPrivateMoodLyricsProfilesFallsBackWhenGeminiFails() {
+  fun buildPrivateMoodLyricsProfilesFallsBackWhenOpenAiFails() {
     val rest = mockk<RestTemplate>()
     val service = LyricsService()
     service.rest = rest
     service.fetchParallelism = 1
-    service.moodProvider = "gemini"
-    service.geminiApiKey = "test-key"
+    service.moodProvider = "openai"
+    service.openAiApiKey = "test-key"
 
     every { rest.getForObject(any<URI>(), Map::class.java) } returns
       mapOf("plainLyrics" to "sunshine dancing all day", "instrumental" to false)

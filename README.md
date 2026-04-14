@@ -61,8 +61,9 @@ credentials are available at runtime:
 - `SPOTIFY_CLIENT_SECRET` – Spotify application client secret
 - `LASTFM_API_KEY` – Last.fm API key
 - `LASTFM_API_SECRET` – Last.fm API secret
-- `LYRICS_MOOD_PROVIDER` – Optional lyric mood classifier (`auto`, `heuristic`, or `gemini`)
-- `LYRICS_MOOD_GEMINI_API_KEY` – Optional Gemini API key for free-tier lyric mood scoring
+- `LYRICS_MOOD_PROVIDER` – Optional lyric mood classifier (`auto`, `heuristic`, or `openai`)
+- `LYRICS_MOOD_OPENAI_API_KEY` – Optional OpenAI API key for lyric mood scoring
+- `OPENAI_API_KEY` – Standard OpenAI API key env var, also picked up automatically
 - Last.fm endpoints default to HTTPS. Override `LASTFM_API_URL` and
   `LASTFM_AUTHORIZE_URL` only if custom values are required.
 
@@ -221,14 +222,14 @@ song lyrics fetched from LRCLIB:
 
 The app uses listening history, Spotify top tracks, Last.fm similar
 tracks/artists, and lyric scoring from LRCLIB. By default it uses the built-in
-keyword heuristic. If `LYRICS_MOOD_PROVIDER=gemini` or
-`LYRICS_MOOD_PROVIDER=auto` with `LYRICS_MOOD_GEMINI_API_KEY` set, it batches
-lyric classifications through Gemini `gemini-2.5-flash-lite`, which has a free
-API tier suitable for prototyping. The lyric lookup and Gemini call are both
-best-effort: if lyrics are unavailable or Gemini does not return a usable
-classification, the existing heuristic scorer remains the fallback. The UI
-reuses the background job polling flow and shows the resulting playlists as
-embedded Spotify iframes.
+keyword heuristic. If `LYRICS_MOOD_PROVIDER=openai` or
+`LYRICS_MOOD_PROVIDER=auto` with `LYRICS_MOOD_OPENAI_API_KEY` or
+`OPENAI_API_KEY` set, it batches lyric classifications through OpenAI
+`gpt-5.4-mini` using strict JSON schema output. The lyric lookup and OpenAI
+call are both best-effort: if lyrics are unavailable or the model does not
+return a usable classification, the existing heuristic scorer remains the
+fallback. The UI reuses the background job polling flow and shows the resulting
+playlists as embedded Spotify iframes.
 
 The underlying API accepts an optional playlist size when starting the job:
 

@@ -31,23 +31,23 @@ class LyricsService(
   @Value("\${lyrics.fetch.max-parallelism:8}")
   configuredFetchParallelism: Int = DEFAULT_FETCH_PARALLELISM,
   @Value("\${lyrics.mood.provider:auto}") configuredMoodProvider: String = DEFAULT_MOOD_PROVIDER,
-  @Value("\${lyrics.mood.gemini.api-key:}") configuredGeminiApiKey: String = "",
-  @Value("\${lyrics.mood.gemini.base-url:https://generativelanguage.googleapis.com}")
-  configuredGeminiBaseUrl: String = DEFAULT_GEMINI_BASE_URL,
-  @Value("\${lyrics.mood.gemini.model:gemini-2.5-flash-lite}")
-  configuredGeminiModel: String = DEFAULT_GEMINI_MODEL,
-  @Value("\${lyrics.mood.gemini.batch-size:8}")
-  configuredGeminiBatchSize: Int = DEFAULT_GEMINI_BATCH_SIZE,
+  @Value("\${lyrics.mood.openai.api-key:\${OPENAI_API_KEY:}}") configuredOpenAiApiKey: String = "",
+  @Value("\${lyrics.mood.openai.base-url:https://api.openai.com/v1}")
+  configuredOpenAiBaseUrl: String = DEFAULT_OPENAI_BASE_URL,
+  @Value("\${lyrics.mood.openai.model:gpt-5.4-mini}")
+  configuredOpenAiModel: String = DEFAULT_OPENAI_MODEL,
+  @Value("\${lyrics.mood.openai.batch-size:8}")
+  configuredOpenAiBatchSize: Int = DEFAULT_OPENAI_BATCH_SIZE,
 ) {
   internal var rest = RestTemplate()
   internal var mapper = jacksonObjectMapper()
   internal var baseUrl = configuredBaseUrl.trimEnd('/')
   internal var fetchParallelism = configuredFetchParallelism.coerceAtLeast(1)
   internal var moodProvider = configuredMoodProvider.trim().lowercase()
-  internal var geminiApiKey = configuredGeminiApiKey.trim()
-  internal var geminiBaseUrl = configuredGeminiBaseUrl.trimEnd('/')
-  internal var geminiModel = configuredGeminiModel.trim().ifBlank { DEFAULT_GEMINI_MODEL }
-  internal var geminiBatchSize = configuredGeminiBatchSize.coerceIn(1, MAX_GEMINI_BATCH_SIZE)
+  internal var openAiApiKey = configuredOpenAiApiKey.trim()
+  internal var openAiBaseUrl = configuredOpenAiBaseUrl.trimEnd('/')
+  internal var openAiModel = configuredOpenAiModel.trim().ifBlank { DEFAULT_OPENAI_MODEL }
+  internal var openAiBatchSize = configuredOpenAiBatchSize.coerceIn(1, MAX_OPENAI_BATCH_SIZE)
 
   private val logger = LoggerFactory.getLogger(LyricsService::class.java)
   private val lyricsCache: Cache<Pair<String, String>, LyricsLookupResult> =
@@ -137,9 +137,9 @@ class LyricsService(
     }
 
     val lyricsByKey = fetchLyrics(songsNeedingAnalysis)
-    val geminiProfiles =
-      if (shouldUseGeminiMoodScoring() && lyricsByKey.isNotEmpty()) {
-        classifyPrivateMoodLyricsWithGemini(lyricsByKey)
+    val openAiProfiles =
+      if (shouldUseOpenAiMoodScoring() && lyricsByKey.isNotEmpty()) {
+        classifyPrivateMoodLyricsWithOpenAi(lyricsByKey)
       } else {
         emptyMap()
       }
@@ -147,7 +147,7 @@ class LyricsService(
     songsNeedingAnalysis.forEach { song ->
       val key = song.normalizedKey()
       val profile =
-        geminiProfiles[key]
+        openAiProfiles[key]
           ?: lyricsByKey[key]?.let(heuristicAnalyzer)
           ?: SpotifyTopPlaylistsService.PrivateMoodLyricsProfile.empty()
       moodProfileCache.put(key, profile)
@@ -166,13 +166,13 @@ class LyricsService(
       .toUri()
   }
 
-  private fun shouldUseGeminiMoodScoring(): Boolean {
+  private fun shouldUseOpenAiMoodScoring(): Boolean {
     return when (moodProvider) {
       "",
-      DEFAULT_MOOD_PROVIDER -> geminiApiKey.isNotBlank()
-      GEMINI_MOOD_PROVIDER -> {
-        if (geminiApiKey.isBlank()) {
-          logger.warn("lyrics.mood.provider is gemini but lyrics.mood.gemini.api-key is missing")
+      DEFAULT_MOOD_PROVIDER -> openAiApiKey.isNotBlank()
+      OPENAI_MOOD_PROVIDER -> {
+        if (openAiApiKey.isBlank()) {
+          logger.warn("lyrics.mood.provider is openai but no OpenAI API key is configured")
           false
         } else {
           true
@@ -184,40 +184,40 @@ class LyricsService(
           "Unknown lyrics mood provider '{}'; falling back to automatic provider selection",
           moodProvider,
         )
-        geminiApiKey.isNotBlank()
+        openAiApiKey.isNotBlank()
       }
     }
   }
 
-  private fun classifyPrivateMoodLyricsWithGemini(
+  private fun classifyPrivateMoodLyricsWithOpenAi(
     lyricsByKey: Map<Pair<String, String>, String>
   ): Map<Pair<String, String>, SpotifyTopPlaylistsService.PrivateMoodLyricsProfile> {
     val entries =
       lyricsByKey.entries.mapIndexed { index, (key, lyrics) ->
-        GeminiMoodRequestSong(id = "song-$index", key = key, lyrics = lyrics)
+        OpenAiMoodRequestSong(id = "song-$index", key = key, lyrics = lyrics)
       }
 
     return entries
-      .chunked(geminiBatchSize)
+      .chunked(openAiBatchSize)
       .flatMap { batch ->
         try {
-          classifyGeminiBatch(batch).entries
+          classifyOpenAiBatch(batch).entries
         } catch (ex: HttpStatusCodeException) {
-          logger.warn("Gemini lyric mood classification failed with status {}", ex.statusCode, ex)
+          logger.warn("OpenAI lyric mood classification failed with status {}", ex.statusCode, ex)
           emptyList()
         } catch (ex: ResourceAccessException) {
-          logger.warn("Gemini lyric mood classification network failure", ex)
+          logger.warn("OpenAI lyric mood classification network failure", ex)
           emptyList()
         } catch (ex: Exception) {
-          logger.warn("Unexpected Gemini lyric mood classification failure", ex)
+          logger.warn("Unexpected OpenAI lyric mood classification failure", ex)
           emptyList()
         }
       }
       .associate { it.toPair() }
   }
 
-  private fun classifyGeminiBatch(
-    entries: List<GeminiMoodRequestSong>
+  private fun classifyOpenAiBatch(
+    entries: List<OpenAiMoodRequestSong>
   ): Map<Pair<String, String>, SpotifyTopPlaylistsService.PrivateMoodLyricsProfile> {
     if (entries.isEmpty()) {
       return emptyMap()
@@ -226,23 +226,23 @@ class LyricsService(
     val headers =
       HttpHeaders().apply {
         contentType = MediaType.APPLICATION_JSON
-        set("x-goog-api-key", geminiApiKey)
+        setBearerAuth(openAiApiKey)
       }
-    val request = HttpEntity(buildGeminiRequest(entries), headers)
+    val request = HttpEntity(buildOpenAiRequest(entries), headers)
     val response =
-      rest.postForObject(buildGeminiUri(), request, Map::class.java) ?: return emptyMap()
-    val responseText = extractGeminiResponseText(response) ?: return emptyMap()
-    return parseGeminiMoodProfiles(entries, responseText)
+      rest.postForObject(buildOpenAiUri(), request, Map::class.java) ?: return emptyMap()
+    val responseText = extractOpenAiResponseText(response) ?: return emptyMap()
+    return parseOpenAiMoodProfiles(entries, responseText)
   }
 
-  private fun buildGeminiUri(): URI {
-    return UriComponentsBuilder.fromUriString(geminiBaseUrl)
-      .path("/v1beta/models/$geminiModel:generateContent")
+  private fun buildOpenAiUri(): URI {
+    return UriComponentsBuilder.fromUriString(openAiBaseUrl)
+      .path("/chat/completions")
       .build()
       .toUri()
   }
 
-  private fun buildGeminiRequest(entries: List<GeminiMoodRequestSong>): Map<String, Any> {
+  private fun buildOpenAiRequest(entries: List<OpenAiMoodRequestSong>): Map<String, Any> {
     val songsJson =
       mapper.writeValueAsString(
         entries.map {
@@ -256,38 +256,39 @@ class LyricsService(
       )
 
     return mapOf(
-      "systemInstruction" to mapOf("parts" to listOf(mapOf("text" to GEMINI_SYSTEM_PROMPT))),
-      "contents" to
+      "model" to openAiModel,
+      "messages" to
         listOf(
+          mapOf("role" to "system", "content" to OPENAI_SYSTEM_PROMPT),
           mapOf(
-            "parts" to
-              listOf(
-                mapOf(
-                  "text" to "Assess the following song lyrics and return JSON only.\n$songsJson"
-                )
-              )
-          )
+            "role" to "user",
+            "content" to "Assess the following song lyrics and return JSON only.\n$songsJson",
+          ),
         ),
-      "generationConfig" to
+      "response_format" to
         mapOf(
-          "temperature" to 0,
-          "responseMimeType" to "application/json",
-          "responseSchema" to GEMINI_RESPONSE_SCHEMA,
+          "type" to "json_schema",
+          "json_schema" to
+            mapOf(
+              "name" to "private_mood_lyrics_batch",
+              "strict" to true,
+              "schema" to OPENAI_RESPONSE_SCHEMA,
+            ),
         ),
+      "temperature" to 0,
+      "reasoning_effort" to "low",
     )
   }
 
-  private fun extractGeminiResponseText(response: Map<*, *>): String? {
-    val candidates = response["candidates"] as? List<*> ?: return null
-    val firstCandidate = candidates.firstOrNull() as? Map<*, *> ?: return null
-    val content = firstCandidate["content"] as? Map<*, *> ?: return null
-    val parts = content["parts"] as? List<*> ?: return null
-    val firstPart = parts.firstOrNull() as? Map<*, *> ?: return null
-    return (firstPart["text"] as? String)?.trim()?.ifBlank { null }
+  private fun extractOpenAiResponseText(response: Map<*, *>): String? {
+    val choices = response["choices"] as? List<*> ?: return null
+    val firstChoice = choices.firstOrNull() as? Map<*, *> ?: return null
+    val message = firstChoice["message"] as? Map<*, *> ?: return null
+    return (message["content"] as? String)?.trim()?.ifBlank { null }
   }
 
-  private fun parseGeminiMoodProfiles(
-    entries: List<GeminiMoodRequestSong>,
+  private fun parseOpenAiMoodProfiles(
+    entries: List<OpenAiMoodRequestSong>,
     responseText: String,
   ): Map<Pair<String, String>, SpotifyTopPlaylistsService.PrivateMoodLyricsProfile> {
     val parsed = mapper.readValue(responseText, Map::class.java)
@@ -357,15 +358,15 @@ class LyricsService(
   companion object {
     internal const val DEFAULT_FETCH_PARALLELISM = 8
     internal const val DEFAULT_MOOD_PROVIDER = "auto"
-    internal const val DEFAULT_GEMINI_BATCH_SIZE = 8
+    internal const val DEFAULT_OPENAI_BATCH_SIZE = 8
     private const val DEFAULT_BASE_URL = "https://lrclib.net/api"
-    private const val DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com"
-    private const val DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite"
-    private const val GEMINI_MOOD_PROVIDER = "gemini"
+    private const val DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
+    private const val DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
+    private const val OPENAI_MOOD_PROVIDER = "openai"
     private const val HEURISTIC_MOOD_PROVIDER = "heuristic"
-    private const val MAX_GEMINI_BATCH_SIZE = 16
+    private const val MAX_OPENAI_BATCH_SIZE = 16
     private val SYNCED_LYRIC_TIMESTAMP_REGEX = Regex("^\\[[^\\]]+]\\s*")
-    private val GEMINI_RESPONSE_SCHEMA =
+    private val OPENAI_RESPONSE_SCHEMA =
       mapOf(
         "type" to "object",
         "properties" to
@@ -400,12 +401,14 @@ class LyricsService(
                         "coverageScore",
                         "tokenCount",
                       ),
+                    "additionalProperties" to false,
                   ),
               )
           ),
+        "additionalProperties" to false,
         "required" to listOf("assessments"),
       )
-    private const val GEMINI_SYSTEM_PROMPT =
+    private const val OPENAI_SYSTEM_PROMPT =
       "You classify song lyrics into six internal playlist moods. " +
         "Use only the provided lyrics. Return JSON only that matches the schema. " +
         "Scores must be non-negative numbers from 0 to 10, where higher means a stronger fit. " +
@@ -421,7 +424,7 @@ class LyricsService(
 
   private data class LyricsLookupResult(val lyrics: String?)
 
-  private data class GeminiMoodRequestSong(
+  private data class OpenAiMoodRequestSong(
     val id: String,
     val key: Pair<String, String>,
     val lyrics: String,
