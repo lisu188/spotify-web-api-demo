@@ -132,27 +132,62 @@ class LyricsService(
       }
     }
 
+    logger.debug(
+      "Building private mood lyric profiles for {} songs ({} cached, {} uncached)",
+      uniqueSongs.size,
+      profiles.size,
+      songsNeedingAnalysis.size,
+    )
+
     if (songsNeedingAnalysis.isEmpty()) {
       return profiles.filterValues { it.coverageScore > 0.0 }
     }
 
     val lyricsByKey = fetchLyrics(songsNeedingAnalysis)
+    val shouldUseOpenAi = shouldUseOpenAiMoodScoring()
+    val missingLyricsCount = songsNeedingAnalysis.size - lyricsByKey.size
+    logger.debug(
+      "Fetched lyrics for {} of {} uncached songs ({} missing lyrics)",
+      lyricsByKey.size,
+      songsNeedingAnalysis.size,
+      missingLyricsCount,
+    )
+
     val openAiProfiles =
-      if (shouldUseOpenAiMoodScoring() && lyricsByKey.isNotEmpty()) {
+      if (shouldUseOpenAi && lyricsByKey.isNotEmpty()) {
         classifyPrivateMoodLyricsWithOpenAi(lyricsByKey)
       } else {
+        if (lyricsByKey.isNotEmpty()) {
+          logger.debug(
+            "Using heuristic lyric mood scoring for {} songs because OpenAI scoring is unavailable or disabled",
+            lyricsByKey.size,
+          )
+        }
         emptyMap()
       }
 
+    var heuristicFallbackCount = 0
     songsNeedingAnalysis.forEach { song ->
       val key = song.normalizedKey()
       val profile =
-        openAiProfiles[key]
-          ?: lyricsByKey[key]?.let(heuristicAnalyzer)
-          ?: SpotifyTopPlaylistsService.PrivateMoodLyricsProfile.empty()
+        when {
+          openAiProfiles[key] != null -> openAiProfiles.getValue(key)
+          lyricsByKey[key] != null -> {
+            heuristicFallbackCount += 1
+            heuristicAnalyzer(lyricsByKey.getValue(key))
+          }
+          else -> SpotifyTopPlaylistsService.PrivateMoodLyricsProfile.empty()
+        }
       moodProfileCache.put(key, profile)
       profiles[key] = profile
     }
+
+    logger.debug(
+      "Private mood lyric profile build complete: {} OpenAI profiles, {} heuristic fallbacks, {} no-lyrics fallbacks",
+      openAiProfiles.size,
+      heuristicFallbackCount,
+      missingLyricsCount,
+    )
 
     return profiles.filterValues { it.coverageScore > 0.0 }
   }
@@ -196,20 +231,52 @@ class LyricsService(
       lyricsByKey.entries.mapIndexed { index, (key, lyrics) ->
         OpenAiMoodRequestSong(id = "song-$index", key = key, lyrics = lyrics)
       }
+    val batches = entries.chunked(openAiBatchSize)
 
-    return entries
-      .chunked(openAiBatchSize)
-      .flatMap { batch ->
+    logger.info(
+      "Submitting OpenAI lyric mood scoring for {} songs across {} batches using model {}",
+      entries.size,
+      batches.size,
+      openAiModel,
+    )
+
+    return batches
+      .flatMapIndexed { index, batch ->
         try {
+          logger.debug(
+            "Submitting OpenAI lyric mood batch {}/{} with {} songs",
+            index + 1,
+            batches.size,
+            batch.size,
+          )
           classifyOpenAiBatch(batch).entries
         } catch (ex: HttpStatusCodeException) {
-          logger.warn("OpenAI lyric mood classification failed with status {}", ex.statusCode, ex)
+          logger.warn(
+            "OpenAI lyric mood batch {}/{} failed with status {} for {} songs",
+            index + 1,
+            batches.size,
+            ex.statusCode,
+            batch.size,
+            ex,
+          )
           emptyList()
         } catch (ex: ResourceAccessException) {
-          logger.warn("OpenAI lyric mood classification network failure", ex)
+          logger.warn(
+            "OpenAI lyric mood batch {}/{} network failure for {} songs",
+            index + 1,
+            batches.size,
+            batch.size,
+            ex,
+          )
           emptyList()
         } catch (ex: Exception) {
-          logger.warn("Unexpected OpenAI lyric mood classification failure", ex)
+          logger.warn(
+            "Unexpected OpenAI lyric mood batch {}/{} failure for {} songs",
+            index + 1,
+            batches.size,
+            batch.size,
+            ex,
+          )
           emptyList()
         }
       }
@@ -232,7 +299,13 @@ class LyricsService(
     val response =
       rest.postForObject(buildOpenAiUri(), request, Map::class.java) ?: return emptyMap()
     val responseText = extractOpenAiResponseText(response) ?: return emptyMap()
-    return parseOpenAiMoodProfiles(entries, responseText)
+    val profiles = parseOpenAiMoodProfiles(entries, responseText)
+    logger.debug(
+      "OpenAI lyric mood batch returned {} profiles for {} songs",
+      profiles.size,
+      entries.size,
+    )
+    return profiles
   }
 
   private fun buildOpenAiUri(): URI {
@@ -281,10 +354,19 @@ class LyricsService(
   }
 
   private fun extractOpenAiResponseText(response: Map<*, *>): String? {
-    val choices = response["choices"] as? List<*> ?: return null
-    val firstChoice = choices.firstOrNull() as? Map<*, *> ?: return null
-    val message = firstChoice["message"] as? Map<*, *> ?: return null
-    return (message["content"] as? String)?.trim()?.ifBlank { null }
+    val choices = response["choices"] as? List<*>
+    if (choices.isNullOrEmpty()) {
+      logger.warn("OpenAI lyric mood response did not include any choices")
+      return null
+    }
+    val firstChoice = choices.firstOrNull() as? Map<*, *>
+    val message = firstChoice?.get("message") as? Map<*, *>
+    val content = (message?.get("content") as? String)?.trim()
+    if (content.isNullOrBlank()) {
+      logger.warn("OpenAI lyric mood response contained an empty message content payload")
+      return null
+    }
+    return content
   }
 
   private fun parseOpenAiMoodProfiles(
@@ -292,26 +374,58 @@ class LyricsService(
     responseText: String,
   ): Map<Pair<String, String>, SpotifyTopPlaylistsService.PrivateMoodLyricsProfile> {
     val parsed = mapper.readValue(responseText, Map::class.java)
-    val assessments = parsed["assessments"] as? List<*> ?: return emptyMap()
+    val assessments = parsed["assessments"] as? List<*>
+    if (assessments.isNullOrEmpty()) {
+      logger.warn(
+        "OpenAI lyric mood response parsed successfully but contained no assessments for {} songs",
+        entries.size,
+      )
+      return emptyMap()
+    }
     val keysById = entries.associate { it.id to it.key }
-    return assessments
-      .mapNotNull { rawAssessment ->
-        val assessment = rawAssessment as? Map<*, *> ?: return@mapNotNull null
-        val id = (assessment["id"] as? String)?.trim().orEmpty()
-        val key = keysById[id] ?: return@mapNotNull null
-        key to
-          SpotifyTopPlaylistsService.PrivateMoodLyricsProfile(
-            happyScore = assessment.numberValue("happyScore"),
-            sadScore = assessment.numberValue("sadScore"),
-            surgeScore = assessment.numberValue("surgeScore"),
-            nightDriftScore = assessment.numberValue("nightDriftScore"),
-            anchorScore = assessment.numberValue("anchorScore"),
-            frontierScore = assessment.numberValue("frontierScore"),
-            coverageScore = assessment.numberValue("coverageScore"),
-            tokenCount = assessment.intValue("tokenCount"),
-          )
-      }
-      .toMap(LinkedHashMap())
+    val unknownAssessmentIds = mutableListOf<String>()
+    val profiles =
+      assessments
+        .mapNotNull { rawAssessment ->
+          val assessment = rawAssessment as? Map<*, *> ?: return@mapNotNull null
+          val id = (assessment["id"] as? String)?.trim().orEmpty()
+          val key =
+            keysById[id]
+              ?: run {
+                if (id.isNotBlank()) {
+                  unknownAssessmentIds += id
+                }
+                return@mapNotNull null
+              }
+          key to
+            SpotifyTopPlaylistsService.PrivateMoodLyricsProfile(
+              happyScore = assessment.numberValue("happyScore"),
+              sadScore = assessment.numberValue("sadScore"),
+              surgeScore = assessment.numberValue("surgeScore"),
+              nightDriftScore = assessment.numberValue("nightDriftScore"),
+              anchorScore = assessment.numberValue("anchorScore"),
+              frontierScore = assessment.numberValue("frontierScore"),
+              coverageScore = assessment.numberValue("coverageScore"),
+              tokenCount = assessment.intValue("tokenCount"),
+            )
+        }
+        .toMap(LinkedHashMap())
+
+    if (unknownAssessmentIds.isNotEmpty()) {
+      logger.warn(
+        "OpenAI lyric mood response included {} unknown assessment ids",
+        unknownAssessmentIds.size,
+      )
+    }
+    if (profiles.size != entries.size) {
+      logger.warn(
+        "OpenAI lyric mood response returned {} profiles for {} requested songs; missing songs will fall back to heuristics",
+        profiles.size,
+        entries.size,
+      )
+    }
+
+    return profiles
   }
 
   private fun Map<*, *>.numberValue(key: String): Double {
