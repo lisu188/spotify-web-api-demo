@@ -879,10 +879,9 @@ class SpotifyTopPlaylistsService(
   private fun buildPrivateMoodLyricsProfiles(
     candidates: Collection<PrivateMoodCandidateSong>
   ): Map<Pair<String, String>, PrivateMoodLyricsProfile> {
-    return lyricsService
-      .fetchLyrics(candidates.map { it.song })
-      .mapValues { (_, lyrics) -> analyzePrivateMoodLyrics(lyrics) }
-      .filterValues { it.coverageScore > 0.0 }
+    return lyricsService.buildPrivateMoodLyricsProfiles(candidates.map { it.song }) { lyrics ->
+      analyzePrivateMoodLyrics(lyrics)
+    }
   }
 
   internal fun analyzePrivateMoodLyrics(lyrics: String): PrivateMoodLyricsProfile {
