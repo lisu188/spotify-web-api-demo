@@ -66,13 +66,45 @@ class LyricsServiceTest {
   }
 
   @Test
+  fun fetchLyricsRetriesTransientServerFailure() {
+    val rest = mockk<RestTemplate>()
+    val service = LyricsService()
+    service.rest = rest
+    service.retryBaseDelayMillis = 0
+    service.retrySleeper = {}
+    val unavailable =
+      HttpClientErrorException.create(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "",
+        HttpHeaders(),
+        ByteArray(0),
+        null,
+      )
+    var lyricsLookupCalls = 0
+
+    every { rest.getForObject(any<URI>(), Map::class.java) } answers
+      {
+        lyricsLookupCalls += 1
+        if (lyricsLookupCalls == 1) {
+          throw unavailable
+        }
+        mapOf("plainLyrics" to "retry success", "instrumental" to false)
+      }
+
+    val lyrics = service.fetchLyrics(Song("Artist A", "Song A"))
+
+    assertEquals("retry success", lyrics)
+    verify(exactly = 2) { rest.getForObject(any<URI>(), Map::class.java) }
+  }
+
+  @Test
   fun buildPrivateMoodLyricsProfilesUsesOpenAiAndFallsBackForMissingAssessments() {
     val rest = mockk<RestTemplate>()
     val service = LyricsService()
     var request: HttpEntity<*>? = null
     service.rest = rest
     service.fetchParallelism = 1
-    service.moodProvider = "openai"
+    service.moodProvider = "auto"
     service.openAiApiKey = "test-key"
 
     every { rest.getForObject(any<URI>(), Map::class.java) } answers
@@ -149,8 +181,10 @@ class LyricsServiceTest {
     val service = LyricsService()
     service.rest = rest
     service.fetchParallelism = 1
-    service.moodProvider = "openai"
+    service.moodProvider = "auto"
     service.openAiApiKey = "test-key"
+    service.retryBaseDelayMillis = 0
+    service.retrySleeper = {}
 
     every { rest.getForObject(any<URI>(), Map::class.java) } returns
       mapOf("plainLyrics" to "sunshine dancing all day", "instrumental" to false)
@@ -172,5 +206,150 @@ class LyricsServiceTest {
       }
 
     assertEquals(7.0, profiles.getValue("artist a" to "song a").happyScore)
+  }
+
+  @Test
+  fun buildPrivateMoodLyricsProfilesRetriesOpenAiBatchAfterTransientFailure() {
+    val rest = mockk<RestTemplate>()
+    val service = LyricsService()
+    service.rest = rest
+    service.fetchParallelism = 1
+    service.moodProvider = "openai"
+    service.openAiApiKey = "test-key"
+    service.retryBaseDelayMillis = 0
+    service.retrySleeper = {}
+    val unavailable =
+      HttpClientErrorException.create(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "",
+        HttpHeaders(),
+        ByteArray(0),
+        null,
+      )
+    var openAiCalls = 0
+
+    every { rest.getForObject(any<URI>(), Map::class.java) } returns
+      mapOf("plainLyrics" to "sunshine dancing all day", "instrumental" to false)
+    every { rest.postForObject(any<URI>(), any<HttpEntity<*>>(), Map::class.java) } answers
+      {
+        openAiCalls += 1
+        if (openAiCalls == 1) {
+          throw unavailable
+        }
+        mapOf(
+          "choices" to
+            listOf(
+              mapOf(
+                "message" to
+                  mapOf(
+                    "content" to
+                      """
+                      {"assessments":[{"id":"song-0","anchorScore":1,"happyScore":9,"sadScore":0.5,"surgeScore":4,"nightDriftScore":0.5,"frontierScore":1.5,"coverageScore":8,"tokenCount":4}]}
+                      """
+                        .trimIndent()
+                  )
+              )
+            )
+        )
+      }
+
+    val profiles =
+      service.buildPrivateMoodLyricsProfiles(listOf(Song("Artist A", "Song A"))) {
+        SpotifyTopPlaylistsService.PrivateMoodLyricsProfile.empty()
+      }
+
+    assertEquals(1, profiles.size)
+    assertEquals(9.0, profiles.getValue("artist a" to "song a").happyScore)
+    verify(exactly = 2) { rest.postForObject(any<URI>(), any<HttpEntity<*>>(), Map::class.java) }
+  }
+
+  @Test
+  fun buildPrivateMoodLyricsProfilesDoesNotFallbackWhenProviderIsOpenAiAndOpenAiFails() {
+    val rest = mockk<RestTemplate>()
+    val service = LyricsService()
+    service.rest = rest
+    service.fetchParallelism = 1
+    service.moodProvider = "openai"
+    service.openAiApiKey = "test-key"
+    service.retryBaseDelayMillis = 0
+    service.retrySleeper = {}
+    val unavailable =
+      HttpClientErrorException.create(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "",
+        HttpHeaders(),
+        ByteArray(0),
+        null,
+      )
+
+    every { rest.getForObject(any<URI>(), Map::class.java) } returns
+      mapOf("plainLyrics" to "sunshine dancing all day", "instrumental" to false)
+    every { rest.postForObject(any<URI>(), any<HttpEntity<*>>(), Map::class.java) } throws
+      unavailable
+
+    val profiles =
+      service.buildPrivateMoodLyricsProfiles(listOf(Song("Artist A", "Song A"))) {
+        SpotifyTopPlaylistsService.PrivateMoodLyricsProfile(
+          happyScore = 7.0,
+          sadScore = 0.0,
+          surgeScore = 2.0,
+          nightDriftScore = 0.0,
+          anchorScore = 1.0,
+          frontierScore = 0.0,
+          coverageScore = 5.0,
+          tokenCount = 4,
+        )
+      }
+
+    assertTrue(profiles.isEmpty())
+    verify(exactly = service.openAiRequestMaxAttempts) {
+      rest.postForObject(any<URI>(), any<HttpEntity<*>>(), Map::class.java)
+    }
+  }
+
+  @Test
+  fun buildPrivateMoodLyricsProfilesDoesNotRetryOpenAiQuotaFailure() {
+    val rest = mockk<RestTemplate>()
+    val service = LyricsService()
+    service.rest = rest
+    service.fetchParallelism = 1
+    service.moodProvider = "openai"
+    service.openAiApiKey = "test-key"
+    service.retryBaseDelayMillis = 0
+    service.retrySleeper = {}
+    val quotaExceeded =
+      HttpClientErrorException.create(
+        HttpStatus.TOO_MANY_REQUESTS,
+        "",
+        HttpHeaders(),
+        """
+        {"error":{"message":"quota exceeded","type":"insufficient_quota","code":"insufficient_quota"}}
+        """
+          .trimIndent()
+          .toByteArray(),
+        null,
+      )
+
+    every { rest.getForObject(any<URI>(), Map::class.java) } returns
+      mapOf("plainLyrics" to "sunshine dancing all day", "instrumental" to false)
+    every { rest.postForObject(any<URI>(), any<HttpEntity<*>>(), Map::class.java) } throws
+      quotaExceeded
+
+    val profiles =
+      service.buildPrivateMoodLyricsProfiles(listOf(Song("Artist A", "Song A"))) {
+        SpotifyTopPlaylistsService.PrivateMoodLyricsProfile(
+          happyScore = 7.0,
+          sadScore = 0.0,
+          surgeScore = 2.0,
+          nightDriftScore = 0.0,
+          anchorScore = 1.0,
+          frontierScore = 0.0,
+          coverageScore = 5.0,
+          tokenCount = 4,
+        )
+      }
+
+    assertTrue(profiles.isEmpty())
+    verify(exactly = 1) { rest.postForObject(any<URI>(), any<HttpEntity<*>>(), Map::class.java) }
   }
 }
