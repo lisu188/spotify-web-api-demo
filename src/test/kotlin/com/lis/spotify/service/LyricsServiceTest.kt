@@ -7,10 +7,13 @@ import io.mockk.verify
 import java.net.URI
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.web.client.HttpClientErrorException
+import org.springframework.web.client.ResourceAccessException
 import org.springframework.web.client.RestTemplate
 
 class LyricsServiceTest {
@@ -59,5 +62,112 @@ class LyricsServiceTest {
     val lyrics = service.fetchLyrics(Song("Artist A", "Missing Song"))
 
     assertNull(lyrics)
+  }
+
+  @Test
+  fun buildPrivateMoodLyricsProfilesUsesGeminiAndFallsBackForMissingAssessments() {
+    val rest = mockk<RestTemplate>()
+    val service = LyricsService()
+    var request: HttpEntity<*>? = null
+    service.rest = rest
+    service.fetchParallelism = 1
+    service.moodProvider = "gemini"
+    service.geminiApiKey = "test-key"
+
+    every { rest.getForObject(any<URI>(), Map::class.java) } answers
+      {
+        val uri = firstArg<URI>().toString()
+        when {
+          uri.contains("artist_name=Artist+A") || uri.contains("artist_name=Artist%20A") ->
+            mapOf("plainLyrics" to "sunshine dancing all day", "instrumental" to false)
+          uri.contains("artist_name=Artist+B") || uri.contains("artist_name=Artist%20B") ->
+            mapOf("plainLyrics" to "lonely tears in the dark", "instrumental" to false)
+          else -> error("Unexpected lyrics URI $uri")
+        }
+      }
+    every { rest.postForObject(any<URI>(), any<HttpEntity<*>>(), Map::class.java) } answers
+      {
+        request = secondArg<HttpEntity<*>>()
+        mapOf(
+          "candidates" to
+            listOf(
+              mapOf(
+                "content" to
+                  mapOf(
+                    "parts" to
+                      listOf(
+                        mapOf(
+                          "text" to
+                            """
+                            {"assessments":[{"id":"song-0","anchorScore":1,"happyScore":9,"sadScore":0.5,"surgeScore":4,"nightDriftScore":0.5,"frontierScore":1.5,"coverageScore":8,"tokenCount":4}]}
+                            """
+                              .trimIndent()
+                        )
+                      )
+                  )
+              )
+            )
+        )
+      }
+
+    val profiles =
+      service.buildPrivateMoodLyricsProfiles(
+        listOf(Song("Artist A", "Song A"), Song("Artist B", "Song B"))
+      ) { lyrics ->
+        if (lyrics.contains("lonely", ignoreCase = true)) {
+          SpotifyTopPlaylistsService.PrivateMoodLyricsProfile(
+            happyScore = 0.5,
+            sadScore = 8.0,
+            surgeScore = 0.0,
+            nightDriftScore = 3.0,
+            anchorScore = 0.0,
+            frontierScore = 0.0,
+            coverageScore = 6.0,
+            tokenCount = 5,
+          )
+        } else {
+          SpotifyTopPlaylistsService.PrivateMoodLyricsProfile.empty()
+        }
+      }
+
+    assertEquals(2, profiles.size)
+    assertEquals(9.0, profiles.getValue("artist a" to "song a").happyScore)
+    assertEquals(8.0, profiles.getValue("artist b" to "song b").sadScore)
+    assertEquals("test-key", request?.headers?.getFirst("x-goog-api-key"))
+    assertTrue(
+      request?.body.toString().contains("responseMimeType=application/json"),
+      "Expected Gemini request to ask for JSON output",
+    )
+  }
+
+  @Test
+  fun buildPrivateMoodLyricsProfilesFallsBackWhenGeminiFails() {
+    val rest = mockk<RestTemplate>()
+    val service = LyricsService()
+    service.rest = rest
+    service.fetchParallelism = 1
+    service.moodProvider = "gemini"
+    service.geminiApiKey = "test-key"
+
+    every { rest.getForObject(any<URI>(), Map::class.java) } returns
+      mapOf("plainLyrics" to "sunshine dancing all day", "instrumental" to false)
+    every { rest.postForObject(any<URI>(), any<HttpEntity<*>>(), Map::class.java) } throws
+      ResourceAccessException("offline")
+
+    val profiles =
+      service.buildPrivateMoodLyricsProfiles(listOf(Song("Artist A", "Song A"))) {
+        SpotifyTopPlaylistsService.PrivateMoodLyricsProfile(
+          happyScore = 7.0,
+          sadScore = 0.0,
+          surgeScore = 2.0,
+          nightDriftScore = 0.0,
+          anchorScore = 1.0,
+          frontierScore = 0.0,
+          coverageScore = 5.0,
+          tokenCount = 4,
+        )
+      }
+
+    assertEquals(7.0, profiles.getValue("artist a" to "song a").happyScore)
   }
 }
