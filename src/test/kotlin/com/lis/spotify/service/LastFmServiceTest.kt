@@ -242,6 +242,38 @@ class LastFmServiceTest {
   }
 
   @Test
+  fun yearlyChartlistPreservesPageOrderAcrossMultipleParallelBatches() {
+    val rest = mockk<RestTemplate>()
+    val service = service(recentTracksParallelism = 2)
+    service.rest = rest
+
+    every { rest.getForObject(any<URI>(), String::class.java) } answers
+      {
+        when (page(firstArg())) {
+          1 -> recentTracksPayload(5, Song("Artist 1", "Track 1"))
+          2 -> recentTracksPayload(5, Song("Artist 2", "Track 2"))
+          3 -> recentTracksPayload(5, Song("Artist 3", "Track 3"))
+          4 -> recentTracksPayload(5, Song("Artist 4", "Track 4"))
+          else -> recentTracksPayload(5, Song("Artist 5", "Track 5"))
+        }
+      }
+
+    val songs = service.yearlyChartlist("cid", 2020, "login")
+
+    assertEquals(
+      listOf(
+        Song("Artist 1", "Track 1"),
+        Song("Artist 2", "Track 2"),
+        Song("Artist 3", "Track 3"),
+        Song("Artist 4", "Track 4"),
+        Song("Artist 5", "Track 5"),
+      ),
+      songs,
+    )
+    verify(exactly = 5) { rest.getForObject(any<URI>(), String::class.java) }
+  }
+
+  @Test
   fun yearlyChartlistFallsBackToNetworkWhenPersistentCacheReadFails() {
     val store = mockk<LastFmRecentTracksCacheStore>()
     val rest = mockk<RestTemplate>()
