@@ -48,6 +48,14 @@ class LyricsService(
   internal var openAiBaseUrl = configuredOpenAiBaseUrl.trimEnd('/')
   internal var openAiModel = configuredOpenAiModel.trim().ifBlank { DEFAULT_OPENAI_MODEL }
   internal var openAiBatchSize = configuredOpenAiBatchSize.coerceIn(1, MAX_OPENAI_BATCH_SIZE)
+  internal var lyricsLookupMaxAttempts = DEFAULT_LYRICS_LOOKUP_MAX_ATTEMPTS
+  internal var openAiRequestMaxAttempts = DEFAULT_OPENAI_REQUEST_MAX_ATTEMPTS
+  internal var retryBaseDelayMillis = DEFAULT_RETRY_BASE_DELAY_MILLIS
+  internal var retrySleeper: (Long) -> Unit = { millis ->
+    if (millis > 0) {
+      Thread.sleep(millis)
+    }
+  }
 
   private val logger = LoggerFactory.getLogger(LyricsService::class.java)
   private val lyricsCache: Cache<Pair<String, String>, LyricsLookupResult> =
@@ -68,7 +76,23 @@ class LyricsService(
 
     val lyrics =
       try {
-        parseLyrics(rest.getForObject(buildLyricsUri(song), Map::class.java))
+        executeWithRetry(
+          maxAttempts = lyricsLookupMaxAttempts,
+          shouldRetry = ::shouldRetryLyricsLookup,
+          onRetry = { attempt, maxAttempts, delayMillis, ex ->
+            logger.info(
+              "Retrying lyrics lookup for {} - {} after transient failure on attempt {}/{} ({}); waiting {} ms",
+              song.artist,
+              song.title,
+              attempt,
+              maxAttempts,
+              summarizeRetryableFailure(ex),
+              delayMillis,
+            )
+          },
+        ) {
+          parseLyrics(rest.getForObject(buildLyricsUri(song), Map::class.java))
+        }
       } catch (ex: HttpStatusCodeException) {
         if (ex.statusCode == HttpStatus.NOT_FOUND) {
           logger.debug("Lyrics not found for {} - {}", song.artist, song.title)
@@ -166,15 +190,21 @@ class LyricsService(
         emptyMap()
       }
 
+    val openAiOnlyMode = moodProvider == OPENAI_MOOD_PROVIDER
     var heuristicFallbackCount = 0
+    var openAiOnlySkippedCount = 0
     songsNeedingAnalysis.forEach { song ->
       val key = song.normalizedKey()
       val profile =
         when {
           openAiProfiles[key] != null -> openAiProfiles.getValue(key)
-          lyricsByKey[key] != null -> {
+          lyricsByKey[key] != null && !openAiOnlyMode -> {
             heuristicFallbackCount += 1
             heuristicAnalyzer(lyricsByKey.getValue(key))
+          }
+          lyricsByKey[key] != null -> {
+            openAiOnlySkippedCount += 1
+            SpotifyTopPlaylistsService.PrivateMoodLyricsProfile.empty()
           }
           else -> SpotifyTopPlaylistsService.PrivateMoodLyricsProfile.empty()
         }
@@ -183,9 +213,10 @@ class LyricsService(
     }
 
     logger.debug(
-      "Private mood lyric profile build complete: {} OpenAI profiles, {} heuristic fallbacks, {} no-lyrics fallbacks",
+      "Private mood lyric profile build complete: {} OpenAI profiles, {} heuristic fallbacks, {} OpenAI-only skips, {} no-lyrics fallbacks",
       openAiProfiles.size,
       heuristicFallbackCount,
+      openAiOnlySkippedCount,
       missingLyricsCount,
     )
 
@@ -232,6 +263,8 @@ class LyricsService(
         OpenAiMoodRequestSong(id = "song-$index", key = key, lyrics = lyrics)
       }
     val batches = entries.chunked(openAiBatchSize)
+    val profiles =
+      LinkedHashMap<Pair<String, String>, SpotifyTopPlaylistsService.PrivateMoodLyricsProfile>()
 
     logger.info(
       "Submitting OpenAI lyric mood scoring for {} songs across {} batches using model {}",
@@ -240,47 +273,77 @@ class LyricsService(
       openAiModel,
     )
 
-    return batches
-      .flatMapIndexed { index, batch ->
-        try {
-          logger.debug(
-            "Submitting OpenAI lyric mood batch {}/{} with {} songs",
-            index + 1,
-            batches.size,
-            batch.size,
-          )
-          classifyOpenAiBatch(batch).entries
-        } catch (ex: HttpStatusCodeException) {
+    for ((index, batch) in batches.withIndex()) {
+      try {
+        logger.debug(
+          "Submitting OpenAI lyric mood batch {}/{} with {} songs",
+          index + 1,
+          batches.size,
+          batch.size,
+        )
+        profiles.putAll(classifyOpenAiBatchWithRetry(batch, index + 1, batches.size))
+      } catch (ex: HttpStatusCodeException) {
+        if (shouldAbortOpenAiMoodScoring(ex)) {
           logger.warn(
-            "OpenAI lyric mood batch {}/{} failed with status {} for {} songs",
+            "Aborting OpenAI lyric mood scoring after batch {}/{} due to {}. Songs without OpenAI classifications will remain unscored in openai-only mode",
             index + 1,
             batches.size,
-            ex.statusCode,
-            batch.size,
-            ex,
+            summarizeOpenAiError(ex),
           )
-          emptyList()
-        } catch (ex: ResourceAccessException) {
-          logger.warn(
-            "OpenAI lyric mood batch {}/{} network failure for {} songs",
-            index + 1,
-            batches.size,
-            batch.size,
-            ex,
-          )
-          emptyList()
-        } catch (ex: Exception) {
-          logger.warn(
-            "Unexpected OpenAI lyric mood batch {}/{} failure for {} songs",
-            index + 1,
-            batches.size,
-            batch.size,
-            ex,
-          )
-          emptyList()
+          break
         }
+        logger.warn(
+          "OpenAI lyric mood batch {}/{} failed with status {} for {} songs",
+          index + 1,
+          batches.size,
+          ex.statusCode,
+          batch.size,
+          ex,
+        )
+      } catch (ex: ResourceAccessException) {
+        logger.warn(
+          "OpenAI lyric mood batch {}/{} network failure for {} songs",
+          index + 1,
+          batches.size,
+          batch.size,
+          ex,
+        )
+      } catch (ex: Exception) {
+        logger.warn(
+          "Unexpected OpenAI lyric mood batch {}/{} failure for {} songs",
+          index + 1,
+          batches.size,
+          batch.size,
+          ex,
+        )
       }
-      .associate { it.toPair() }
+    }
+
+    return profiles
+  }
+
+  private fun classifyOpenAiBatchWithRetry(
+    entries: List<OpenAiMoodRequestSong>,
+    batchIndex: Int,
+    batchCount: Int,
+  ): Map<Pair<String, String>, SpotifyTopPlaylistsService.PrivateMoodLyricsProfile> {
+    return executeWithRetry(
+      maxAttempts = openAiRequestMaxAttempts,
+      shouldRetry = ::shouldRetryOpenAiRequest,
+      onRetry = { attempt, maxAttempts, delayMillis, ex ->
+        logger.info(
+          "Retrying OpenAI lyric mood batch {}/{} after transient failure on attempt {}/{} ({}); waiting {} ms",
+          batchIndex,
+          batchCount,
+          attempt,
+          maxAttempts,
+          summarizeRetryableFailure(ex),
+          delayMillis,
+        )
+      },
+    ) {
+      classifyOpenAiBatch(entries)
+    }
   }
 
   private fun classifyOpenAiBatch(
@@ -435,6 +498,92 @@ class LyricsService(
     return ((this[key] as? Number)?.toInt() ?: 0).coerceAtLeast(0)
   }
 
+  private fun <T> executeWithRetry(
+    maxAttempts: Int,
+    shouldRetry: (Exception) -> Boolean,
+    onRetry: (attempt: Int, maxAttempts: Int, delayMillis: Long, ex: Exception) -> Unit,
+    block: () -> T,
+  ): T {
+    var attempt = 1
+    var delayMillis = retryBaseDelayMillis.coerceAtLeast(0)
+
+    while (true) {
+      try {
+        return block()
+      } catch (ex: Exception) {
+        if (attempt >= maxAttempts || !shouldRetry(ex)) {
+          throw ex
+        }
+        onRetry(attempt, maxAttempts, delayMillis, ex)
+        retrySleeper(delayMillis)
+        attempt += 1
+        delayMillis = nextRetryDelayMillis(delayMillis)
+      }
+    }
+  }
+
+  private fun shouldRetryLyricsLookup(ex: Exception): Boolean {
+    return ex is ResourceAccessException ||
+      (ex is HttpStatusCodeException &&
+        (ex.statusCode.is5xxServerError ||
+          ex.statusCode == HttpStatus.REQUEST_TIMEOUT ||
+          ex.statusCode == HttpStatus.TOO_MANY_REQUESTS))
+  }
+
+  private fun shouldRetryOpenAiRequest(ex: Exception): Boolean {
+    return ex is ResourceAccessException ||
+      (ex is HttpStatusCodeException &&
+        ((ex.statusCode.is5xxServerError || ex.statusCode == HttpStatus.REQUEST_TIMEOUT) ||
+          (ex.statusCode == HttpStatus.TOO_MANY_REQUESTS && !isInsufficientQuota(ex))))
+  }
+
+  private fun shouldAbortOpenAiMoodScoring(ex: HttpStatusCodeException): Boolean {
+    return ex.statusCode == HttpStatus.UNAUTHORIZED ||
+      ex.statusCode == HttpStatus.FORBIDDEN ||
+      (ex.statusCode == HttpStatus.TOO_MANY_REQUESTS && isInsufficientQuota(ex))
+  }
+
+  private fun isInsufficientQuota(ex: HttpStatusCodeException): Boolean {
+    val error = parseOpenAiError(ex)
+    return error["code"] == "insufficient_quota" || error["type"] == "insufficient_quota"
+  }
+
+  private fun summarizeOpenAiError(ex: HttpStatusCodeException): String {
+    val error = parseOpenAiError(ex)
+    val details =
+      listOfNotNull(error["code"], error["type"], error["message"]).joinToString(" / ").ifBlank {
+        ex.statusCode.toString()
+      }
+    return details
+  }
+
+  private fun parseOpenAiError(ex: HttpStatusCodeException): Map<String, String> {
+    return runCatching {
+        val payload = mapper.readValue(ex.responseBodyAsString, Map::class.java) as? Map<*, *>
+        val error = payload?.get("error") as? Map<*, *>
+        buildMap {
+          (error?.get("code") as? String)?.let { put("code", it) }
+          (error?.get("type") as? String)?.let { put("type", it) }
+          (error?.get("message") as? String)?.let { put("message", it) }
+        }
+      }
+      .getOrDefault(emptyMap())
+  }
+
+  private fun summarizeRetryableFailure(ex: Exception): String {
+    return when (ex) {
+      is HttpStatusCodeException -> ex.statusCode.toString()
+      else -> ex.javaClass.simpleName
+    }
+  }
+
+  private fun nextRetryDelayMillis(currentDelayMillis: Long): Long {
+    if (currentDelayMillis <= 0) {
+      return 0
+    }
+    return (currentDelayMillis * 2).coerceAtMost(MAX_RETRY_DELAY_MILLIS)
+  }
+
   private fun parseLyrics(payload: Any?): String? {
     val map = payload as? Map<*, *> ?: return null
     if ((map["instrumental"] as? Boolean) == true) {
@@ -472,12 +621,16 @@ class LyricsService(
     internal const val DEFAULT_FETCH_PARALLELISM = 8
     internal const val DEFAULT_MOOD_PROVIDER = "auto"
     internal const val DEFAULT_OPENAI_BATCH_SIZE = 8
+    internal const val DEFAULT_LYRICS_LOOKUP_MAX_ATTEMPTS = 3
+    internal const val DEFAULT_OPENAI_REQUEST_MAX_ATTEMPTS = 3
+    internal const val DEFAULT_RETRY_BASE_DELAY_MILLIS = 250L
     private const val DEFAULT_BASE_URL = "https://lrclib.net/api"
     private const val DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
     private const val DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
     private const val OPENAI_MOOD_PROVIDER = "openai"
     private const val HEURISTIC_MOOD_PROVIDER = "heuristic"
     private const val MAX_OPENAI_BATCH_SIZE = 16
+    private const val MAX_RETRY_DELAY_MILLIS = 2_000L
     private val SYNCED_LYRIC_TIMESTAMP_REGEX = Regex("^\\[[^\\]]+]\\s*")
     private val OPENAI_RESPONSE_SCHEMA =
       mapOf(

@@ -226,10 +226,13 @@ keyword heuristic. If `LYRICS_MOOD_PROVIDER=openai` or
 `LYRICS_MOOD_PROVIDER=auto` with `LYRICS_MOOD_OPENAI_API_KEY` or
 `OPENAI_API_KEY` set, it batches lyric classifications through OpenAI
 `gpt-5.4-mini` using strict JSON schema output. The lyric lookup and OpenAI
-call are both best-effort: if lyrics are unavailable or the model does not
-return a usable classification, the existing heuristic scorer remains the
-fallback. The UI reuses the background job polling flow and shows the resulting
-playlists as embedded Spotify iframes.
+call both use bounded retries for transient network, rate-limit, and `5xx`
+failures. In `LYRICS_MOOD_PROVIDER=auto`, the existing heuristic scorer remains
+the fallback if lyrics are unavailable or the model does not return a usable
+classification. In `LYRICS_MOOD_PROVIDER=openai`, lyric validation is OpenAI
+only: songs without a successful OpenAI classification remain unscored instead
+of falling back to the heuristic scorer. The UI reuses the background job
+polling flow and shows the resulting playlists as embedded Spotify iframes.
 
 The underlying API accepts an optional playlist size when starting the job:
 
