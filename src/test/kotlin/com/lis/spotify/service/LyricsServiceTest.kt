@@ -6,6 +6,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import java.net.URI
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -133,6 +134,7 @@ class LyricsServiceTest {
     val responseFormat = body["response_format"] as Map<*, *>
     val jsonSchema = responseFormat["json_schema"] as Map<*, *>
     assertEquals("gpt-5.4-mini", body["model"])
+    assertFalse(body.containsKey("temperature"))
     assertEquals("json_schema", responseFormat["type"])
     assertEquals("private_mood_lyrics_batch", jsonSchema["name"])
     assertTrue(

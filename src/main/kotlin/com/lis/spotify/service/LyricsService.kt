@@ -348,7 +348,6 @@ class LyricsService(
               "schema" to OPENAI_RESPONSE_SCHEMA,
             ),
         ),
-      "temperature" to 0,
       "reasoning_effort" to "low",
     )
   }
