@@ -14,6 +14,11 @@ class MainController(
   private val lastFmAuthenticationService: LastFmAuthenticationService,
 ) {
 
+  @GetMapping("/favicon.ico")
+  fun favicon(): String {
+    return "forward:/favicon.svg"
+  }
+
   @GetMapping("/")
   fun main(
     @CookieValue("clientId", defaultValue = "") clientId: String,

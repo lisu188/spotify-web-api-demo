@@ -1,5 +1,6 @@
 package com.lis.spotify.service
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.lis.spotify.domain.Song
 import com.lis.spotify.persistence.InMemoryLastFmRecentTracksCacheStore
 import com.lis.spotify.persistence.LastFmRecentTracksCacheStore
@@ -36,8 +37,8 @@ class LastFmServiceTest {
     val rest = mockk<RestTemplate>()
     val service = service()
     service.rest = rest
-    every { rest.getForObject(any<URI>(), Map::class.java) } returns
-      recentTracksPage(1, Song("A", "T"))
+    every { rest.getForObject(any<URI>(), String::class.java) } returns
+      recentTracksPayload(1, Song("A", "T"))
 
     val songs = service.yearlyChartlist("cid", 2020, "login")
 
@@ -49,8 +50,8 @@ class LastFmServiceTest {
     val rest = mockk<RestTemplate>()
     val service = service()
     service.rest = rest
-    every { rest.getForObject(any<URI>(), Map::class.java) } returns
-      recentTracksPage(1, Song("A", "T", playedAtEpochSecond = 1_700_000_000))
+    every { rest.getForObject(any<URI>(), String::class.java) } returns
+      recentTracksPayload(1, Song("A", "T", playedAtEpochSecond = 1_700_000_000))
 
     val songs = service.yearlyChartlist("cid", 2020, "login")
 
@@ -62,12 +63,12 @@ class LastFmServiceTest {
     val rest = mockk<RestTemplate>()
     val service = service()
     service.rest = rest
-    every { rest.getForObject(any<URI>(), Map::class.java) } answers
+    every { rest.getForObject(any<URI>(), String::class.java) } answers
       {
         when (page(firstArg())) {
-          1 -> recentTracksPage(3, Song("A", "T1"))
-          2 -> recentTracksPage(3, Song("B", "T2"))
-          else -> recentTracksPage(3)
+          1 -> recentTracksPayload(3, Song("A", "T1"))
+          2 -> recentTracksPayload(3, Song("B", "T2"))
+          else -> recentTracksPayload(3)
         }
       }
 
@@ -81,13 +82,13 @@ class LastFmServiceTest {
     val rest = mockk<RestTemplate>()
     val service = service()
     service.rest = rest
-    every { rest.getForObject(any<URI>(), Map::class.java) } returns
-      recentTracksPage(3, Song("A", "T1"))
+    every { rest.getForObject(any<URI>(), String::class.java) } returns
+      recentTracksPayload(3, Song("A", "T1"))
 
     val songs = service.yearlyChartlist("cid", 2020, "login", limit = 1)
 
     assertEquals(listOf(Song("A", "T1")), songs)
-    verify(exactly = 1) { rest.getForObject(any<URI>(), Map::class.java) }
+    verify(exactly = 1) { rest.getForObject(any<URI>(), String::class.java) }
   }
 
   @Test
@@ -96,8 +97,8 @@ class LastFmServiceTest {
     val rest = mockk<RestTemplate>()
     val firstService = service(store = store, persistentRecentTracksCacheEnabled = true)
     firstService.rest = rest
-    every { rest.getForObject(any<URI>(), Map::class.java) } returns
-      recentTracksPage(1, Song("A", "T1"))
+    every { rest.getForObject(any<URI>(), String::class.java) } returns
+      recentTracksPayload(1, Song("A", "T1"))
 
     val firstSongs = firstService.yearlyChartlist("cid", 2020, "login")
 
@@ -110,8 +111,8 @@ class LastFmServiceTest {
       firstSongs.map { it.copy(playedAtEpochSecond = null) },
       cachedSongs.map { it.copy(playedAtEpochSecond = null) },
     )
-    verify(exactly = 1) { rest.getForObject(any<URI>(), Map::class.java) }
-    verify(exactly = 0) { secondRest.getForObject(any<URI>(), Map::class.java) }
+    verify(exactly = 1) { rest.getForObject(any<URI>(), String::class.java) }
+    verify(exactly = 0) { secondRest.getForObject(any<URI>(), String::class.java) }
   }
 
   @Test
@@ -123,17 +124,17 @@ class LastFmServiceTest {
     val secondService = service(store = store)
     firstService.rest = firstRest
     secondService.rest = secondRest
-    every { firstRest.getForObject(any<URI>(), Map::class.java) } returns
-      recentTracksPage(1, Song("A", "T1"))
-    every { secondRest.getForObject(any<URI>(), Map::class.java) } returns
-      recentTracksPage(1, Song("A", "T1"))
+    every { firstRest.getForObject(any<URI>(), String::class.java) } returns
+      recentTracksPayload(1, Song("A", "T1"))
+    every { secondRest.getForObject(any<URI>(), String::class.java) } returns
+      recentTracksPayload(1, Song("A", "T1"))
 
     val firstSongs = firstService.yearlyChartlist("cid", 2020, "login")
     val secondSongs = secondService.yearlyChartlist("cid", 2020, "login")
 
     assertEquals(firstSongs, secondSongs)
-    verify(exactly = 1) { firstRest.getForObject(any<URI>(), Map::class.java) }
-    verify(exactly = 1) { secondRest.getForObject(any<URI>(), Map::class.java) }
+    verify(exactly = 1) { firstRest.getForObject(any<URI>(), String::class.java) }
+    verify(exactly = 1) { secondRest.getForObject(any<URI>(), String::class.java) }
   }
 
   @Test
@@ -175,14 +176,14 @@ class LastFmServiceTest {
         persistentRecentTracksCacheEnabled = true,
       )
     firstService.rest = rest
-    every { rest.getForObject(any<URI>(), Map::class.java) } returns
-      recentTracksPage(1, Song("A", "T1"))
+    every { rest.getForObject(any<URI>(), String::class.java) } returns
+      recentTracksPayload(1, Song("A", "T1"))
 
     firstService.yearlyChartlist("cid", 2020, "login")
 
     val expiredRest = mockk<RestTemplate>()
-    every { expiredRest.getForObject(any<URI>(), Map::class.java) } returns
-      recentTracksPage(1, Song("A", "T1"))
+    every { expiredRest.getForObject(any<URI>(), String::class.java) } returns
+      recentTracksPayload(1, Song("A", "T1"))
     val secondService =
       service(
         store = store,
@@ -193,8 +194,8 @@ class LastFmServiceTest {
 
     secondService.yearlyChartlist("cid", 2020, "login")
 
-    verify(exactly = 1) { rest.getForObject(any<URI>(), Map::class.java) }
-    verify(exactly = 1) { expiredRest.getForObject(any<URI>(), Map::class.java) }
+    verify(exactly = 1) { rest.getForObject(any<URI>(), String::class.java) }
+    verify(exactly = 1) { expiredRest.getForObject(any<URI>(), String::class.java) }
   }
 
   @Test
@@ -207,10 +208,10 @@ class LastFmServiceTest {
     val releaseRequests = CountDownLatch(1)
     service.rest = rest
 
-    every { rest.getForObject(any<URI>(), Map::class.java) } answers
+    every { rest.getForObject(any<URI>(), String::class.java) } answers
       {
         when (page(firstArg())) {
-          1 -> recentTracksPage(3, Song("A", "T1"))
+          1 -> recentTracksPayload(3, Song("A", "T1"))
           else -> {
             val active = activeRequests.incrementAndGet()
             maxActiveRequests.accumulateAndGet(active, ::maxOf)
@@ -218,7 +219,7 @@ class LastFmServiceTest {
             startedRequests.await(2, TimeUnit.SECONDS)
             releaseRequests.await(2, TimeUnit.SECONDS)
             activeRequests.decrementAndGet()
-            recentTracksPage(3, Song("B${page(firstArg())}", "T${page(firstArg())}"))
+            recentTracksPayload(3, Song("B${page(firstArg())}", "T${page(firstArg())}"))
           }
         }
       }
@@ -248,13 +249,13 @@ class LastFmServiceTest {
     service.rest = rest
     every { store.findByKey(any()) } throws IllegalStateException("boom")
     every { store.save(any()) } answers { firstArg() }
-    every { rest.getForObject(any<URI>(), Map::class.java) } returns
-      recentTracksPage(1, Song("A", "T1"))
+    every { rest.getForObject(any<URI>(), String::class.java) } returns
+      recentTracksPayload(1, Song("A", "T1"))
 
     val songs = service.yearlyChartlist("cid", 2020, "login")
 
     assertEquals(listOf(Song("A", "T1")), songs)
-    verify(exactly = 1) { rest.getForObject(any<URI>(), Map::class.java) }
+    verify(exactly = 1) { rest.getForObject(any<URI>(), String::class.java) }
   }
 
   @Test
@@ -276,7 +277,7 @@ class LastFmServiceTest {
         "{\"error\":29,\"message\":\"Rate limit\"}".toByteArray(),
         null,
       )
-    every { rest.getForObject(any<URI>(), Map::class.java) } throws ex
+    every { rest.getForObject(any<URI>(), String::class.java) } throws ex
 
     val thrown =
       assertThrows(LastFmException::class.java) { service.yearlyChartlist("c", 2020, "u").first() }
@@ -297,7 +298,7 @@ class LastFmServiceTest {
         "{\"error\":10,\"message\":\"Invalid API key\"}".toByteArray(),
         null,
       )
-    every { rest.getForObject(any<URI>(), Map::class.java) } throws ex
+    every { rest.getForObject(any<URI>(), String::class.java) } throws ex
 
     val thrown =
       assertThrows(LastFmException::class.java) { service.yearlyChartlist("c", 2020, "u").first() }
@@ -321,15 +322,15 @@ class LastFmServiceTest {
           .toByteArray(),
         null,
       )
-    every { rest.getForObject(any<URI>(), Map::class.java) } throws
+    every { rest.getForObject(any<URI>(), String::class.java) } throws
       ex andThen
-      recentTracksPage(1, Song("A", "T"))
+      recentTracksPayload(1, Song("A", "T"))
 
     val songs = service.yearlyChartlist("cid", 2020, "login")
 
     assertEquals(listOf(Song("A", "T")), songs)
     assertEquals(listOf(LastFmService.LASTFM_RETRY_DELAY_MS), sleepCalls)
-    verify(exactly = 2) { rest.getForObject(any<URI>(), Map::class.java) }
+    verify(exactly = 2) { rest.getForObject(any<URI>(), String::class.java) }
   }
 
   @Test
@@ -348,7 +349,7 @@ class LastFmServiceTest {
           .toByteArray(),
         null,
       )
-    every { rest.getForObject(any<URI>(), Map::class.java) } throws ex
+    every { rest.getForObject(any<URI>(), String::class.java) } throws ex
 
     val thrown =
       assertThrows(LastFmException::class.java) { service.yearlyChartlist("cid", 2020, "login") }
@@ -359,7 +360,7 @@ class LastFmServiceTest {
       sleepCalls,
     )
     verify(exactly = LastFmService.LASTFM_FETCH_ATTEMPTS) {
-      rest.getForObject(any<URI>(), Map::class.java)
+      rest.getForObject(any<URI>(), String::class.java)
     }
   }
 
@@ -371,7 +372,7 @@ class LastFmServiceTest {
     val service = service(auth = auth)
     service.rest = rest
     val uriSlot = io.mockk.slot<URI>()
-    every { rest.getForObject(capture(uriSlot), Map::class.java) } returns recentTracksPage(1)
+    every { rest.getForObject(capture(uriSlot), String::class.java) } returns recentTracksPayload(1)
 
     service.yearlyChartlist("c", 2020, "login")
 
@@ -538,6 +539,10 @@ class LastFmServiceTest {
             },
         )
     )
+  }
+
+  private fun recentTracksPayload(totalPages: Int, vararg songs: Song): String {
+    return jacksonObjectMapper().writeValueAsString(recentTracksPage(totalPages, *songs))
   }
 
   private fun page(uri: URI): Int {

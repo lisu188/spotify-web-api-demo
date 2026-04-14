@@ -1,5 +1,6 @@
 package com.lis.spotify.service
 
+import com.fasterxml.jackson.core.JsonToken
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.google.common.cache.Cache
 import com.google.common.cache.CacheBuilder
@@ -104,8 +105,7 @@ class LastFmService(
         ),
         sessionKey,
       )
-    val data = fetchPayload(uri, "recent tracks for user $user")
-    val recentTracksPage = parseRecentTracksPage(data, page)
+    val recentTracksPage = fetchRecentTracksPage(uri, "recent tracks for user $user", page)
     saveRecentTracksPage(
       cacheKey = cacheKey,
       user = user,
@@ -119,14 +119,30 @@ class LastFmService(
     return recentTracksPage
   }
 
+  private fun fetchRecentTracksPage(
+    uri: URI,
+    context: String,
+    currentPage: Int,
+  ): CachedLastFmRecentTracksPage {
+    return executeWithRetries(context) {
+      parseRecentTracksPage(rest.getForObject(uri, String::class.java).orEmpty(), currentPage)
+    }
+  }
+
   private fun fetchPayload(uri: URI, context: String): Map<String, Any?> {
+    return executeWithRetries(context) {
+      (rest.getForObject(uri, Map::class.java) as? Map<*, *>)
+        ?.entries
+        ?.associate { (key, value) -> key.toString() to value }
+        .orEmpty()
+    }
+  }
+
+  private fun <T> executeWithRetries(context: String, request: () -> T): T {
     var attempt = 1
     while (true) {
       try {
-        return (rest.getForObject(uri, Map::class.java) as? Map<*, *>)
-          ?.entries
-          ?.associate { (key, value) -> key.toString() to value }
-          .orEmpty()
+        return request()
       } catch (ex: HttpStatusCodeException) {
         val err = parseError(ex)
         if (err.code == AUTHENTICATION_REQUIRED_CODE) {
@@ -308,42 +324,182 @@ class LastFmService(
   }
 
   private fun parseRecentTracksPage(
-    payload: Map<String, Any?>,
+    payload: String,
     currentPage: Int,
   ): CachedLastFmRecentTracksPage {
-    val recentTracks =
-      payload["recenttracks"] as? Map<*, *> ?: return CachedLastFmRecentTracksPage(1, emptyList())
-    val attr = recentTracks["@attr"] as? Map<*, *>
-    val totalPages =
-      when (val value = attr?.get("totalPages")) {
-        is Number -> value.toInt()
-        is String -> value.toIntOrNull()
-        else -> null
-      } ?: currentPage
+    if (payload.isBlank()) {
+      return CachedLastFmRecentTracksPage(currentPage, emptyList())
+    }
 
-    val trackItems =
-      when (val tracks = recentTracks["track"]) {
-        is List<*> -> tracks
-        is Map<*, *> -> listOf(tracks)
-        else -> emptyList()
+    mapper.factory.createParser(payload).use { parser ->
+      var totalPages = currentPage
+      val songs = mutableListOf<Song>()
+
+      while (parser.nextToken() != null) {
+        if (parser.currentToken == JsonToken.FIELD_NAME && parser.currentName() == "recenttracks") {
+          parser.nextToken()
+          totalPages = parseRecentTracksObject(parser, currentPage, songs)
+        }
       }
 
-    val songs =
-      trackItems.mapNotNull { track ->
-        val map = track as? Map<*, *> ?: return@mapNotNull null
-        val artist =
-          (map["artist"] as? Map<*, *>)?.get("#text") as? String ?: return@mapNotNull null
-        val title = map["name"] as? String ?: return@mapNotNull null
-        Song(
-          artist = artist,
-          title = title,
-          playedAtEpochSecond = extractPlayedAtEpochSecond(map["date"]),
-        )
+      return CachedLastFmRecentTracksPage(
+        totalPages = totalPages.coerceAtLeast(currentPage),
+        songs = songs,
+      )
+    }
+  }
+
+  private fun parseRecentTracksObject(
+    parser: com.fasterxml.jackson.core.JsonParser,
+    currentPage: Int,
+    songs: MutableList<Song>,
+  ): Int {
+    if (parser.currentToken != JsonToken.START_OBJECT) {
+      parser.skipChildren()
+      return currentPage
+    }
+
+    var totalPages = currentPage
+    while (parser.nextToken() != JsonToken.END_OBJECT) {
+      if (parser.currentToken != JsonToken.FIELD_NAME) {
+        continue
       }
-    return CachedLastFmRecentTracksPage(
-      totalPages = totalPages.coerceAtLeast(currentPage),
-      songs = songs,
-    )
+
+      val fieldName = parser.currentName()
+      parser.nextToken()
+      when (fieldName) {
+        "@attr" -> totalPages = parseRecentTracksAttributes(parser, currentPage)
+        "track" -> parseRecentTrackItems(parser, songs)
+        else -> parser.skipChildren()
+      }
+    }
+
+    return totalPages
+  }
+
+  private fun parseRecentTracksAttributes(
+    parser: com.fasterxml.jackson.core.JsonParser,
+    currentPage: Int,
+  ): Int {
+    if (parser.currentToken != JsonToken.START_OBJECT) {
+      parser.skipChildren()
+      return currentPage
+    }
+
+    var totalPages = currentPage
+    while (parser.nextToken() != JsonToken.END_OBJECT) {
+      if (parser.currentToken != JsonToken.FIELD_NAME) {
+        continue
+      }
+
+      val fieldName = parser.currentName()
+      parser.nextToken()
+      when (fieldName) {
+        "totalPages" -> totalPages = parser.valueAsString?.toIntOrNull() ?: currentPage
+        else -> parser.skipChildren()
+      }
+    }
+
+    return totalPages
+  }
+
+  private fun parseRecentTrackItems(
+    parser: com.fasterxml.jackson.core.JsonParser,
+    songs: MutableList<Song>,
+  ) {
+    when (parser.currentToken) {
+      JsonToken.START_ARRAY -> {
+        while (parser.nextToken() != JsonToken.END_ARRAY) {
+          parseRecentTrackItem(parser)?.let(songs::add)
+        }
+      }
+      JsonToken.START_OBJECT -> {
+        parseRecentTrackItem(parser)?.let(songs::add)
+      }
+      else -> parser.skipChildren()
+    }
+  }
+
+  private fun parseRecentTrackItem(parser: com.fasterxml.jackson.core.JsonParser): Song? {
+    if (parser.currentToken != JsonToken.START_OBJECT) {
+      parser.skipChildren()
+      return null
+    }
+
+    var artist: String? = null
+    var title: String? = null
+    var playedAtEpochSecond: Long? = null
+
+    while (parser.nextToken() != JsonToken.END_OBJECT) {
+      if (parser.currentToken != JsonToken.FIELD_NAME) {
+        continue
+      }
+
+      val fieldName = parser.currentName()
+      parser.nextToken()
+      when (fieldName) {
+        "artist" -> artist = parseRecentTrackArtist(parser)
+        "name" -> title = parser.valueAsString
+        "date" -> playedAtEpochSecond = parseRecentTrackPlayedAt(parser)
+        else -> parser.skipChildren()
+      }
+    }
+
+    if (artist.isNullOrBlank() || title.isNullOrBlank()) {
+      return null
+    }
+
+    return Song(artist = artist, title = title, playedAtEpochSecond = playedAtEpochSecond)
+  }
+
+  private fun parseRecentTrackArtist(parser: com.fasterxml.jackson.core.JsonParser): String? {
+    return when (parser.currentToken) {
+      JsonToken.START_OBJECT -> {
+        var artist: String? = null
+        while (parser.nextToken() != JsonToken.END_OBJECT) {
+          if (parser.currentToken != JsonToken.FIELD_NAME) {
+            continue
+          }
+
+          val fieldName = parser.currentName()
+          parser.nextToken()
+          when (fieldName) {
+            "#text",
+            "name" -> artist = parser.valueAsString
+            else -> parser.skipChildren()
+          }
+        }
+        artist
+      }
+      JsonToken.VALUE_STRING -> parser.valueAsString
+      else -> {
+        parser.skipChildren()
+        null
+      }
+    }
+  }
+
+  private fun parseRecentTrackPlayedAt(parser: com.fasterxml.jackson.core.JsonParser): Long? {
+    if (parser.currentToken != JsonToken.START_OBJECT) {
+      parser.skipChildren()
+      return null
+    }
+
+    var playedAtEpochSecond: Long? = null
+    while (parser.nextToken() != JsonToken.END_OBJECT) {
+      if (parser.currentToken != JsonToken.FIELD_NAME) {
+        continue
+      }
+
+      val fieldName = parser.currentName()
+      parser.nextToken()
+      when (fieldName) {
+        "uts" -> playedAtEpochSecond = parser.valueAsString?.toLongOrNull()
+        else -> parser.skipChildren()
+      }
+    }
+
+    return playedAtEpochSecond
   }
 
   private fun parseSimilarTracks(payload: Map<String, Any?>, limit: Int): List<LastFmSimilarTrack> {
@@ -402,15 +558,6 @@ class LastFmService(
       is String -> value.toDoubleOrNull()
       else -> null
     } ?: 0.0
-  }
-
-  private fun extractPlayedAtEpochSecond(value: Any?): Long? {
-    val date = value as? Map<*, *> ?: return null
-    return when (val uts = date["uts"]) {
-      is Number -> uts.toLong()
-      is String -> uts.toLongOrNull()
-      else -> null
-    }
   }
 
   private fun pagesToFetch(totalPages: Int, startPage: Int, limit: Int): List<Int> {
