@@ -7,6 +7,7 @@ import io.mockk.verify
 import java.net.URI
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -63,6 +64,35 @@ class LyricsServiceTest {
     val lyrics = service.fetchLyrics(Song("Artist A", "Missing Song"))
 
     assertNull(lyrics)
+  }
+
+  @Test
+  fun fetchLyricsRetriesWithSimplifiedTitleAfterBadRequest() {
+    val rest = mockk<RestTemplate>()
+    val service = LyricsService()
+    val requestedUris = mutableListOf<String>()
+    service.rest = rest
+    val badRequest =
+      HttpClientErrorException.create(HttpStatus.BAD_REQUEST, "", HttpHeaders(), ByteArray(0), null)
+
+    every { rest.getForObject(any<URI>(), Map::class.java) } answers
+      {
+        val uri = firstArg<URI>().toString()
+        requestedUris += uri
+        if (requestedUris.size == 1) {
+          throw badRequest
+        }
+        mapOf("plainLyrics" to "let it go", "instrumental" to false)
+      }
+
+    val lyrics = service.fetchLyrics(Song("Artist A", "Song A - Live / OST"))
+
+    assertEquals("let it go", lyrics)
+    assertEquals(2, requestedUris.size)
+    assertTrue(requestedUris.first().contains("Live"))
+    assertNotEquals(requestedUris.first(), requestedUris.last())
+    assertTrue(requestedUris.last().contains("Live"))
+    assertFalse(requestedUris.last().contains("OST"))
   }
 
   @Test
@@ -347,6 +377,46 @@ class LyricsServiceTest {
           coverageScore = 5.0,
           tokenCount = 4,
         )
+      }
+
+    assertTrue(profiles.isEmpty())
+    verify(exactly = 1) { rest.postForObject(any<URI>(), any<HttpEntity<*>>(), Map::class.java) }
+  }
+
+  @Test
+  fun buildPrivateMoodLyricsProfilesStopsOpenAiBatchesAfterQuotaFailure() {
+    val rest = mockk<RestTemplate>()
+    val service = LyricsService()
+    service.rest = rest
+    service.fetchParallelism = 1
+    service.moodProvider = "openai"
+    service.openAiApiKey = "test-key"
+    service.openAiBatchSize = 1
+    service.retryBaseDelayMillis = 0
+    service.retrySleeper = {}
+    val quotaExceeded =
+      HttpClientErrorException.create(
+        HttpStatus.TOO_MANY_REQUESTS,
+        "",
+        HttpHeaders(),
+        """
+        {"error":{"message":"quota exceeded","type":"insufficient_quota","code":"insufficient_quota"}}
+        """
+          .trimIndent()
+          .toByteArray(),
+        null,
+      )
+
+    every { rest.getForObject(any<URI>(), Map::class.java) } returns
+      mapOf("plainLyrics" to "sunshine dancing all day", "instrumental" to false)
+    every { rest.postForObject(any<URI>(), any<HttpEntity<*>>(), Map::class.java) } throws
+      quotaExceeded
+
+    val profiles =
+      service.buildPrivateMoodLyricsProfiles(
+        listOf(Song("Artist A", "Song A"), Song("Artist B", "Song B"))
+      ) {
+        SpotifyTopPlaylistsService.PrivateMoodLyricsProfile.empty()
       }
 
     assertTrue(profiles.isEmpty())

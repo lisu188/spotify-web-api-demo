@@ -74,40 +74,75 @@ class LyricsService(
       return it.lyrics
     }
 
-    val lyrics =
+    val lookupCandidates = buildLyricsLookupCandidates(song)
+    var lyrics: String? = null
+
+    for ((index, candidate) in lookupCandidates.withIndex()) {
       try {
-        executeWithRetry(
-          maxAttempts = lyricsLookupMaxAttempts,
-          shouldRetry = ::shouldRetryLyricsLookup,
-          onRetry = { attempt, maxAttempts, delayMillis, ex ->
-            logger.info(
-              "Retrying lyrics lookup for {} - {} after transient failure on attempt {}/{} ({}); waiting {} ms",
+        lyrics =
+          executeWithRetry(
+            maxAttempts = lyricsLookupMaxAttempts,
+            shouldRetry = ::shouldRetryLyricsLookup,
+            onRetry = { attempt, maxAttempts, delayMillis, ex ->
+              logger.info(
+                "Retrying lyrics lookup for {} - {} after transient failure on attempt {}/{} ({}); waiting {} ms",
+                song.artist,
+                song.title,
+                attempt,
+                maxAttempts,
+                summarizeRetryableFailure(ex),
+                delayMillis,
+              )
+            },
+          ) {
+            parseLyrics(rest.getForObject(buildLyricsUri(candidate), Map::class.java))
+          }
+      } catch (ex: HttpStatusCodeException) {
+        when (ex.statusCode) {
+          HttpStatus.NOT_FOUND -> {
+            logger.debug(
+              "Lyrics not found for {} - {} on lookup attempt {}/{}",
               song.artist,
               song.title,
-              attempt,
-              maxAttempts,
-              summarizeRetryableFailure(ex),
-              delayMillis,
+              index + 1,
+              lookupCandidates.size,
             )
-          },
-        ) {
-          parseLyrics(rest.getForObject(buildLyricsUri(song), Map::class.java))
-        }
-      } catch (ex: HttpStatusCodeException) {
-        if (ex.statusCode == HttpStatus.NOT_FOUND) {
-          logger.debug("Lyrics not found for {} - {}", song.artist, song.title)
-          null
-        } else {
-          logger.warn("Lyrics lookup failed for {} - {}", song.artist, song.title, ex)
-          null
+            continue
+          }
+          HttpStatus.BAD_REQUEST -> {
+            logger.debug(
+              "Lyrics lookup rejected for {} - {} on attempt {}/{}; trying a simplified query when available",
+              song.artist,
+              song.title,
+              index + 1,
+              lookupCandidates.size,
+            )
+            continue
+          }
+          else -> {
+            logger.warn("Lyrics lookup failed for {} - {}", song.artist, song.title, ex)
+            break
+          }
         }
       } catch (ex: ResourceAccessException) {
         logger.warn("Lyrics lookup network error for {} - {}", song.artist, song.title, ex)
-        null
+        break
       } catch (ex: Exception) {
         logger.warn("Unexpected lyrics lookup failure for {} - {}", song.artist, song.title, ex)
-        null
+        break
       }
+
+      if (lyrics != null) {
+        if (index > 0) {
+          logger.info(
+            "Lyrics lookup succeeded for {} - {} after retrying with a simplified title",
+            song.artist,
+            song.title,
+          )
+        }
+        break
+      }
+    }
 
     lyricsCache.put(key, LyricsLookupResult(lyrics))
     return lyrics
@@ -481,7 +516,7 @@ class LyricsService(
     }
     if (profiles.size != entries.size) {
       logger.warn(
-        "OpenAI lyric mood response returned {} profiles for {} requested songs; missing songs will fall back to heuristics",
+        "OpenAI lyric mood response returned {} profiles for {} requested songs; missing songs will follow the configured fallback path",
         profiles.size,
         entries.size,
       )
@@ -584,6 +619,23 @@ class LyricsService(
     return (currentDelayMillis * 2).coerceAtMost(MAX_RETRY_DELAY_MILLIS)
   }
 
+  private fun buildLyricsLookupCandidates(song: Song): List<Song> {
+    val normalizedTitles =
+      linkedSetOf(song.title.normalizedLookupTitle()).apply {
+        add(song.title.substringBefore(" / ").normalizedLookupTitle())
+        add(song.title.substringBefore('/').normalizedLookupTitle())
+        add(song.title.substringBefore(" - ").normalizedLookupTitle())
+        add(song.title.substringBefore(" – ").normalizedLookupTitle())
+        add(song.title.substringBefore(" — ").normalizedLookupTitle())
+        add(song.title.substringBefore(" (").normalizedLookupTitle())
+        add(song.title.substringBefore(" [").normalizedLookupTitle())
+      }
+
+    return normalizedTitles
+      .filter { it.isNotBlank() }
+      .map { normalizedTitle -> Song(song.artist, normalizedTitle) }
+  }
+
   private fun parseLyrics(payload: Any?): String? {
     val map = payload as? Map<*, *> ?: return null
     if ((map["instrumental"] as? Boolean) == true) {
@@ -615,6 +667,10 @@ class LyricsService(
 
   private fun String.normalizeToken(): String {
     return trim().lowercase().replace("\\s+".toRegex(), " ")
+  }
+
+  private fun String.normalizedLookupTitle(): String {
+    return trim().trim('-', '–', '—', '/', ':', ';').replace("\\s+".toRegex(), " ")
   }
 
   companion object {
