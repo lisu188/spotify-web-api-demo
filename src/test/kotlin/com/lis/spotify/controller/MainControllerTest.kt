@@ -14,6 +14,11 @@ class MainControllerTest {
   private val controller = MainController(spotifyService, lastfmService)
 
   @Test
+  fun forwardsFaviconIcoToSvg() {
+    assertEquals("forward:/favicon.svg", controller.favicon())
+  }
+
+  @Test
   fun redirectsToIndexWhenAuthorized() {
     every { spotifyService.getAuthToken("abc") } returns mockk()
     every { lastfmService.isAuthorized("login", "token") } returns true
