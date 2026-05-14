@@ -3,6 +3,7 @@ package com.lis.spotify.service
 import com.lis.spotify.persistence.InMemoryRefreshStateStore
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -18,8 +19,9 @@ class SpotifyTopPlaylistsRefreshServiceTest {
     val authService = mockk<SpotifyAuthenticationService>(relaxed = true)
     val topPlaylistsService = mockk<SpotifyTopPlaylistsService>()
     val refreshStateStore = InMemoryRefreshStateStore()
-    every { authService.refreshToken("cid") } returns true
-    every { topPlaylistsService.updateTopPlaylists("cid") } returns listOf("playlist-1")
+    val cacheClientId = slot<String>()
+    every { authService.refreshToken(capture(cacheClientId)) } returns true
+    every { topPlaylistsService.updateTopPlaylists(any()) } returns listOf("playlist-1")
 
     val service =
       SpotifyTopPlaylistsRefreshService(
@@ -35,9 +37,12 @@ class SpotifyTopPlaylistsRefreshServiceTest {
 
     service.refreshConfiguredPlaylists("test")
 
-    verify { authService.seedRefreshToken("cid", "refresh-token") }
-    verify { authService.refreshToken("cid") }
-    verify { topPlaylistsService.updateTopPlaylists("cid") }
+    assertTrue(cacheClientId.captured.startsWith("configured-top-playlists-refresh-"))
+    assertFalse(cacheClientId.captured == "cid")
+    verify { authService.seedRefreshToken(cacheClientId.captured, "refresh-token") }
+    verify(exactly = 0) { authService.seedRefreshToken("cid", any()) }
+    verify { authService.refreshToken(cacheClientId.captured) }
+    verify { topPlaylistsService.updateTopPlaylists(cacheClientId.captured) }
     val savedState = refreshStateStore.getTopPlaylists()
     assertNotNull(savedState)
     assertEquals("COMPLETED", savedState?.lastStatus)
@@ -52,7 +57,8 @@ class SpotifyTopPlaylistsRefreshServiceTest {
     val authService = mockk<SpotifyAuthenticationService>(relaxed = true)
     val topPlaylistsService = mockk<SpotifyTopPlaylistsService>(relaxed = true)
     val refreshStateStore = InMemoryRefreshStateStore()
-    every { authService.refreshToken("cid") } returns false
+    val cacheClientId = slot<String>()
+    every { authService.refreshToken(capture(cacheClientId)) } returns false
 
     val service =
       SpotifyTopPlaylistsRefreshService(
@@ -68,8 +74,11 @@ class SpotifyTopPlaylistsRefreshServiceTest {
 
     service.refreshConfiguredPlaylists("test")
 
-    verify { authService.seedRefreshToken("cid", "refresh-token") }
-    verify { authService.refreshToken("cid") }
+    assertTrue(cacheClientId.captured.startsWith("configured-top-playlists-refresh-"))
+    assertFalse(cacheClientId.captured == "cid")
+    verify { authService.seedRefreshToken(cacheClientId.captured, "refresh-token") }
+    verify(exactly = 0) { authService.seedRefreshToken("cid", any()) }
+    verify { authService.refreshToken(cacheClientId.captured) }
     verify(exactly = 0) { topPlaylistsService.updateTopPlaylists(any()) }
     assertEquals("FAILED_SPOTIFY_REFRESH", refreshStateStore.getTopPlaylists()?.lastStatus)
   }
@@ -138,8 +147,8 @@ class SpotifyTopPlaylistsRefreshServiceTest {
     val authService = mockk<SpotifyAuthenticationService>(relaxed = true)
     val topPlaylistsService = mockk<SpotifyTopPlaylistsService>()
     val refreshStateStore = InMemoryRefreshStateStore()
-    every { authService.refreshToken("cid") } returns true
-    every { topPlaylistsService.updateTopPlaylists("cid") } throws IllegalStateException("boom")
+    every { authService.refreshToken(any()) } returns true
+    every { topPlaylistsService.updateTopPlaylists(any()) } throws IllegalStateException("boom")
     val service =
       SpotifyTopPlaylistsRefreshService(
         spotifyAuthenticationService = authService,
