@@ -397,18 +397,32 @@ class LastFmServiceTest {
   }
 
   @Test
-  fun sessionKeyAddedToRequest() {
+  fun sessionKeyAddedToRequestOnlyWhenProvidedByCaller() {
+    val rest = mockk<RestTemplate>()
+    val service = service()
+    service.rest = rest
+    val uriSlot = io.mockk.slot<URI>()
+    every { rest.getForObject(capture(uriSlot), String::class.java) } returns recentTracksPayload(1)
+
+    service.yearlyChartlist("c", 2020, "login", sessionKey = "sess")
+
+    assertTrue(uriSlot.captured.query!!.contains("sk=sess"))
+  }
+
+  @Test
+  fun yearlyChartlistDoesNotReuseStoredSessionByLogin() {
     val rest = mockk<RestTemplate>()
     val auth = mockk<LastFmAuthenticationService>()
-    every { auth.getSessionKey("login") } returns "sess"
+    every { auth.getSessionKey(any()) } returns "victim-session"
     val service = service(auth = auth)
     service.rest = rest
     val uriSlot = io.mockk.slot<URI>()
     every { rest.getForObject(capture(uriSlot), String::class.java) } returns recentTracksPayload(1)
 
-    service.yearlyChartlist("c", 2020, "login")
+    service.yearlyChartlist("attacker-client", 2020, "victim-login")
 
-    assertTrue(uriSlot.captured.query!!.contains("sk=sess"))
+    assertTrue(!uriSlot.captured.query!!.contains("sk="))
+    io.mockk.verify(exactly = 0) { auth.getSessionKey(any()) }
   }
 
   @Test

@@ -225,14 +225,13 @@ class LastFmService(
     lastFmLogin: String,
     limit: Int = Int.MAX_VALUE,
     startPage: Int = 1,
+    sessionKey: String? = null,
   ): List<Song> {
     logger.info("Fetching yearly chartlist for user {} year {}", lastFmLogin, year)
     logger.debug("yearlyChartlist {} {} {}", spotifyClientId, year, lastFmLogin)
     if (lastFmLogin.isBlank()) throw LastFmException(400, "user is required")
     val from = LocalDate.of(year, 1, 1).atStartOfDay().toEpochSecond(ZoneOffset.UTC)
     val to = LocalDate.of(year, 12, 31).atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC)
-    val sessionKey = lastFmAuthService.getSessionKey(lastFmLogin)
-
     return runBlocking(Dispatchers.IO) {
       val firstPage = fetchRecent(lastFmLogin, from, to, startPage, sessionKey)
       if (firstPage.songs.isEmpty()) {

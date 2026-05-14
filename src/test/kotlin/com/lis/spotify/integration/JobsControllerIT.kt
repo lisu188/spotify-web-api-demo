@@ -6,6 +6,7 @@ import com.github.tomakehurst.wiremock.client.WireMock.reset as wireMockReset
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
 import com.lis.spotify.service.AuthenticationRequiredException
 import com.lis.spotify.service.ForgottenObsessionsPlaylistResult
+import com.lis.spotify.service.LastFmAuthenticationService
 import com.lis.spotify.service.PrivateMoodPlaylistResult
 import com.lis.spotify.service.PrivateMoodTaxonomyResult
 import com.lis.spotify.service.SpotifyTopPlaylistsService
@@ -40,6 +41,7 @@ class JobsControllerIT
 constructor(
   private val rest: TestRestTemplate,
   private val playlistService: SpotifyTopPlaylistsService,
+  private val lastFmAuthenticationService: LastFmAuthenticationService,
 ) {
   companion object {
     val wm = WireMockServer(WireMockConfiguration.options().dynamicPort())
@@ -73,11 +75,14 @@ constructor(
   @BeforeEach
   fun reset() {
     wireMockReset()
-    clearMocks(playlistService)
-    every { playlistService.updateYearlyPlaylists(any(), any(), any()) } returns Unit
-    every { playlistService.updateForgottenObsessionsPlaylist(any(), any(), any()) } returns
+    clearMocks(playlistService, lastFmAuthenticationService)
+    every { lastFmAuthenticationService.isAuthorized(any(), any()) } returns true
+    every { playlistService.updateYearlyPlaylists(any(), any(), any(), any()) } returns Unit
+    every { playlistService.updateForgottenObsessionsPlaylist(any(), any(), any(), any()) } returns
       ForgottenObsessionsPlaylistResult("playlist-1", 12, 12, 18)
-    every { playlistService.updatePrivateMoodTaxonomyPlaylists(any(), any(), any(), any()) } returns
+    every {
+      playlistService.updatePrivateMoodTaxonomyPlaylists(any(), any(), any(), any(), any())
+    } returns
       PrivateMoodTaxonomyResult(
         listOf(
           PrivateMoodPlaylistResult("Anchor", "Private Mood - Anchor", "anchor-id", 12, 20),
@@ -94,7 +99,7 @@ constructor(
   @Test
   fun jobLifecycle() {
     val headers = HttpHeaders()
-    headers.add(HttpHeaders.COOKIE, "clientId=cid")
+    headers.add(HttpHeaders.COOKIE, "clientId=cid; lastFmToken=token")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
     val resp = rest.postForEntity("/jobs", req, Map::class.java)
     assertEquals(HttpStatus.ACCEPTED, resp.statusCode)
@@ -109,10 +114,10 @@ constructor(
 
   @Test
   fun jobAuthFailurePreservesLastFmRedirect() {
-    every { playlistService.updateYearlyPlaylists(any(), any(), any()) } throws
+    every { playlistService.updateYearlyPlaylists(any(), any(), any(), any()) } throws
       AuthenticationRequiredException("LASTFM")
     val headers = HttpHeaders()
-    headers.add(HttpHeaders.COOKIE, "clientId=cid")
+    headers.add(HttpHeaders.COOKIE, "clientId=cid; lastFmToken=token")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
 
     val resp = rest.postForEntity("/jobs", req, Map::class.java)
@@ -128,7 +133,7 @@ constructor(
   @Test
   fun forgottenObsessionsJobReturnsPlaylistIds() {
     val headers = HttpHeaders()
-    headers.add(HttpHeaders.COOKIE, "clientId=cid")
+    headers.add(HttpHeaders.COOKIE, "clientId=cid; lastFmToken=token")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
 
     val resp = rest.postForEntity("/jobs/forgotten-obsessions", req, Map::class.java)
@@ -143,7 +148,7 @@ constructor(
   @Test
   fun forgottenObsessionsJobRejectsBlankLogin() {
     val headers = HttpHeaders()
-    headers.add(HttpHeaders.COOKIE, "clientId=cid")
+    headers.add(HttpHeaders.COOKIE, "clientId=cid; lastFmToken=token")
     val req = HttpEntity(mapOf("lastFmLogin" to "   "), headers)
 
     val resp = rest.postForEntity("/jobs/forgotten-obsessions", req, Map::class.java)
@@ -154,7 +159,7 @@ constructor(
   @Test
   fun privateMoodTaxonomyJobReturnsPlaylistIds() {
     val headers = HttpHeaders()
-    headers.add(HttpHeaders.COOKIE, "clientId=cid")
+    headers.add(HttpHeaders.COOKIE, "clientId=cid; lastFmToken=token")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
 
     val resp = rest.postForEntity("/jobs/private-mood-taxonomy", req, Map::class.java)
@@ -172,7 +177,7 @@ constructor(
   @Test
   fun privateMoodTaxonomyJobRejectsBlankLogin() {
     val headers = HttpHeaders()
-    headers.add(HttpHeaders.COOKIE, "clientId=cid")
+    headers.add(HttpHeaders.COOKIE, "clientId=cid; lastFmToken=token")
     val req = HttpEntity(mapOf("lastFmLogin" to "   "), headers)
 
     val resp = rest.postForEntity("/jobs/private-mood-taxonomy", req, Map::class.java)
@@ -207,6 +212,12 @@ constructor(
         )
       every { svc.updateTopPlaylists(any()) } returns emptyList()
       return svc
+    }
+
+    @Bean
+    @Primary
+    fun lastFmAuthenticationService(): LastFmAuthenticationService {
+      return mockk(relaxed = true)
     }
 
     @Bean
