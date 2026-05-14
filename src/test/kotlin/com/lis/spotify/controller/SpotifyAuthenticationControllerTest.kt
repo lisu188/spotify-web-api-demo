@@ -106,11 +106,11 @@ class SpotifyAuthenticationControllerTest {
     every { builder.build() } returns restTemplate
 
     val token = AuthToken("a", "b", "c", 0, "r", null)
+    every { spotifyService.createSessionId() } returns "session_cid"
     every {
       restTemplate.postForObject<AuthToken>(Spotify.TOKEN_URL, any(), AuthToken::class.java)
     } returns token
     every { spotifyService.getHeaders(token) } returns HttpHeaders()
-    every { spotifyService.createSpotifySession("cid") } returns "session"
     val userResponse = ResponseEntity(User("cid"), HttpStatus.OK)
     every {
       restTemplate.exchange<User>(
@@ -130,18 +130,7 @@ class SpotifyAuthenticationControllerTest {
             it.path == "/" &&
             it.isHttpOnly &&
             !it.secure &&
-            it.value == "cid"
-        }
-      )
-    }
-    verify {
-      response.addCookie(
-        match {
-          it.name == SpotifyAuthenticationController.SPOTIFY_SESSION_COOKIE &&
-            it.path == "/" &&
-            it.isHttpOnly &&
-            !it.secure &&
-            it.value == "session"
+            it.value == "session_cid"
         }
       )
     }

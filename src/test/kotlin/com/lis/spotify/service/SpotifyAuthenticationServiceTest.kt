@@ -41,6 +41,18 @@ class SpotifyAuthenticationServiceTest {
   }
 
   @Test
+  fun isAuthorizedSessionRequiresOpaqueSessionId() {
+    val sessionId = service.createSessionId()
+    service.setAuthToken(AuthToken("a", "b", "c", 0, "r", sessionId))
+    service.setAuthToken(AuthToken("victim-token", "b", "c", 0, "r", "victim-public-id"))
+
+    assertTrue(service.isSessionId(sessionId))
+    assertTrue(service.isAuthorizedSession(sessionId))
+    assertFalse(service.isSessionId("victim-public-id"))
+    assertFalse(service.isAuthorizedSession("victim-public-id"))
+  }
+
+  @Test
   fun seedRefreshTokenStoresRefreshTokenInCache() {
     service.seedRefreshToken("cid", "refresh")
 
@@ -89,15 +101,6 @@ class SpotifyAuthenticationServiceTest {
     val refreshed = service.refreshToken("cid")
     assertFalse(refreshed)
     assertEquals(token, service.getAuthToken("cid"))
-  }
-
-  @Test
-  fun spotifySessionMustMatchClientId() {
-    val sessionId = service.createSpotifySession("cid")
-
-    assertTrue(service.isValidSpotifySession("cid", sessionId))
-    assertFalse(service.isValidSpotifySession("other", sessionId))
-    assertFalse(service.isValidSpotifySession("cid", "forged"))
   }
 
   @Test

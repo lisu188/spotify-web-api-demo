@@ -6,25 +6,26 @@ import com.lis.spotify.service.SpotifyBandPlaylistService
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
+import org.springframework.web.server.ResponseStatusException
 
 class SpotifyBandPlaylistControllerTest {
   private val service = mockk<SpotifyBandPlaylistService>()
-  private val authenticationService = mockk<SpotifyAuthenticationService>()
-  private val controller = SpotifyBandPlaylistController(service, authenticationService)
+  private val authService = mockk<SpotifyAuthenticationService>()
+  private val controller = SpotifyBandPlaylistController(service, authService)
+
+  init {
+    every { authService.isAuthorizedSession("cid") } returns true
+  }
 
   @Test
   fun createBandPlaylistReturnsOk() {
-    every { authenticationService.isValidSpotifySession("cid", "session") } returns true
     every { service.createBandPlaylist("cid", listOf("Band A", "Band B")) } returns "playlist"
 
     val response =
-      controller.createBandPlaylist(
-        "cid",
-        "session",
-        BandPlaylistRequest(listOf("Band A", "Band B")),
-      )
+      controller.createBandPlaylist("cid", BandPlaylistRequest(listOf("Band A", "Band B")))
 
     assertEquals(HttpStatus.OK, response.statusCode)
     assertEquals("playlist", response.body)
@@ -32,46 +33,38 @@ class SpotifyBandPlaylistControllerTest {
 
   @Test
   fun createBandPlaylistReturnsBadRequestForEmptyBands() {
-    every { authenticationService.isValidSpotifySession("cid", "session") } returns true
-
-    val response = controller.createBandPlaylist("cid", "session", BandPlaylistRequest(listOf(" ")))
+    val response = controller.createBandPlaylist("cid", BandPlaylistRequest(listOf(" ")))
 
     assertEquals(HttpStatus.BAD_REQUEST, response.statusCode)
   }
 
   @Test
+  fun createBandPlaylistRejectsUnauthorizedSession() {
+    every { authService.isAuthorizedSession("forged") } returns false
+
+    val ex =
+      assertThrows(ResponseStatusException::class.java) {
+        controller.createBandPlaylist("forged", BandPlaylistRequest(listOf("Band A")))
+      }
+
+    assertEquals(HttpStatus.UNAUTHORIZED, ex.statusCode)
+  }
+
+  @Test
   fun createBandPlaylistReturnsNotFound() {
-    every { authenticationService.isValidSpotifySession("cid", "session") } returns true
     every { service.createBandPlaylist("cid", listOf("Band A", "Band B")) } returns null
 
     val response =
-      controller.createBandPlaylist(
-        "cid",
-        "session",
-        BandPlaylistRequest(listOf("Band A", "Band B")),
-      )
+      controller.createBandPlaylist("cid", BandPlaylistRequest(listOf("Band A", "Band B")))
 
     assertEquals(HttpStatus.NOT_FOUND, response.statusCode)
   }
 
   @Test
-  fun createBandPlaylistReturnsUnauthorizedForInvalidSession() {
-    every { authenticationService.isValidSpotifySession("cid", "forged") } returns false
-
-    val response =
-      controller.createBandPlaylist("cid", "forged", BandPlaylistRequest(listOf("Band A")))
-
-    assertEquals(HttpStatus.UNAUTHORIZED, response.statusCode)
-  }
-
-  @Test
   fun createBandPlaylistReturnsBadRequestForTooManyBands() {
-    every { authenticationService.isValidSpotifySession("cid", "session") } returns true
-
     val response =
       controller.createBandPlaylist(
         "cid",
-        "session",
         BandPlaylistRequest((1..SpotifyBandPlaylistService.MAX_BAND_COUNT + 1).map { "Band $it" }),
       )
 

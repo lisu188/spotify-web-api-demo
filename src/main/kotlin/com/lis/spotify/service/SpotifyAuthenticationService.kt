@@ -55,27 +55,6 @@ class SpotifyAuthenticationService(
   private val logger: Logger = LoggerFactory.getLogger(SpotifyAuthenticationService::class.java)
   private val clock: Clock = Clock.systemUTC()
   private val tokenCache = ConcurrentHashMap<String, AuthToken>()
-  private val spotifySessions = ConcurrentHashMap<String, String>()
-
-  fun createSpotifySession(clientId: String): String {
-    val bytes = ByteArray(32)
-    sessionRandom.nextBytes(bytes)
-    val sessionId = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
-    spotifySessions[sessionId] = clientId
-    logger.debug("Created Spotify session for clientId={}", clientId)
-    return sessionId
-  }
-
-  fun isValidSpotifySession(clientId: String, sessionId: String): Boolean {
-    if (clientId.isBlank() || sessionId.isBlank()) {
-      return false
-    }
-
-    val sessionClientId = spotifySessions[sessionId]
-    val valid = sessionClientId == clientId
-    logger.debug("Spotify session validation for clientId={} valid={}", clientId, valid)
-    return valid
-  }
 
   fun getHeaders(token: AuthToken): HttpHeaders {
     logger.debug("Creating headers with Bearer token for clientId={}", token.clientId)
@@ -95,6 +74,20 @@ class SpotifyAuthenticationService(
       logger.warn("No token found for clientId={}, returning empty headers", clientId)
       HttpHeaders()
     }
+  }
+
+  fun createSessionId(): String {
+    val bytes = ByteArray(32)
+    sessionRandom.nextBytes(bytes)
+    return SESSION_ID_PREFIX + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+  }
+
+  fun isSessionId(clientId: String): Boolean {
+    return clientId.startsWith(SESSION_ID_PREFIX) && clientId.length > SESSION_ID_PREFIX.length
+  }
+
+  fun isAuthorizedSession(clientId: String): Boolean {
+    return isSessionId(clientId) && getAuthToken(clientId) != null
   }
 
   fun setAuthToken(token: AuthToken) {
@@ -202,10 +195,10 @@ class SpotifyAuthenticationService(
 
   internal fun clearCache() {
     tokenCache.clear()
-    spotifySessions.clear()
   }
 
   companion object {
+    private const val SESSION_ID_PREFIX = "session_"
     private val sessionRandom = SecureRandom()
   }
 }

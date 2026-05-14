@@ -79,13 +79,13 @@ class LastFmAuthenticationService(private val lastFmSessionStore: LastFmSessionS
    *
    * Format: https://www.last.fm/api/auth/?api_key=xxx&cb=<redirectUri>
    */
-  fun getAuthorizationUrl(callbackUrl: String = LastFm.CALLBACK_URL): String {
+  fun getAuthorizationUrl(): String {
     logger.debug("getAuthorizationUrl() called")
     return UriComponentsBuilder.fromHttpUrl(LastFm.AUTHORIZE_URL)
       .queryParam("api_key", LastFm.API_KEY)
       .queryParam("cb", "{cb}")
       .encode()
-      .buildAndExpand(callbackUrl)
+      .buildAndExpand(LastFm.CALLBACK_URL)
       .toUriString()
   }
 
