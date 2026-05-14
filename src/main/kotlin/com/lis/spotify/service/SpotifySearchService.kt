@@ -128,6 +128,20 @@ class SpotifySearchService(
     }
   }
 
+  internal fun searchTrackIdsSequentially(
+    values: List<Song>,
+    clientId: String,
+    progress: () -> Unit = {},
+  ): List<String> {
+    return values
+      .mapNotNull { song ->
+        val result = doSearch(song, clientId)
+        progress()
+        selectClosestTrackId(song, result)
+      }
+      .distinct()
+  }
+
   private fun findFreshCacheEntry(cacheKey: String, now: Instant): StoredSpotifySearchCacheEntry? {
     val memoryEntry = searchCache.getIfPresent(cacheKey)
     if (memoryEntry != null) {

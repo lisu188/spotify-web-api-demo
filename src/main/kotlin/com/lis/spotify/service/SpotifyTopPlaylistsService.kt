@@ -163,7 +163,7 @@ class SpotifyTopPlaylistsService(
             yearSemaphore.withPermit {
               logger.info("Processing year {}", year)
               val trackList =
-                spotifySearchService.searchTrackIds(
+                spotifySearchService.searchTrackIdsSequentially(
                   lastFmService
                     .yearlyChartlist(clientId, year, lastFmLogin, yearlyLimit)
                     .take(yearlyLimit),
