@@ -59,4 +59,15 @@ class SpotifyBandPlaylistControllerTest {
 
     assertEquals(HttpStatus.NOT_FOUND, response.statusCode)
   }
+
+  @Test
+  fun createBandPlaylistReturnsBadRequestForTooManyBands() {
+    val response =
+      controller.createBandPlaylist(
+        "cid",
+        BandPlaylistRequest((1..SpotifyBandPlaylistService.MAX_BAND_COUNT + 1).map { "Band $it" }),
+      )
+
+    assertEquals(HttpStatus.BAD_REQUEST, response.statusCode)
+  }
 }

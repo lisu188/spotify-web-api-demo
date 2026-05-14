@@ -41,6 +41,16 @@ class SpotifyBandPlaylistController(
       return ResponseEntity.badRequest().build()
     }
 
+    val distinctBandCount = bands.distinctBy { it.lowercase() }.size
+    if (distinctBandCount > SpotifyBandPlaylistService.MAX_BAND_COUNT) {
+      logger.warn(
+        "Rejecting band playlist request with {} bands; maximum is {}",
+        distinctBandCount,
+        SpotifyBandPlaylistService.MAX_BAND_COUNT,
+      )
+      return ResponseEntity.badRequest().build()
+    }
+
     logger.info("Band playlist request for {} bands (clientId={})", bands.size, clientId)
     val playlistId = spotifyBandPlaylistService.createBandPlaylist(clientId, bands)
     return if (playlistId == null) {
