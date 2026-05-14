@@ -4,6 +4,7 @@ import com.lis.spotify.domain.JobId
 import com.lis.spotify.domain.JobStatus
 import com.lis.spotify.service.JobLimitExceededException
 import com.lis.spotify.service.JobService
+import com.lis.spotify.service.LastFmAuthenticationService
 import com.lis.spotify.service.SpotifyAuthenticationService
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -15,18 +16,15 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.server.ResponseStatusException
 
 @RestController
 @RequestMapping("/jobs")
 class JobsController(
   private val jobService: JobService,
+  private val lastFmAuthenticationService: LastFmAuthenticationService,
   private val spotifyAuthenticationService: SpotifyAuthenticationService,
 ) {
-
-  companion object {
-    private val logger = LoggerFactory.getLogger(JobsController::class.java)
-  }
-
   data class StartRequest(val lastFmLogin: String, val playlistSize: Int? = null)
 
   @PostMapping
@@ -34,6 +32,7 @@ class JobsController(
     @CookieValue("clientId") clientId: String,
     @RequestBody request: StartRequest,
   ): ResponseEntity<JobId> {
+    requireAuthorizedSession(clientId)
     val lastFmLogin = request.lastFmLogin.trim()
     if (lastFmLogin.isEmpty()) {
       logger.warn("Rejecting yearly job without Last.fm login for clientId={}", clientId)
@@ -53,6 +52,7 @@ class JobsController(
     @CookieValue("clientId") clientId: String,
     @RequestBody request: StartRequest,
   ): ResponseEntity<JobId> {
+    requireAuthorizedSession(clientId)
     val lastFmLogin = request.lastFmLogin.trim()
     if (lastFmLogin.isEmpty()) {
       logger.warn(
@@ -75,8 +75,10 @@ class JobsController(
   @PostMapping("/private-mood-taxonomy")
   fun startPrivateMoodTaxonomy(
     @CookieValue("clientId") clientId: String,
+    @CookieValue("lastFmToken", defaultValue = "") lastFmToken: String,
     @RequestBody request: StartRequest,
   ): ResponseEntity<JobId> {
+    requireAuthorizedSession(clientId)
     val lastFmLogin = request.lastFmLogin.trim()
     if (lastFmLogin.isEmpty()) {
       logger.warn(
@@ -91,8 +93,24 @@ class JobsController(
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
     }
 
+    if (!lastFmAuthenticationService.isAuthorized(lastFmLogin, lastFmToken)) {
+      logger.warn(
+        "Rejecting private mood taxonomy job for unauthorized Last.fm login={} clientId={}",
+        lastFmLogin,
+        clientId,
+      )
+      return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+    }
+
     return startJob("private mood taxonomy", clientId) {
       jobService.startPrivateMoodTaxonomyJob(clientId, lastFmLogin, request.playlistSize ?: 50)
+    }
+  }
+
+  private fun requireAuthorizedSession(clientId: String) {
+    if (!spotifyAuthenticationService.isAuthorizedSession(clientId)) {
+      logger.warn("Rejecting job request for unauthorized Spotify session")
+      throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Spotify authentication required")
     }
   }
 
@@ -116,5 +134,9 @@ class JobsController(
       logger.warn("Rejecting {} job for clientId={}: {}", jobName, clientId, e.message)
       ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build()
     }
+  }
+
+  companion object {
+    private val logger = LoggerFactory.getLogger(JobsController::class.java)
   }
 }

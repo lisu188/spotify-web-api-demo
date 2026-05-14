@@ -13,6 +13,7 @@
 package com.lis.spotify.controller
 
 import com.lis.spotify.domain.BandPlaylistRequest
+import com.lis.spotify.service.SpotifyAuthenticationService
 import com.lis.spotify.service.SpotifyBandPlaylistService
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -21,19 +22,32 @@ import org.springframework.web.bind.annotation.CookieValue
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.server.ResponseStatusException
 
 @RestController
 class SpotifyBandPlaylistController(
-  private val spotifyBandPlaylistService: SpotifyBandPlaylistService
+  private val spotifyBandPlaylistService: SpotifyBandPlaylistService,
+  private val spotifyAuthenticationService: SpotifyAuthenticationService,
 ) {
   @PostMapping("/bandPlaylist")
   fun createBandPlaylist(
     @CookieValue("clientId") clientId: String,
     @RequestBody request: BandPlaylistRequest,
   ): ResponseEntity<String> {
+    requireAuthorizedSession(clientId)
     val bands = request.bands.map { it.trim() }.filter { it.isNotEmpty() }
     if (bands.isEmpty()) {
       logger.warn("Band playlist request had no valid bands for clientId={}", clientId)
+      return ResponseEntity.badRequest().build()
+    }
+
+    val distinctBandCount = bands.distinctBy { it.lowercase() }.size
+    if (distinctBandCount > SpotifyBandPlaylistService.MAX_BAND_COUNT) {
+      logger.warn(
+        "Rejecting band playlist request with {} bands; maximum is {}",
+        distinctBandCount,
+        SpotifyBandPlaylistService.MAX_BAND_COUNT,
+      )
       return ResponseEntity.badRequest().build()
     }
 
@@ -43,6 +57,13 @@ class SpotifyBandPlaylistController(
       ResponseEntity.status(HttpStatus.NOT_FOUND).build()
     } else {
       ResponseEntity.ok(playlistId)
+    }
+  }
+
+  private fun requireAuthorizedSession(clientId: String) {
+    if (!spotifyAuthenticationService.isAuthorizedSession(clientId)) {
+      logger.warn("Rejecting band playlist request for unauthorized Spotify session")
+      throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Spotify authentication required")
     }
   }
 

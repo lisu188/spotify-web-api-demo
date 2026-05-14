@@ -106,6 +106,7 @@ class SpotifyAuthenticationControllerTest {
     every { builder.build() } returns restTemplate
 
     val token = AuthToken("a", "b", "c", 0, "r", null)
+    every { spotifyService.createSessionId() } returns "session_cid"
     every {
       restTemplate.postForObject<AuthToken>(Spotify.TOKEN_URL, any(), AuthToken::class.java)
     } returns token
@@ -129,7 +130,7 @@ class SpotifyAuthenticationControllerTest {
             it.path == "/" &&
             it.isHttpOnly &&
             !it.secure &&
-            it.value == "cid"
+            it.value == "session_cid"
         }
       )
     }

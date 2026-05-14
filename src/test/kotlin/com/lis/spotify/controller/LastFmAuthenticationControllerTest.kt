@@ -19,19 +19,16 @@ class LastFmAuthenticationControllerTest {
   @Test
   fun authenticateUserRedirects() {
     val request = mockk<HttpServletRequest>()
-    every { request.getHeader("X-Forwarded-Proto") } returns null
-    every { request.getHeader("X-Forwarded-Host") } returns null
-    every { request.getHeader("X-Forwarded-Port") } returns null
+    every { request.getHeader(any()) } returns null
     every { request.scheme } returns "https"
-    every { request.serverName } returns "example.com"
-    every { request.serverPort } returns 443
+    every { request.isSecure } returns true
 
-    every { service.getAuthorizationUrl("https://example.com/auth/lastfm/callback") } returns
-      "http://x"
+    every { service.getAuthorizationUrl() } returns "http://x"
 
     val view = controller.authenticateUser(request, mockk(relaxed = true), "login")
 
     assertEquals("http://x", view.url)
+    verify { service.getAuthorizationUrl() }
   }
 
   @Test

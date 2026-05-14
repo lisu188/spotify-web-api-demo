@@ -5,21 +5,30 @@ import com.lis.spotify.domain.JobState
 import com.lis.spotify.domain.JobStatus
 import com.lis.spotify.service.JobLimitExceededException
 import com.lis.spotify.service.JobService
+import com.lis.spotify.service.LastFmAuthenticationService
 import com.lis.spotify.service.SpotifyAuthenticationService
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
+import org.springframework.web.server.ResponseStatusException
 
 class JobsControllerTest {
   private val service = mockk<JobService>()
+  private val lastFmAuthenticationService = mockk<LastFmAuthenticationService>()
   private val authService = mockk<SpotifyAuthenticationService>()
-  private val controller = JobsController(service, authService)
+  private val controller = JobsController(service, lastFmAuthenticationService, authService)
+
+  init {
+    every { authService.isAuthorizedSession("c") } returns true
+    every { authService.isAuthorized("c") } returns true
+  }
 
   @Test
   fun startReturnsId() {
-    every { authService.isAuthorized("c") } returns true
     every { service.startYearlyJob("c", "login") } returns "id"
     val resp = controller.start("c", JobsController.StartRequest("login"))
     assertEquals(JobId("id"), resp.body)
@@ -28,7 +37,6 @@ class JobsControllerTest {
 
   @Test
   fun startForgottenObsessionsReturnsId() {
-    every { authService.isAuthorized("c") } returns true
     every { service.startForgottenObsessionsJob("c", "login") } returns "forgotten-id"
     val resp = controller.startForgottenObsessions("c", JobsController.StartRequest("login"))
     assertEquals(JobId("forgotten-id"), resp.body)
@@ -37,10 +45,11 @@ class JobsControllerTest {
 
   @Test
   fun startPrivateMoodTaxonomyReturnsId() {
-    every { authService.isAuthorized("c") } returns true
+    every { lastFmAuthenticationService.isAuthorized("login", "token") } returns true
     every { service.startPrivateMoodTaxonomyJob("c", "login", 50) } returns "private-mood-id"
 
-    val resp = controller.startPrivateMoodTaxonomy("c", JobsController.StartRequest("login"))
+    val resp =
+      controller.startPrivateMoodTaxonomy("c", "token", JobsController.StartRequest("login"))
 
     assertEquals(JobId("private-mood-id"), resp.body)
     assertEquals(HttpStatus.ACCEPTED, resp.statusCode)
@@ -57,12 +66,26 @@ class JobsControllerTest {
 
   @Test
   fun startReturnsTooManyRequestsWhenJobLimitIsExceeded() {
-    every { authService.isAuthorized("c") } returns true
     every { service.startYearlyJob("c", "login") } throws JobLimitExceededException("too many")
 
     val resp = controller.start("c", JobsController.StartRequest("login"))
 
     assertEquals(HttpStatus.TOO_MANY_REQUESTS, resp.statusCode)
+  }
+
+  @Test
+  fun startPrivateMoodTaxonomyRejectsUnauthorizedLastFmLogin() {
+    every { lastFmAuthenticationService.isAuthorized("victim", "attacker-token") } returns false
+
+    val resp =
+      controller.startPrivateMoodTaxonomy(
+        "c",
+        "attacker-token",
+        JobsController.StartRequest("victim"),
+      )
+
+    assertEquals(HttpStatus.FORBIDDEN, resp.statusCode)
+    verify(exactly = 0) { service.startPrivateMoodTaxonomyJob(any(), any(), any()) }
   }
 
   @Test
@@ -79,8 +102,20 @@ class JobsControllerTest {
 
   @Test
   fun startPrivateMoodTaxonomyRejectsBlankLogin() {
-    val resp = controller.startPrivateMoodTaxonomy("c", JobsController.StartRequest("   "))
+    val resp = controller.startPrivateMoodTaxonomy("c", "token", JobsController.StartRequest("   "))
     assertEquals(HttpStatus.BAD_REQUEST, resp.statusCode)
+  }
+
+  @Test
+  fun startRejectsUnauthorizedSession() {
+    every { authService.isAuthorizedSession("forged") } returns false
+
+    val ex =
+      assertThrows(ResponseStatusException::class.java) {
+        controller.start("forged", JobsController.StartRequest("login"))
+      }
+
+    assertEquals(HttpStatus.UNAUTHORIZED, ex.statusCode)
   }
 
   @Test
