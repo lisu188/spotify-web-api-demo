@@ -103,6 +103,17 @@ constructor(
   }
 
   @Test
+  fun jobStartRejectsUnauthorizedClient() {
+    val headers = HttpHeaders()
+    headers.add(HttpHeaders.COOKIE, "clientId=unknown")
+    val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
+
+    val resp = rest.postForEntity("/jobs", req, Map::class.java)
+
+    assertEquals(HttpStatus.UNAUTHORIZED, resp.statusCode)
+  }
+
+  @Test
   fun jobLifecycle() {
     val headers = HttpHeaders()
     headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID")

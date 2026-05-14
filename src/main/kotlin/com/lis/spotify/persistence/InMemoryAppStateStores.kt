@@ -1,5 +1,6 @@
 package com.lis.spotify.persistence
 
+import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 import org.slf4j.LoggerFactory
@@ -16,6 +17,12 @@ class InMemoryJobStatusStore : JobStatusStore {
 
   override fun findById(jobId: String): StoredJobStatus? {
     return jobs[jobId]
+  }
+
+  override fun deleteExpired(now: Instant): Int {
+    val expiredIds = jobs.filterValues { !it.expiresAt.isAfter(now) }.keys
+    expiredIds.forEach { jobs.remove(it) }
+    return expiredIds.size
   }
 
   fun clear() {

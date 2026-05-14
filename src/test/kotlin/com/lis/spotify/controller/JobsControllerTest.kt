@@ -3,6 +3,7 @@ package com.lis.spotify.controller
 import com.lis.spotify.domain.JobId
 import com.lis.spotify.domain.JobState
 import com.lis.spotify.domain.JobStatus
+import com.lis.spotify.service.JobLimitExceededException
 import com.lis.spotify.service.JobService
 import com.lis.spotify.service.LastFmAuthenticationService
 import com.lis.spotify.service.SpotifyAuthenticationService
@@ -23,6 +24,7 @@ class JobsControllerTest {
 
   init {
     every { authService.isAuthorizedSession("c") } returns true
+    every { authService.isAuthorized("c") } returns true
   }
 
   @Test
@@ -51,6 +53,24 @@ class JobsControllerTest {
 
     assertEquals(JobId("private-mood-id"), resp.body)
     assertEquals(HttpStatus.ACCEPTED, resp.statusCode)
+  }
+
+  @Test
+  fun startRejectsUnauthorizedClient() {
+    every { authService.isAuthorized("c") } returns false
+
+    val resp = controller.start("c", JobsController.StartRequest("login"))
+
+    assertEquals(HttpStatus.UNAUTHORIZED, resp.statusCode)
+  }
+
+  @Test
+  fun startReturnsTooManyRequestsWhenJobLimitIsExceeded() {
+    every { service.startYearlyJob("c", "login") } throws JobLimitExceededException("too many")
+
+    val resp = controller.start("c", JobsController.StartRequest("login"))
+
+    assertEquals(HttpStatus.TOO_MANY_REQUESTS, resp.statusCode)
   }
 
   @Test

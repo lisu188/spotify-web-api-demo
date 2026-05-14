@@ -1,9 +1,13 @@
 package com.lis.spotify.persistence
 
+import java.time.Instant
+
 interface JobStatusStore {
   fun save(job: StoredJobStatus): StoredJobStatus
 
   fun findById(jobId: String): StoredJobStatus?
+
+  fun deleteExpired(now: Instant): Int
 }
 
 interface SpotifyTokenStore {
