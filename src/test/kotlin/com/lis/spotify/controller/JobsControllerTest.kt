@@ -8,13 +8,19 @@ import com.lis.spotify.service.SpotifyAuthenticationService
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
+import org.springframework.web.server.ResponseStatusException
 
 class JobsControllerTest {
   private val service = mockk<JobService>()
-  private val spotifyAuthService = mockk<SpotifyAuthenticationService>(relaxed = true)
-  private val controller = JobsController(service, spotifyAuthService)
+  private val authService = mockk<SpotifyAuthenticationService>()
+  private val controller = JobsController(service, authService)
+
+  init {
+    every { authService.isAuthorizedSession("c") } returns true
+  }
 
   @Test
   fun startReturnsId() {
@@ -58,6 +64,18 @@ class JobsControllerTest {
   fun startPrivateMoodTaxonomyRejectsBlankLogin() {
     val resp = controller.startPrivateMoodTaxonomy("c", JobsController.StartRequest("   "))
     assertEquals(HttpStatus.BAD_REQUEST, resp.statusCode)
+  }
+
+  @Test
+  fun startRejectsUnauthorizedSession() {
+    every { authService.isAuthorizedSession("forged") } returns false
+
+    val ex =
+      assertThrows(ResponseStatusException::class.java) {
+        controller.start("forged", JobsController.StartRequest("login"))
+      }
+
+    assertEquals(HttpStatus.UNAUTHORIZED, ex.statusCode)
   }
 
   @Test

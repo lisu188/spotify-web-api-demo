@@ -67,7 +67,6 @@ class SpotifyAuthenticationControllerTest {
     every { request.isSecure } returns false
 
     val response = mockk<HttpServletResponse>(relaxed = true)
-    every { spotifyService.createClientSessionId() } returns "sp_sess_state"
 
     val result = controller.authorize(request, mockk(), response, "cid")
 
@@ -76,15 +75,15 @@ class SpotifyAuthenticationControllerTest {
     assert(result.contains("playlist-modify-private"))
     assert(result.contains("playlist-read-private"))
     verify {
-      response.addHeader(
-        HttpHeaders.SET_COOKIE,
+      response.addCookie(
         match {
-          it.startsWith("spotifyAuthState=") &&
-            it.contains("Path=/") &&
-            it.contains("HttpOnly") &&
-            it.contains("SameSite=Lax") &&
-            it.contains("Max-Age=300")
-        },
+          it.name == "spotifyAuthState" &&
+            it.path == "/" &&
+            it.isHttpOnly &&
+            !it.secure &&
+            it.maxAge == 300 &&
+            it.value.isNotBlank()
+        }
       )
     }
   }
@@ -107,11 +106,11 @@ class SpotifyAuthenticationControllerTest {
     every { builder.build() } returns restTemplate
 
     val token = AuthToken("a", "b", "c", 0, "r", null)
+    every { spotifyService.createSessionId() } returns "session_cid"
     every {
       restTemplate.postForObject<AuthToken>(Spotify.TOKEN_URL, any(), AuthToken::class.java)
     } returns token
     every { spotifyService.getHeaders(token) } returns HttpHeaders()
-    every { spotifyService.createClientSessionId() } returns "sp_sess_generated"
     val userResponse = ResponseEntity(User("cid"), HttpStatus.OK)
     every {
       restTemplate.exchange<User>(
@@ -125,25 +124,19 @@ class SpotifyAuthenticationControllerTest {
     controller.callback(request, "code", "expected-state", response)
 
     verify {
-      response.addHeader(
-        HttpHeaders.SET_COOKIE,
+      response.addCookie(
         match {
-          it.startsWith("clientId=sp_sess_generated") &&
-            it.contains("Path=/") &&
-            it.contains("HttpOnly") &&
-            it.contains("SameSite=Lax")
-        },
+          it.name == "clientId" &&
+            it.path == "/" &&
+            it.isHttpOnly &&
+            !it.secure &&
+            it.value == "session_cid"
+        }
       )
     }
     verify {
-      response.addHeader(
-        HttpHeaders.SET_COOKIE,
-        match {
-          it.startsWith("spotifyAuthState=;") &&
-            it.contains("Path=/") &&
-            it.contains("Max-Age=0") &&
-            it.contains("SameSite=Lax")
-        },
+      response.addCookie(
+        match { it.name == "spotifyAuthState" && it.path == "/" && it.maxAge == 0 && !it.secure }
       )
     }
   }
@@ -161,14 +154,8 @@ class SpotifyAuthenticationControllerTest {
 
     assertEquals("redirect:/error", result)
     verify {
-      response.addHeader(
-        HttpHeaders.SET_COOKIE,
-        match {
-          it.startsWith("spotifyAuthState=;") &&
-            it.contains("Path=/") &&
-            it.contains("Max-Age=0") &&
-            it.contains("SameSite=Lax")
-        },
+      response.addCookie(
+        match { it.name == "spotifyAuthState" && it.maxAge == 0 && it.path == "/" && !it.secure }
       )
     }
   }

@@ -16,9 +16,11 @@ import com.lis.spotify.service.LastFmService
 import com.lis.spotify.service.SpotifyAuthenticationService
 import com.lis.spotify.service.SpotifyTopPlaylistsService
 import org.slf4j.LoggerFactory
+import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.CookieValue
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.server.ResponseStatusException
 
 @RestController
 class SpotifyTopPlaylistsController(
@@ -28,12 +30,19 @@ class SpotifyTopPlaylistsController(
 ) {
   @PostMapping("/updateTopPlaylists")
   fun updateTopPlaylists(@CookieValue("clientId") clientId: String): List<String> {
-    spotifyAuthenticationService.requireAuthorizedClientSession(clientId)
+    requireAuthorizedSession(clientId)
     logger.info("Updating top playlists for {}", clientId)
     logger.debug("updateTopPlaylists for {}", clientId)
     val result = spotifyTopPlaylistsService.updateTopPlaylists(clientId)
     logger.info("UpdateTopPlaylists result for {} -> {}", clientId, result)
     return result
+  }
+
+  private fun requireAuthorizedSession(clientId: String) {
+    if (!spotifyAuthenticationService.isAuthorizedSession(clientId)) {
+      logger.warn("Rejecting top playlist update for unauthorized Spotify session")
+      throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Spotify authentication required")
+    }
   }
 
   companion object {

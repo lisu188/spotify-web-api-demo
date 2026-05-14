@@ -56,31 +56,6 @@ class SpotifyAuthenticationService(
   private val clock: Clock = Clock.systemUTC()
   private val tokenCache = ConcurrentHashMap<String, AuthToken>()
 
-  fun createClientSessionId(): String {
-    val bytes = ByteArray(32)
-    sessionRandom.nextBytes(bytes)
-    return CLIENT_SESSION_PREFIX + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
-  }
-
-  fun isClientSessionId(clientId: String): Boolean {
-    return clientId.startsWith(CLIENT_SESSION_PREFIX) &&
-      clientId.length > CLIENT_SESSION_PREFIX.length
-  }
-
-  fun isAuthorizedClientSession(clientId: String): Boolean {
-    if (!isClientSessionId(clientId)) {
-      logger.warn("Rejected non-session Spotify client cookie value")
-      return false
-    }
-    return isAuthorized(clientId)
-  }
-
-  fun requireAuthorizedClientSession(clientId: String) {
-    if (!isAuthorizedClientSession(clientId)) {
-      throw AuthenticationRequiredException("SPOTIFY")
-    }
-  }
-
   fun getHeaders(token: AuthToken): HttpHeaders {
     logger.debug("Creating headers with Bearer token for clientId={}", token.clientId)
     return HttpHeaders().apply {
@@ -99,6 +74,20 @@ class SpotifyAuthenticationService(
       logger.warn("No token found for clientId={}, returning empty headers", clientId)
       HttpHeaders()
     }
+  }
+
+  fun createSessionId(): String {
+    val bytes = ByteArray(32)
+    sessionRandom.nextBytes(bytes)
+    return SESSION_ID_PREFIX + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+  }
+
+  fun isSessionId(clientId: String): Boolean {
+    return clientId.startsWith(SESSION_ID_PREFIX) && clientId.length > SESSION_ID_PREFIX.length
+  }
+
+  fun isAuthorizedSession(clientId: String): Boolean {
+    return isSessionId(clientId) && getAuthToken(clientId) != null
   }
 
   fun setAuthToken(token: AuthToken) {
@@ -209,7 +198,7 @@ class SpotifyAuthenticationService(
   }
 
   companion object {
-    private const val CLIENT_SESSION_PREFIX = "sp_sess_"
+    private const val SESSION_ID_PREFIX = "session_"
     private val sessionRandom = SecureRandom()
   }
 }

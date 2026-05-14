@@ -45,7 +45,7 @@ constructor(
   private val spotifyAuthenticationService: SpotifyAuthenticationService,
 ) {
   companion object {
-    private const val TEST_SESSION_ID = "sp_sess_integration-test-session"
+    private const val TEST_SESSION_ID = "session_test"
     val wm = WireMockServer(WireMockConfiguration.options().dynamicPort())
     val baseUrl: String
       get() = "http://localhost:${wm.port()}"
@@ -77,8 +77,9 @@ constructor(
   @BeforeEach
   fun reset() {
     wireMockReset()
+    spotifyAuthenticationService.clearCache()
     spotifyAuthenticationService.setAuthToken(
-      AuthToken("access", "Bearer", "", 0, "refresh", TEST_SESSION_ID)
+      AuthToken("access", "Bearer", "scope", 3600, "refresh", TEST_SESSION_ID)
     )
     clearMocks(playlistService)
     every { playlistService.updateYearlyPlaylists(any(), any(), any()) } returns Unit
@@ -100,7 +101,8 @@ constructor(
 
   @Test
   fun jobLifecycle() {
-    val headers = authenticatedHeaders()
+    val headers = HttpHeaders()
+    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
     val resp = rest.postForEntity("/jobs", req, Map::class.java)
     assertEquals(HttpStatus.ACCEPTED, resp.statusCode)
@@ -117,7 +119,8 @@ constructor(
   fun jobAuthFailurePreservesLastFmRedirect() {
     every { playlistService.updateYearlyPlaylists(any(), any(), any()) } throws
       AuthenticationRequiredException("LASTFM")
-    val headers = authenticatedHeaders()
+    val headers = HttpHeaders()
+    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
 
     val resp = rest.postForEntity("/jobs", req, Map::class.java)
@@ -132,7 +135,8 @@ constructor(
 
   @Test
   fun forgottenObsessionsJobReturnsPlaylistIds() {
-    val headers = authenticatedHeaders()
+    val headers = HttpHeaders()
+    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
 
     val resp = rest.postForEntity("/jobs/forgotten-obsessions", req, Map::class.java)
@@ -146,7 +150,8 @@ constructor(
 
   @Test
   fun forgottenObsessionsJobRejectsBlankLogin() {
-    val headers = authenticatedHeaders()
+    val headers = HttpHeaders()
+    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID")
     val req = HttpEntity(mapOf("lastFmLogin" to "   "), headers)
 
     val resp = rest.postForEntity("/jobs/forgotten-obsessions", req, Map::class.java)
@@ -156,7 +161,8 @@ constructor(
 
   @Test
   fun privateMoodTaxonomyJobReturnsPlaylistIds() {
-    val headers = authenticatedHeaders()
+    val headers = HttpHeaders()
+    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
 
     val resp = rest.postForEntity("/jobs/private-mood-taxonomy", req, Map::class.java)
@@ -173,16 +179,13 @@ constructor(
 
   @Test
   fun privateMoodTaxonomyJobRejectsBlankLogin() {
-    val headers = authenticatedHeaders()
+    val headers = HttpHeaders()
+    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID")
     val req = HttpEntity(mapOf("lastFmLogin" to "   "), headers)
 
     val resp = rest.postForEntity("/jobs/private-mood-taxonomy", req, Map::class.java)
 
     assertEquals(HttpStatus.BAD_REQUEST, resp.statusCode)
-  }
-
-  private fun authenticatedHeaders(): HttpHeaders {
-    return HttpHeaders().apply { add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID") }
   }
 
   class Config {

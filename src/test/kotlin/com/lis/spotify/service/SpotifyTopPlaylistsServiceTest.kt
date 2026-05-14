@@ -1,14 +1,21 @@
 package com.lis.spotify.service
 
 import com.lis.spotify.domain.Album
+import com.lis.spotify.domain.Artist
 import com.lis.spotify.domain.Playlist
+import com.lis.spotify.domain.SearchResult
+import com.lis.spotify.domain.SearchResultInternal
 import com.lis.spotify.domain.Song
 import com.lis.spotify.domain.Track
+import com.lis.spotify.persistence.InMemorySpotifySearchCacheStore
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
 import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -115,6 +122,59 @@ class SpotifyTopPlaylistsServiceTest {
     assertTrue(progressUpdates.isNotEmpty())
     assertEquals(0, progressUpdates.first())
     assertEquals(100, progressUpdates.last())
+  }
+
+  @Test
+  fun updateYearlyPlaylistsSearchesTracksSequentiallyWithinYear() {
+    val playlistService = mockk<SpotifyPlaylistService>(relaxed = true)
+    val trackService = mockk<SpotifyTopTrackService>(relaxed = true)
+    val lastFmService = mockk<LastFmService>()
+    val restService = mockk<SpotifyRestService>()
+    val activeSearches = AtomicInteger()
+    val maxActiveSearches = AtomicInteger()
+    val songs = (1..20).map { Song("Artist $it", "Title $it") }
+
+    every { lastFmService.yearlyChartlist("cid", 2024, "login", any()) } returns songs
+    every { playlistService.getCurrentUserPlaylists("cid") } returns mutableListOf()
+    every { playlistService.createPlaylist("LAST.FM 2024", "cid", true) } returns
+      Playlist("playlist-2024", "LAST.FM 2024")
+    every { restService.doRequest(any<() -> Any>()) } answers
+      {
+        val active = activeSearches.incrementAndGet()
+        maxActiveSearches.accumulateAndGet(active, ::maxOf)
+        Thread.sleep(10)
+        activeSearches.decrementAndGet()
+        SearchResult(
+          SearchResultInternal(
+            listOf(
+              Track(
+                "track-$active",
+                "Title",
+                listOf(Artist("artist", "Artist")),
+                Album("album", "Album", emptyList()),
+              )
+            )
+          )
+        )
+      }
+
+    val searchService =
+      SpotifySearchService(restService, InMemorySpotifySearchCacheStore(), fixedClock())
+    val service =
+      SpotifyTopPlaylistsService(
+        playlistService,
+        trackService,
+        lastFmService,
+        searchService,
+        mockk(relaxed = true),
+      )
+    service.firstSupportedYear = 2024
+    service.currentYearProvider = { 2024 }
+
+    service.updateYearlyPlaylists("cid", "login")
+
+    assertEquals(1, maxActiveSearches.get())
+    verify(exactly = songs.size) { restService.doRequest(any<() -> Any>()) }
   }
 
   @Test
@@ -240,7 +300,14 @@ class SpotifyTopPlaylistsServiceTest {
 
     service.firstSupportedYear = 2024
     service.currentYearProvider = { 2025 }
-    every { lastFmService.yearlyChartlist("cid", any(), "login", Int.MAX_VALUE) } answers
+    every {
+      lastFmService.yearlyChartlist(
+        "cid",
+        any(),
+        "login",
+        SpotifyTopPlaylistsService.FORGOTTEN_OBSESSIONS_YEARLY_SCROBBLE_LIMIT,
+      )
+    } answers
       {
         when (secondArg<Int>()) {
           2025 ->
@@ -292,7 +359,14 @@ class SpotifyTopPlaylistsServiceTest {
     service.firstSupportedYear = 2024
     service.currentYearProvider = { 2024 }
 
-    every { lastFmService.yearlyChartlist("cid", 2024, "login", Int.MAX_VALUE) } returns
+    every {
+      lastFmService.yearlyChartlist(
+        "cid",
+        2024,
+        "login",
+        SpotifyTopPlaylistsService.FORGOTTEN_OBSESSIONS_YEARLY_SCROBBLE_LIMIT,
+      )
+    } returns
       (1..110).flatMap { index ->
         (1..5).map { play ->
           Song(
@@ -320,6 +394,65 @@ class SpotifyTopPlaylistsServiceTest {
     assertEquals(110, result.candidateCount)
     assertTrue(progressMessages.contains("Matching forgotten obsessions on Spotify (1/2)"))
     coVerify(exactly = 1) { searchService.searchTrackIds(match { it.size == 100 }, "cid") }
+  }
+
+  @Test
+  fun updateForgottenObsessionsPlaylistCapsHistoryAndSpotifyCandidateWork() {
+    val playlistService = mockk<SpotifyPlaylistService>(relaxed = true)
+    val trackService = mockk<SpotifyTopTrackService>(relaxed = true)
+    val lastFmService = mockk<LastFmService>()
+    val searchService = mockk<SpotifySearchService>()
+    val service =
+      SpotifyTopPlaylistsService(
+        playlistService,
+        trackService,
+        lastFmService,
+        searchService,
+        mockk(relaxed = true),
+      )
+
+    service.firstSupportedYear = 2024
+    service.currentYearProvider = { 2024 }
+
+    every {
+      lastFmService.yearlyChartlist(
+        "cid",
+        2024,
+        "login",
+        SpotifyTopPlaylistsService.FORGOTTEN_OBSESSIONS_YEARLY_SCROBBLE_LIMIT,
+      )
+    } returns
+      (1..600).flatMap { index ->
+        (1..5).map { play ->
+          Song(
+            artist = "Artist $index",
+            title = "Song $index",
+            playedAtEpochSecond = 1_500_000_000L + play,
+          )
+        }
+      }
+    coEvery { searchService.searchTrackIds(any(), "cid") } returns emptyList()
+
+    val result = service.updateForgottenObsessionsPlaylist("cid", "login")
+
+    assertEquals(null, result.playlistId)
+    assertEquals(0, result.playlistTrackCount)
+    assertEquals(0, result.spotifyMatchCount)
+    assertEquals(
+      SpotifyTopPlaylistsService.FORGOTTEN_OBSESSIONS_CANDIDATE_LIMIT,
+      result.candidateCount,
+    )
+    verify(exactly = 1) {
+      lastFmService.yearlyChartlist(
+        "cid",
+        2024,
+        "login",
+        SpotifyTopPlaylistsService.FORGOTTEN_OBSESSIONS_YEARLY_SCROBBLE_LIMIT,
+      )
+    }
+    coVerify(exactly = 5) { searchService.searchTrackIds(match { it.size == 100 }, "cid") }
+    verify(exactly = 0) { playlistService.getCurrentUserPlaylists(any()) }
+    verify(exactly = 0) { playlistService.modifyPlaylist(any(), any(), any()) }
   }
 
   @Test
@@ -571,5 +704,9 @@ class SpotifyTopPlaylistsServiceTest {
       listOf(com.lis.spotify.domain.Artist("$id-artist", artist)),
       Album("a", "n", emptyList()),
     )
+  }
+
+  private fun fixedClock(instant: String = "2026-04-08T10:00:00Z"): Clock {
+    return Clock.fixed(Instant.parse(instant), ZoneOffset.UTC)
   }
 }

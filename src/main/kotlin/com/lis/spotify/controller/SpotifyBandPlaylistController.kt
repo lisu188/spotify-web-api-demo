@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.CookieValue
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.server.ResponseStatusException
 
 @RestController
 class SpotifyBandPlaylistController(
@@ -33,7 +34,7 @@ class SpotifyBandPlaylistController(
     @CookieValue("clientId") clientId: String,
     @RequestBody request: BandPlaylistRequest,
   ): ResponseEntity<String> {
-    spotifyAuthenticationService.requireAuthorizedClientSession(clientId)
+    requireAuthorizedSession(clientId)
     val bands = request.bands.map { it.trim() }.filter { it.isNotEmpty() }
     if (bands.isEmpty()) {
       logger.warn("Band playlist request had no valid bands for clientId={}", clientId)
@@ -46,6 +47,13 @@ class SpotifyBandPlaylistController(
       ResponseEntity.status(HttpStatus.NOT_FOUND).build()
     } else {
       ResponseEntity.ok(playlistId)
+    }
+  }
+
+  private fun requireAuthorizedSession(clientId: String) {
+    if (!spotifyAuthenticationService.isAuthorizedSession(clientId)) {
+      logger.warn("Rejecting band playlist request for unauthorized Spotify session")
+      throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Spotify authentication required")
     }
   }
 

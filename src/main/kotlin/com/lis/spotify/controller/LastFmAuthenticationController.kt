@@ -1,6 +1,5 @@
 package com.lis.spotify.controller
 
-import com.lis.spotify.AppEnvironment.LastFm
 import com.lis.spotify.service.LastFmAuthenticationService
 import jakarta.servlet.http.Cookie
 import jakarta.servlet.http.HttpServletRequest
@@ -20,16 +19,6 @@ import org.springframework.web.servlet.view.RedirectView
  */
 @Controller
 class LastFmAuthenticationController(private val lastFmAuthService: LastFmAuthenticationService) {
-
-  private fun callbackUrl(request: HttpServletRequest): String {
-    val proto = request.getHeader("X-Forwarded-Proto") ?: request.scheme
-    val host = request.getHeader("X-Forwarded-Host") ?: request.serverName
-    val portHeader = request.getHeader("X-Forwarded-Port")
-    val port = portHeader ?: request.serverPort.toString()
-    val defaultPort = if (proto == "https") "443" else "80"
-    val portPart = if (port == defaultPort || port.isEmpty()) "" else ":$port"
-    return "$proto://$host$portPart" + LastFm.CALLBACK_PATH
-  }
 
   private fun isSecureRequest(request: HttpServletRequest): Boolean {
     val proto = request.getHeader("X-Forwarded-Proto") ?: request.scheme
@@ -70,7 +59,7 @@ class LastFmAuthenticationController(private val lastFmAuthService: LastFmAuthen
       ?.let {
         response.addCookie(createCookie(LAST_FM_LOGIN_COOKIE, it, request, httpOnly = false))
       }
-    val authUrl = lastFmAuthService.getAuthorizationUrl(callbackUrl(request))
+    val authUrl = lastFmAuthService.getAuthorizationUrl()
     logger.info("Redirecting user to Last.fm auth URL: $authUrl")
     return RedirectView(authUrl)
   }
