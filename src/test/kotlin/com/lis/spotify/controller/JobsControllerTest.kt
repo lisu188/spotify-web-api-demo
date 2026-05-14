@@ -4,9 +4,11 @@ import com.lis.spotify.domain.JobId
 import com.lis.spotify.domain.JobState
 import com.lis.spotify.domain.JobStatus
 import com.lis.spotify.service.JobService
+import com.lis.spotify.service.LastFmAuthenticationService
 import com.lis.spotify.service.SpotifyAuthenticationService
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
@@ -15,8 +17,9 @@ import org.springframework.web.server.ResponseStatusException
 
 class JobsControllerTest {
   private val service = mockk<JobService>()
+  private val lastFmAuthenticationService = mockk<LastFmAuthenticationService>()
   private val authService = mockk<SpotifyAuthenticationService>()
-  private val controller = JobsController(service, authService)
+  private val controller = JobsController(service, lastFmAuthenticationService, authService)
 
   init {
     every { authService.isAuthorizedSession("c") } returns true
@@ -40,12 +43,29 @@ class JobsControllerTest {
 
   @Test
   fun startPrivateMoodTaxonomyReturnsId() {
+    every { lastFmAuthenticationService.isAuthorized("login", "token") } returns true
     every { service.startPrivateMoodTaxonomyJob("c", "login", 50) } returns "private-mood-id"
 
-    val resp = controller.startPrivateMoodTaxonomy("c", JobsController.StartRequest("login"))
+    val resp =
+      controller.startPrivateMoodTaxonomy("c", "token", JobsController.StartRequest("login"))
 
     assertEquals(JobId("private-mood-id"), resp.body)
     assertEquals(HttpStatus.ACCEPTED, resp.statusCode)
+  }
+
+  @Test
+  fun startPrivateMoodTaxonomyRejectsUnauthorizedLastFmLogin() {
+    every { lastFmAuthenticationService.isAuthorized("victim", "attacker-token") } returns false
+
+    val resp =
+      controller.startPrivateMoodTaxonomy(
+        "c",
+        "attacker-token",
+        JobsController.StartRequest("victim"),
+      )
+
+    assertEquals(HttpStatus.FORBIDDEN, resp.statusCode)
+    verify(exactly = 0) { service.startPrivateMoodTaxonomyJob(any(), any(), any()) }
   }
 
   @Test
@@ -62,7 +82,7 @@ class JobsControllerTest {
 
   @Test
   fun startPrivateMoodTaxonomyRejectsBlankLogin() {
-    val resp = controller.startPrivateMoodTaxonomy("c", JobsController.StartRequest("   "))
+    val resp = controller.startPrivateMoodTaxonomy("c", "token", JobsController.StartRequest("   "))
     assertEquals(HttpStatus.BAD_REQUEST, resp.statusCode)
   }
 
