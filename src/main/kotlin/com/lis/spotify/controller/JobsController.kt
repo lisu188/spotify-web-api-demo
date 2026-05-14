@@ -3,6 +3,7 @@ package com.lis.spotify.controller
 import com.lis.spotify.domain.JobId
 import com.lis.spotify.domain.JobStatus
 import com.lis.spotify.service.JobService
+import com.lis.spotify.service.LastFmAuthenticationService
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.CookieValue
@@ -15,12 +16,10 @@ import org.springframework.web.bind.annotation.RestController
 
 @RestController
 @RequestMapping("/jobs")
-class JobsController(private val jobService: JobService) {
-
-  companion object {
-    private val logger = LoggerFactory.getLogger(JobsController::class.java)
-  }
-
+class JobsController(
+  private val jobService: JobService,
+  private val lastFmAuthenticationService: LastFmAuthenticationService,
+) {
   data class StartRequest(val lastFmLogin: String, val playlistSize: Int? = null)
 
   @PostMapping
@@ -67,6 +66,7 @@ class JobsController(private val jobService: JobService) {
   @PostMapping("/private-mood-taxonomy")
   fun startPrivateMoodTaxonomy(
     @CookieValue("clientId") clientId: String,
+    @CookieValue("lastFmToken", defaultValue = "") lastFmToken: String,
     @RequestBody request: StartRequest,
   ): ResponseEntity<JobId> {
     val lastFmLogin = request.lastFmLogin.trim()
@@ -76,6 +76,15 @@ class JobsController(private val jobService: JobService) {
         clientId,
       )
       return ResponseEntity.badRequest().build()
+    }
+
+    if (!lastFmAuthenticationService.isAuthorized(lastFmLogin, lastFmToken)) {
+      logger.warn(
+        "Rejecting private mood taxonomy job for unauthorized Last.fm login={} clientId={}",
+        lastFmLogin,
+        clientId,
+      )
+      return ResponseEntity.status(403).build()
     }
 
     logger.info(
@@ -94,5 +103,9 @@ class JobsController(private val jobService: JobService) {
   fun getStatus(@PathVariable jobId: String): ResponseEntity<JobStatus> {
     val status = jobService.getJobStatus(jobId) ?: return ResponseEntity.notFound().build()
     return ResponseEntity.ok(status)
+  }
+
+  companion object {
+    private val logger = LoggerFactory.getLogger(JobsController::class.java)
   }
 }

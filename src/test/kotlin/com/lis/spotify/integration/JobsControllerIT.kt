@@ -6,6 +6,7 @@ import com.github.tomakehurst.wiremock.client.WireMock.reset as wireMockReset
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
 import com.lis.spotify.service.AuthenticationRequiredException
 import com.lis.spotify.service.ForgottenObsessionsPlaylistResult
+import com.lis.spotify.service.LastFmAuthenticationService
 import com.lis.spotify.service.PrivateMoodPlaylistResult
 import com.lis.spotify.service.PrivateMoodTaxonomyResult
 import com.lis.spotify.service.SpotifyTopPlaylistsService
@@ -40,6 +41,7 @@ class JobsControllerIT
 constructor(
   private val rest: TestRestTemplate,
   private val playlistService: SpotifyTopPlaylistsService,
+  private val lastFmAuthenticationService: LastFmAuthenticationService,
 ) {
   companion object {
     val wm = WireMockServer(WireMockConfiguration.options().dynamicPort())
@@ -73,7 +75,7 @@ constructor(
   @BeforeEach
   fun reset() {
     wireMockReset()
-    clearMocks(playlistService)
+    clearMocks(playlistService, lastFmAuthenticationService)
     every { playlistService.updateYearlyPlaylists(any(), any(), any()) } returns Unit
     every { playlistService.updateForgottenObsessionsPlaylist(any(), any(), any()) } returns
       ForgottenObsessionsPlaylistResult("playlist-1", 12, 12, 18)
@@ -89,6 +91,7 @@ constructor(
         )
       )
     every { playlistService.updateTopPlaylists(any()) } returns emptyList()
+    every { lastFmAuthenticationService.isAuthorized("login", "lastfm-token") } returns true
   }
 
   @Test
@@ -154,7 +157,7 @@ constructor(
   @Test
   fun privateMoodTaxonomyJobReturnsPlaylistIds() {
     val headers = HttpHeaders()
-    headers.add(HttpHeaders.COOKIE, "clientId=cid")
+    headers.add(HttpHeaders.COOKIE, "clientId=cid; lastFmToken=lastfm-token")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
 
     val resp = rest.postForEntity("/jobs/private-mood-taxonomy", req, Map::class.java)
@@ -178,6 +181,18 @@ constructor(
     val resp = rest.postForEntity("/jobs/private-mood-taxonomy", req, Map::class.java)
 
     assertEquals(HttpStatus.BAD_REQUEST, resp.statusCode)
+  }
+
+  @Test
+  fun privateMoodTaxonomyJobRejectsUnauthorizedLastFmLogin() {
+    every { lastFmAuthenticationService.isAuthorized("victim", "attacker-token") } returns false
+    val headers = HttpHeaders()
+    headers.add(HttpHeaders.COOKIE, "clientId=cid; lastFmToken=attacker-token")
+    val req = HttpEntity(mapOf("lastFmLogin" to "victim"), headers)
+
+    val resp = rest.postForEntity("/jobs/private-mood-taxonomy", req, Map::class.java)
+
+    assertEquals(HttpStatus.FORBIDDEN, resp.statusCode)
   }
 
   class Config {
@@ -208,6 +223,8 @@ constructor(
       every { svc.updateTopPlaylists(any()) } returns emptyList()
       return svc
     }
+
+    @Bean @Primary fun lastFmAuthenticationService(): LastFmAuthenticationService = mockk()
 
     @Bean
     @Primary
