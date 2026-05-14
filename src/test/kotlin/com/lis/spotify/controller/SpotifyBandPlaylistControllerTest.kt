@@ -1,6 +1,7 @@
 package com.lis.spotify.controller
 
 import com.lis.spotify.domain.BandPlaylistRequest
+import com.lis.spotify.service.SpotifyAuthenticationService
 import com.lis.spotify.service.SpotifyBandPlaylistService
 import io.mockk.every
 import io.mockk.mockk
@@ -10,7 +11,8 @@ import org.springframework.http.HttpStatus
 
 class SpotifyBandPlaylistControllerTest {
   private val service = mockk<SpotifyBandPlaylistService>()
-  private val controller = SpotifyBandPlaylistController(service)
+  private val spotifyAuthService = mockk<SpotifyAuthenticationService>(relaxed = true)
+  private val controller = SpotifyBandPlaylistController(service, spotifyAuthService)
 
   @Test
   fun createBandPlaylistReturnsOk() {

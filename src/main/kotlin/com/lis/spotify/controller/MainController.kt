@@ -32,8 +32,7 @@ class MainController(
       lastFmToken,
     )
 
-    val spotifyAuthorized =
-      clientId.isNotEmpty() && spotifyAuthenticationService.getAuthToken(clientId) != null
+    val spotifyAuthorized = spotifyAuthenticationService.isAuthorizedClientSession(clientId)
     val lastFmAuthorized = lastFmAuthenticationService.isAuthorized(lastFmLogin, lastFmToken)
 
     return if (!spotifyAuthorized) {

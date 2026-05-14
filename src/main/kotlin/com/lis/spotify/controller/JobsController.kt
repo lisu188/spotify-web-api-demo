@@ -3,6 +3,7 @@ package com.lis.spotify.controller
 import com.lis.spotify.domain.JobId
 import com.lis.spotify.domain.JobStatus
 import com.lis.spotify.service.JobService
+import com.lis.spotify.service.SpotifyAuthenticationService
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.CookieValue
@@ -15,7 +16,10 @@ import org.springframework.web.bind.annotation.RestController
 
 @RestController
 @RequestMapping("/jobs")
-class JobsController(private val jobService: JobService) {
+class JobsController(
+  private val jobService: JobService,
+  private val spotifyAuthenticationService: SpotifyAuthenticationService,
+) {
 
   companion object {
     private val logger = LoggerFactory.getLogger(JobsController::class.java)
@@ -28,6 +32,7 @@ class JobsController(private val jobService: JobService) {
     @CookieValue("clientId") clientId: String,
     @RequestBody request: StartRequest,
   ): ResponseEntity<JobId> {
+    spotifyAuthenticationService.requireAuthorizedClientSession(clientId)
     val lastFmLogin = request.lastFmLogin.trim()
     if (lastFmLogin.isEmpty()) {
       logger.warn("Rejecting yearly job without Last.fm login for clientId={}", clientId)
@@ -45,6 +50,7 @@ class JobsController(private val jobService: JobService) {
     @CookieValue("clientId") clientId: String,
     @RequestBody request: StartRequest,
   ): ResponseEntity<JobId> {
+    spotifyAuthenticationService.requireAuthorizedClientSession(clientId)
     val lastFmLogin = request.lastFmLogin.trim()
     if (lastFmLogin.isEmpty()) {
       logger.warn(
@@ -69,6 +75,7 @@ class JobsController(private val jobService: JobService) {
     @CookieValue("clientId") clientId: String,
     @RequestBody request: StartRequest,
   ): ResponseEntity<JobId> {
+    spotifyAuthenticationService.requireAuthorizedClientSession(clientId)
     val lastFmLogin = request.lastFmLogin.trim()
     if (lastFmLogin.isEmpty()) {
       logger.warn(

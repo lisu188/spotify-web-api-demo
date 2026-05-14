@@ -13,6 +13,7 @@
 package com.lis.spotify.controller
 
 import com.lis.spotify.service.LastFmService
+import com.lis.spotify.service.SpotifyAuthenticationService
 import com.lis.spotify.service.SpotifyTopPlaylistsService
 import org.slf4j.LoggerFactory
 import org.springframework.web.bind.annotation.CookieValue
@@ -23,9 +24,11 @@ import org.springframework.web.bind.annotation.RestController
 class SpotifyTopPlaylistsController(
   val lastFmService: LastFmService,
   val spotifyTopPlaylistsService: SpotifyTopPlaylistsService,
+  private val spotifyAuthenticationService: SpotifyAuthenticationService,
 ) {
   @PostMapping("/updateTopPlaylists")
   fun updateTopPlaylists(@CookieValue("clientId") clientId: String): List<String> {
+    spotifyAuthenticationService.requireAuthorizedClientSession(clientId)
     logger.info("Updating top playlists for {}", clientId)
     logger.debug("updateTopPlaylists for {}", clientId)
     val result = spotifyTopPlaylistsService.updateTopPlaylists(clientId)

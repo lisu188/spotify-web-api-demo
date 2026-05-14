@@ -4,6 +4,7 @@ import com.lis.spotify.domain.JobId
 import com.lis.spotify.domain.JobState
 import com.lis.spotify.domain.JobStatus
 import com.lis.spotify.service.JobService
+import com.lis.spotify.service.SpotifyAuthenticationService
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -12,7 +13,8 @@ import org.springframework.http.HttpStatus
 
 class JobsControllerTest {
   private val service = mockk<JobService>()
-  private val controller = JobsController(service)
+  private val spotifyAuthService = mockk<SpotifyAuthenticationService>(relaxed = true)
+  private val controller = JobsController(service, spotifyAuthService)
 
   @Test
   fun startReturnsId() {

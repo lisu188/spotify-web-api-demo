@@ -31,7 +31,9 @@ import com.lis.spotify.AppEnvironment.Spotify
 import com.lis.spotify.domain.AuthToken
 import com.lis.spotify.persistence.SpotifyTokenStore
 import com.lis.spotify.persistence.StoredSpotifyAuthToken
+import java.security.SecureRandom
 import java.time.Clock
+import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -53,6 +55,31 @@ class SpotifyAuthenticationService(
   private val logger: Logger = LoggerFactory.getLogger(SpotifyAuthenticationService::class.java)
   private val clock: Clock = Clock.systemUTC()
   private val tokenCache = ConcurrentHashMap<String, AuthToken>()
+
+  fun createClientSessionId(): String {
+    val bytes = ByteArray(32)
+    sessionRandom.nextBytes(bytes)
+    return CLIENT_SESSION_PREFIX + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+  }
+
+  fun isClientSessionId(clientId: String): Boolean {
+    return clientId.startsWith(CLIENT_SESSION_PREFIX) &&
+      clientId.length > CLIENT_SESSION_PREFIX.length
+  }
+
+  fun isAuthorizedClientSession(clientId: String): Boolean {
+    if (!isClientSessionId(clientId)) {
+      logger.warn("Rejected non-session Spotify client cookie value")
+      return false
+    }
+    return isAuthorized(clientId)
+  }
+
+  fun requireAuthorizedClientSession(clientId: String) {
+    if (!isAuthorizedClientSession(clientId)) {
+      throw AuthenticationRequiredException("SPOTIFY")
+    }
+  }
 
   fun getHeaders(token: AuthToken): HttpHeaders {
     logger.debug("Creating headers with Bearer token for clientId={}", token.clientId)
@@ -179,5 +206,10 @@ class SpotifyAuthenticationService(
 
   internal fun clearCache() {
     tokenCache.clear()
+  }
+
+  companion object {
+    private const val CLIENT_SESSION_PREFIX = "sp_sess_"
+    private val sessionRandom = SecureRandom()
   }
 }

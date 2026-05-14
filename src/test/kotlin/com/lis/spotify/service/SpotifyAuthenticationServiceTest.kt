@@ -41,6 +41,21 @@ class SpotifyAuthenticationServiceTest {
   }
 
   @Test
+  fun isAuthorizedClientSessionRejectsStoredPublicUserId() {
+    service.setAuthToken(AuthToken("a", "b", "c", 0, "r", "public-user-id"))
+
+    assertFalse(service.isAuthorizedClientSession("public-user-id"))
+  }
+
+  @Test
+  fun isAuthorizedClientSessionAcceptsStoredOpaqueSessionId() {
+    val sessionId = service.createClientSessionId()
+    service.setAuthToken(AuthToken("a", "b", "c", 0, "r", sessionId))
+
+    assertTrue(service.isAuthorizedClientSession(sessionId))
+  }
+
+  @Test
   fun seedRefreshTokenStoresRefreshTokenInCache() {
     service.seedRefreshToken("cid", "refresh")
 

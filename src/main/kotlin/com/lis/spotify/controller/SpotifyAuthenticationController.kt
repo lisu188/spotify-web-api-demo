@@ -4,17 +4,16 @@ import com.lis.spotify.AppEnvironment.Spotify
 import com.lis.spotify.domain.AuthToken
 import com.lis.spotify.domain.User
 import com.lis.spotify.service.SpotifyAuthenticationService
-import jakarta.servlet.http.Cookie
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
-import java.security.SecureRandom
-import java.util.Base64
+import java.time.Duration
 import org.slf4j.LoggerFactory
 import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
+import org.springframework.http.ResponseCookie
 import org.springframework.stereotype.Controller
 import org.springframework.util.LinkedMultiValueMap
 import org.springframework.web.bind.annotation.CookieValue
@@ -69,18 +68,24 @@ class SpotifyAuthenticationController(
     name: String,
     value: String,
     request: HttpServletRequest,
-    maxAgeSeconds: Int? = null,
-  ): Cookie {
-    return Cookie(name, value).apply {
-      path = "/"
-      isHttpOnly = true
-      secure = isSecureRequest(request)
-      maxAgeSeconds?.let { maxAge = it }
-    }
+    maxAgeSeconds: Long? = null,
+  ): ResponseCookie {
+    val builder =
+      ResponseCookie.from(name, value)
+        .path("/")
+        .httpOnly(true)
+        .secure(isSecureRequest(request))
+        .sameSite("Lax")
+    maxAgeSeconds?.let { builder.maxAge(Duration.ofSeconds(it)) }
+    return builder.build()
   }
 
-  private fun clearCookie(name: String, request: HttpServletRequest): Cookie {
-    return createCookie(name, "", request).apply { maxAge = 0 }
+  private fun clearCookie(name: String, request: HttpServletRequest): ResponseCookie {
+    return createCookie(name, "", request, 0)
+  }
+
+  private fun addCookie(response: HttpServletResponse, cookie: ResponseCookie) {
+    response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString())
   }
 
   private fun getCookieValue(request: HttpServletRequest, name: String): String? {
@@ -89,12 +94,6 @@ class SpotifyAuthenticationController(
       .firstOrNull { it.name == name }
       ?.value
       ?.takeIf { it.isNotBlank() }
-  }
-
-  private fun createState(): String {
-    val bytes = ByteArray(24)
-    stateRandom.nextBytes(bytes)
-    return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
   }
 
   @GetMapping(Spotify.CALLBACK_PATH)
@@ -114,10 +113,10 @@ class SpotifyAuthenticationController(
         !expectedState.isNullOrBlank(),
         !state.isNullOrBlank(),
       )
-      response.addCookie(clearCookie(SPOTIFY_AUTH_STATE_COOKIE, request))
+      addCookie(response, clearCookie(SPOTIFY_AUTH_STATE_COOKIE, request))
       return "redirect:/error"
     }
-    response.addCookie(clearCookie(SPOTIFY_AUTH_STATE_COOKIE, request))
+    addCookie(response, clearCookie(SPOTIFY_AUTH_STATE_COOKIE, request))
 
     val headers = HttpHeaders().apply { contentType = MediaType.APPLICATION_FORM_URLENCODED }
     val body =
@@ -137,10 +136,11 @@ class SpotifyAuthenticationController(
       logger.debug("Received AuthToken from Spotify (access token redacted).")
       val clientId = getCurrentUserId(authToken)
       if (clientId != null) {
-        authToken.clientId = clientId
+        val sessionId = spotifyAuthenticationService.createClientSessionId()
+        authToken.clientId = sessionId
         spotifyAuthenticationService.setAuthToken(authToken)
-        response.addCookie(createCookie("clientId", clientId, request))
-        logger.info("Successfully set auth token for user: {}", clientId)
+        addCookie(response, createCookie("clientId", sessionId, request))
+        logger.info("Successfully set auth token for Spotify user: {}", clientId)
       } else {
         logger.warn("Could not retrieve client ID. Auth token not stored.")
       }
@@ -160,9 +160,10 @@ class SpotifyAuthenticationController(
   ): String {
     logger.debug("authorize with clientId {}", clientId)
     logger.info("Authorize endpoint called. Current clientId from cookie: {}", clientId)
-    val state = createState()
-    response.addCookie(
-      createCookie(SPOTIFY_AUTH_STATE_COOKIE, state, request, AUTH_STATE_COOKIE_MAX_AGE_SECONDS)
+    val state = spotifyAuthenticationService.createClientSessionId()
+    addCookie(
+      response,
+      createCookie(SPOTIFY_AUTH_STATE_COOKIE, state, request, AUTH_STATE_COOKIE_MAX_AGE_SECONDS),
     )
     val builder =
       UriComponentsBuilder.fromHttpUrl(Spotify.AUTH_URL)
@@ -177,8 +178,7 @@ class SpotifyAuthenticationController(
 
   companion object {
     private const val SPOTIFY_AUTH_STATE_COOKIE = "spotifyAuthState"
-    private const val AUTH_STATE_COOKIE_MAX_AGE_SECONDS = 300
-    private val stateRandom = SecureRandom()
+    private const val AUTH_STATE_COOKIE_MAX_AGE_SECONDS = 300L
     private val logger = LoggerFactory.getLogger(SpotifyAuthenticationController::class.java)
   }
 }

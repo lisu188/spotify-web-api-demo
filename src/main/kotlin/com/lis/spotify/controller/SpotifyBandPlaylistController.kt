@@ -13,6 +13,7 @@
 package com.lis.spotify.controller
 
 import com.lis.spotify.domain.BandPlaylistRequest
+import com.lis.spotify.service.SpotifyAuthenticationService
 import com.lis.spotify.service.SpotifyBandPlaylistService
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -24,13 +25,15 @@ import org.springframework.web.bind.annotation.RestController
 
 @RestController
 class SpotifyBandPlaylistController(
-  private val spotifyBandPlaylistService: SpotifyBandPlaylistService
+  private val spotifyBandPlaylistService: SpotifyBandPlaylistService,
+  private val spotifyAuthenticationService: SpotifyAuthenticationService,
 ) {
   @PostMapping("/bandPlaylist")
   fun createBandPlaylist(
     @CookieValue("clientId") clientId: String,
     @RequestBody request: BandPlaylistRequest,
   ): ResponseEntity<String> {
+    spotifyAuthenticationService.requireAuthorizedClientSession(clientId)
     val bands = request.bands.map { it.trim() }.filter { it.isNotEmpty() }
     if (bands.isEmpty()) {
       logger.warn("Band playlist request had no valid bands for clientId={}", clientId)
