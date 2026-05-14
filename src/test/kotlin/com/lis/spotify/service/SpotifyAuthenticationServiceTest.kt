@@ -92,6 +92,15 @@ class SpotifyAuthenticationServiceTest {
   }
 
   @Test
+  fun spotifySessionMustMatchClientId() {
+    val sessionId = service.createSpotifySession("cid")
+
+    assertTrue(service.isValidSpotifySession("cid", sessionId))
+    assertFalse(service.isValidSpotifySession("other", sessionId))
+    assertFalse(service.isValidSpotifySession("cid", "forged"))
+  }
+
+  @Test
   fun concurrentReadWriteDoesNotThrow() = runBlocking {
     coroutineScope {
       repeat(50) {

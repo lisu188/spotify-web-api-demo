@@ -13,6 +13,7 @@
 package com.lis.spotify.controller
 
 import com.lis.spotify.domain.BandPlaylistRequest
+import com.lis.spotify.service.SpotifyAuthenticationService
 import com.lis.spotify.service.SpotifyBandPlaylistService
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -24,16 +25,34 @@ import org.springframework.web.bind.annotation.RestController
 
 @RestController
 class SpotifyBandPlaylistController(
-  private val spotifyBandPlaylistService: SpotifyBandPlaylistService
+  private val spotifyBandPlaylistService: SpotifyBandPlaylistService,
+  private val spotifyAuthenticationService: SpotifyAuthenticationService,
 ) {
   @PostMapping("/bandPlaylist")
   fun createBandPlaylist(
     @CookieValue("clientId") clientId: String,
+    @CookieValue(SpotifyAuthenticationController.SPOTIFY_SESSION_COOKIE, defaultValue = "")
+    spotifySession: String,
     @RequestBody request: BandPlaylistRequest,
   ): ResponseEntity<String> {
+    if (!spotifyAuthenticationService.isValidSpotifySession(clientId, spotifySession)) {
+      logger.warn("Rejecting band playlist request with invalid Spotify session")
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+    }
+
     val bands = request.bands.map { it.trim() }.filter { it.isNotEmpty() }
     if (bands.isEmpty()) {
       logger.warn("Band playlist request had no valid bands for clientId={}", clientId)
+      return ResponseEntity.badRequest().build()
+    }
+
+    val distinctBandCount = bands.distinctBy { it.lowercase() }.size
+    if (distinctBandCount > SpotifyBandPlaylistService.MAX_BAND_COUNT) {
+      logger.warn(
+        "Rejecting band playlist request with {} bands; maximum is {}",
+        distinctBandCount,
+        SpotifyBandPlaylistService.MAX_BAND_COUNT,
+      )
       return ResponseEntity.badRequest().build()
     }
 

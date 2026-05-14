@@ -31,7 +31,9 @@ import com.lis.spotify.AppEnvironment.Spotify
 import com.lis.spotify.domain.AuthToken
 import com.lis.spotify.persistence.SpotifyTokenStore
 import com.lis.spotify.persistence.StoredSpotifyAuthToken
+import java.security.SecureRandom
 import java.time.Clock
+import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -53,6 +55,27 @@ class SpotifyAuthenticationService(
   private val logger: Logger = LoggerFactory.getLogger(SpotifyAuthenticationService::class.java)
   private val clock: Clock = Clock.systemUTC()
   private val tokenCache = ConcurrentHashMap<String, AuthToken>()
+  private val spotifySessions = ConcurrentHashMap<String, String>()
+
+  fun createSpotifySession(clientId: String): String {
+    val bytes = ByteArray(32)
+    sessionRandom.nextBytes(bytes)
+    val sessionId = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+    spotifySessions[sessionId] = clientId
+    logger.debug("Created Spotify session for clientId={}", clientId)
+    return sessionId
+  }
+
+  fun isValidSpotifySession(clientId: String, sessionId: String): Boolean {
+    if (clientId.isBlank() || sessionId.isBlank()) {
+      return false
+    }
+
+    val sessionClientId = spotifySessions[sessionId]
+    val valid = sessionClientId == clientId
+    logger.debug("Spotify session validation for clientId={} valid={}", clientId, valid)
+    return valid
+  }
 
   fun getHeaders(token: AuthToken): HttpHeaders {
     logger.debug("Creating headers with Bearer token for clientId={}", token.clientId)
@@ -179,5 +202,10 @@ class SpotifyAuthenticationService(
 
   internal fun clearCache() {
     tokenCache.clear()
+    spotifySessions.clear()
+  }
+
+  companion object {
+    private val sessionRandom = SecureRandom()
   }
 }

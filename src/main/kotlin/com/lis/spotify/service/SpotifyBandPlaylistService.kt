@@ -28,7 +28,11 @@ class SpotifyBandPlaylistService(
 
   fun createBandPlaylist(clientId: String, bandNames: List<String>): String? {
     val cleaned =
-      bandNames.map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() }
+      bandNames
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .distinctBy { it.lowercase() }
+        .take(MAX_BAND_COUNT)
     if (cleaned.isEmpty()) {
       logger.warn("createBandPlaylist called with no band names for {}", clientId)
       return null
@@ -105,6 +109,7 @@ class SpotifyBandPlaylistService(
   }
 
   companion object {
+    const val MAX_BAND_COUNT = 20
     private const val targetTrackCount = 50
     private const val maxPlaylistNameLength = 100
   }

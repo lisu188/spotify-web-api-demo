@@ -140,6 +140,13 @@ class SpotifyAuthenticationController(
         authToken.clientId = clientId
         spotifyAuthenticationService.setAuthToken(authToken)
         response.addCookie(createCookie("clientId", clientId, request))
+        response.addCookie(
+          createCookie(
+            SPOTIFY_SESSION_COOKIE,
+            spotifyAuthenticationService.createSpotifySession(clientId),
+            request,
+          )
+        )
         logger.info("Successfully set auth token for user: {}", clientId)
       } else {
         logger.warn("Could not retrieve client ID. Auth token not stored.")
@@ -176,6 +183,7 @@ class SpotifyAuthenticationController(
   }
 
   companion object {
+    const val SPOTIFY_SESSION_COOKIE = "spotifySession"
     private const val SPOTIFY_AUTH_STATE_COOKIE = "spotifyAuthState"
     private const val AUTH_STATE_COOKIE_MAX_AGE_SECONDS = 300
     private val stateRandom = SecureRandom()
