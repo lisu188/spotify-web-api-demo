@@ -2,8 +2,11 @@ package com.lis.spotify.controller
 
 import com.lis.spotify.domain.JobId
 import com.lis.spotify.domain.JobStatus
+import com.lis.spotify.service.JobLimitExceededException
 import com.lis.spotify.service.JobService
+import com.lis.spotify.service.SpotifyAuthenticationService
 import org.slf4j.LoggerFactory
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.CookieValue
 import org.springframework.web.bind.annotation.GetMapping
@@ -15,7 +18,10 @@ import org.springframework.web.bind.annotation.RestController
 
 @RestController
 @RequestMapping("/jobs")
-class JobsController(private val jobService: JobService) {
+class JobsController(
+  private val jobService: JobService,
+  private val spotifyAuthenticationService: SpotifyAuthenticationService,
+) {
 
   companion object {
     private val logger = LoggerFactory.getLogger(JobsController::class.java)
@@ -34,10 +40,12 @@ class JobsController(private val jobService: JobService) {
       return ResponseEntity.badRequest().build()
     }
 
-    logger.info("Starting yearly job for clientId={} lastFmLogin={}", clientId, lastFmLogin)
-    val id = jobService.startYearlyJob(clientId, lastFmLogin)
-    logger.info("Yearly job {} scheduled", id)
-    return ResponseEntity.accepted().body(JobId(id))
+    if (!spotifyAuthenticationService.isAuthorized(clientId)) {
+      logger.warn("Rejecting yearly job for unauthorized clientId={}", clientId)
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+    }
+
+    return startJob("yearly", clientId) { jobService.startYearlyJob(clientId, lastFmLogin) }
   }
 
   @PostMapping("/forgotten-obsessions")
@@ -54,14 +62,14 @@ class JobsController(private val jobService: JobService) {
       return ResponseEntity.badRequest().build()
     }
 
-    logger.info(
-      "Starting forgotten obsessions job for clientId={} lastFmLogin={}",
-      clientId,
-      lastFmLogin,
-    )
-    val id = jobService.startForgottenObsessionsJob(clientId, lastFmLogin)
-    logger.info("Forgotten obsessions job {} scheduled", id)
-    return ResponseEntity.accepted().body(JobId(id))
+    if (!spotifyAuthenticationService.isAuthorized(clientId)) {
+      logger.warn("Rejecting forgotten obsessions job for unauthorized clientId={}", clientId)
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+    }
+
+    return startJob("forgotten obsessions", clientId) {
+      jobService.startForgottenObsessionsJob(clientId, lastFmLogin)
+    }
   }
 
   @PostMapping("/private-mood-taxonomy")
@@ -78,21 +86,35 @@ class JobsController(private val jobService: JobService) {
       return ResponseEntity.badRequest().build()
     }
 
-    logger.info(
-      "Starting private mood taxonomy job for clientId={} lastFmLogin={} playlistSize={}",
-      clientId,
-      lastFmLogin,
-      request.playlistSize,
-    )
-    val id =
+    if (!spotifyAuthenticationService.isAuthorized(clientId)) {
+      logger.warn("Rejecting private mood taxonomy job for unauthorized clientId={}", clientId)
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+    }
+
+    return startJob("private mood taxonomy", clientId) {
       jobService.startPrivateMoodTaxonomyJob(clientId, lastFmLogin, request.playlistSize ?: 50)
-    logger.info("Private mood taxonomy job {} scheduled", id)
-    return ResponseEntity.accepted().body(JobId(id))
+    }
   }
 
   @GetMapping("/{jobId}")
   fun getStatus(@PathVariable jobId: String): ResponseEntity<JobStatus> {
     val status = jobService.getJobStatus(jobId) ?: return ResponseEntity.notFound().build()
     return ResponseEntity.ok(status)
+  }
+
+  private fun startJob(
+    jobName: String,
+    clientId: String,
+    starter: () -> String,
+  ): ResponseEntity<JobId> {
+    logger.info("Starting {} job for clientId={}", jobName, clientId)
+    return try {
+      val id = starter()
+      logger.info("{} job {} scheduled", jobName, id)
+      ResponseEntity.accepted().body(JobId(id))
+    } catch (e: JobLimitExceededException) {
+      logger.warn("Rejecting {} job for clientId={}: {}", jobName, clientId, e.message)
+      ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build()
+    }
   }
 }

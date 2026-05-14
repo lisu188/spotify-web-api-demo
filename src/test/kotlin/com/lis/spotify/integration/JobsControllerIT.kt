@@ -4,10 +4,12 @@ import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock.configureFor
 import com.github.tomakehurst.wiremock.client.WireMock.reset as wireMockReset
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
+import com.lis.spotify.domain.AuthToken
 import com.lis.spotify.service.AuthenticationRequiredException
 import com.lis.spotify.service.ForgottenObsessionsPlaylistResult
 import com.lis.spotify.service.PrivateMoodPlaylistResult
 import com.lis.spotify.service.PrivateMoodTaxonomyResult
+import com.lis.spotify.service.SpotifyAuthenticationService
 import com.lis.spotify.service.SpotifyTopPlaylistsService
 import io.mockk.clearMocks
 import io.mockk.every
@@ -40,6 +42,7 @@ class JobsControllerIT
 constructor(
   private val rest: TestRestTemplate,
   private val playlistService: SpotifyTopPlaylistsService,
+  private val spotifyAuthenticationService: SpotifyAuthenticationService,
 ) {
   companion object {
     val wm = WireMockServer(WireMockConfiguration.options().dynamicPort())
@@ -73,6 +76,9 @@ constructor(
   @BeforeEach
   fun reset() {
     wireMockReset()
+    spotifyAuthenticationService.setAuthToken(
+      AuthToken("access", "Bearer", "scope", 3600, "refresh", "cid")
+    )
     clearMocks(playlistService)
     every { playlistService.updateYearlyPlaylists(any(), any(), any()) } returns Unit
     every { playlistService.updateForgottenObsessionsPlaylist(any(), any(), any()) } returns
@@ -89,6 +95,17 @@ constructor(
         )
       )
     every { playlistService.updateTopPlaylists(any()) } returns emptyList()
+  }
+
+  @Test
+  fun jobStartRejectsUnauthorizedClient() {
+    val headers = HttpHeaders()
+    headers.add(HttpHeaders.COOKIE, "clientId=unknown")
+    val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
+
+    val resp = rest.postForEntity("/jobs", req, Map::class.java)
+
+    assertEquals(HttpStatus.UNAUTHORIZED, resp.statusCode)
   }
 
   @Test
