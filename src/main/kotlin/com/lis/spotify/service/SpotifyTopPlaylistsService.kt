@@ -225,7 +225,12 @@ class SpotifyTopPlaylistsService(
             yearSemaphore.withPermit {
               logger.info("Scanning forgotten obsessions candidates for year {}", year)
               val yearScrobbles =
-                lastFmService.yearlyChartlist(clientId, year, normalizedLastFmLogin, Int.MAX_VALUE)
+                lastFmService.yearlyChartlist(
+                  clientId,
+                  year,
+                  normalizedLastFmLogin,
+                  FORGOTTEN_OBSESSIONS_YEARLY_SCROBBLE_LIMIT,
+                )
               accumulateForgottenObsessionStats(yearScrobbles, forgottenObsessionStats)
               val completedPercent: Int
               synchronized(progressLock) {
@@ -244,7 +249,11 @@ class SpotifyTopPlaylistsService(
         .awaitAll()
     }
 
-    val candidates = selectForgottenObsessions(forgottenObsessionStats.values)
+    val candidates =
+      selectForgottenObsessions(
+        forgottenObsessionStats.values,
+        limit = FORGOTTEN_OBSESSIONS_CANDIDATE_LIMIT,
+      )
     if (candidates.isEmpty()) {
       progress(100, "No forgotten obsessions found yet")
       logger.info("No forgotten obsessions found for {}", clientId)
@@ -1272,6 +1281,8 @@ class SpotifyTopPlaylistsService(
     private const val FORGOTTEN_OBSESSIONS_MIN_PLAY_COUNT = 5
     private const val FORGOTTEN_OBSESSIONS_MIN_DORMANT_DAYS = 180L
     private const val FORGOTTEN_OBSESSIONS_SEARCH_BATCH_SIZE = 100
+    internal const val FORGOTTEN_OBSESSIONS_YEARLY_SCROBBLE_LIMIT = 1_000
+    internal const val FORGOTTEN_OBSESSIONS_CANDIDATE_LIMIT = 500
     private const val FORGOTTEN_OBSESSIONS_TARGET_TRACK_COUNT = 50
     private const val PRIVATE_MOOD_PLAYLIST_PREFIX = "Private Mood - "
     private const val PRIVATE_MOOD_DEFAULT_PLAYLIST_SIZE = 50

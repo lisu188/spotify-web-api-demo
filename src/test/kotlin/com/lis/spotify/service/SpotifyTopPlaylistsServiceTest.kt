@@ -240,7 +240,14 @@ class SpotifyTopPlaylistsServiceTest {
 
     service.firstSupportedYear = 2024
     service.currentYearProvider = { 2025 }
-    every { lastFmService.yearlyChartlist("cid", any(), "login", Int.MAX_VALUE) } answers
+    every {
+      lastFmService.yearlyChartlist(
+        "cid",
+        any(),
+        "login",
+        SpotifyTopPlaylistsService.FORGOTTEN_OBSESSIONS_YEARLY_SCROBBLE_LIMIT,
+      )
+    } answers
       {
         when (secondArg<Int>()) {
           2025 ->
@@ -292,7 +299,14 @@ class SpotifyTopPlaylistsServiceTest {
     service.firstSupportedYear = 2024
     service.currentYearProvider = { 2024 }
 
-    every { lastFmService.yearlyChartlist("cid", 2024, "login", Int.MAX_VALUE) } returns
+    every {
+      lastFmService.yearlyChartlist(
+        "cid",
+        2024,
+        "login",
+        SpotifyTopPlaylistsService.FORGOTTEN_OBSESSIONS_YEARLY_SCROBBLE_LIMIT,
+      )
+    } returns
       (1..110).flatMap { index ->
         (1..5).map { play ->
           Song(
@@ -320,6 +334,65 @@ class SpotifyTopPlaylistsServiceTest {
     assertEquals(110, result.candidateCount)
     assertTrue(progressMessages.contains("Matching forgotten obsessions on Spotify (1/2)"))
     coVerify(exactly = 1) { searchService.searchTrackIds(match { it.size == 100 }, "cid") }
+  }
+
+  @Test
+  fun updateForgottenObsessionsPlaylistCapsHistoryAndSpotifyCandidateWork() {
+    val playlistService = mockk<SpotifyPlaylistService>(relaxed = true)
+    val trackService = mockk<SpotifyTopTrackService>(relaxed = true)
+    val lastFmService = mockk<LastFmService>()
+    val searchService = mockk<SpotifySearchService>()
+    val service =
+      SpotifyTopPlaylistsService(
+        playlistService,
+        trackService,
+        lastFmService,
+        searchService,
+        mockk(relaxed = true),
+      )
+
+    service.firstSupportedYear = 2024
+    service.currentYearProvider = { 2024 }
+
+    every {
+      lastFmService.yearlyChartlist(
+        "cid",
+        2024,
+        "login",
+        SpotifyTopPlaylistsService.FORGOTTEN_OBSESSIONS_YEARLY_SCROBBLE_LIMIT,
+      )
+    } returns
+      (1..600).flatMap { index ->
+        (1..5).map { play ->
+          Song(
+            artist = "Artist $index",
+            title = "Song $index",
+            playedAtEpochSecond = 1_500_000_000L + play,
+          )
+        }
+      }
+    coEvery { searchService.searchTrackIds(any(), "cid") } returns emptyList()
+
+    val result = service.updateForgottenObsessionsPlaylist("cid", "login")
+
+    assertEquals(null, result.playlistId)
+    assertEquals(0, result.playlistTrackCount)
+    assertEquals(0, result.spotifyMatchCount)
+    assertEquals(
+      SpotifyTopPlaylistsService.FORGOTTEN_OBSESSIONS_CANDIDATE_LIMIT,
+      result.candidateCount,
+    )
+    verify(exactly = 1) {
+      lastFmService.yearlyChartlist(
+        "cid",
+        2024,
+        "login",
+        SpotifyTopPlaylistsService.FORGOTTEN_OBSESSIONS_YEARLY_SCROBBLE_LIMIT,
+      )
+    }
+    coVerify(exactly = 5) { searchService.searchTrackIds(match { it.size == 100 }, "cid") }
+    verify(exactly = 0) { playlistService.getCurrentUserPlaylists(any()) }
+    verify(exactly = 0) { playlistService.modifyPlaylist(any(), any(), any()) }
   }
 
   @Test
