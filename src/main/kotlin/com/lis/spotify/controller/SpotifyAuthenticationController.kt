@@ -75,6 +75,7 @@ class SpotifyAuthenticationController(
       path = "/"
       isHttpOnly = true
       secure = isSecureRequest(request)
+      setAttribute("SameSite", "Lax")
       maxAgeSeconds?.let { maxAge = it }
     }
   }
@@ -135,12 +136,13 @@ class SpotifyAuthenticationController(
           .build()
           .postForObject<AuthToken>(Spotify.TOKEN_URL, entity)
       logger.debug("Received AuthToken from Spotify (access token redacted).")
-      val clientId = getCurrentUserId(authToken)
-      if (clientId != null) {
-        authToken.clientId = clientId
+      val spotifyUserId = getCurrentUserId(authToken)
+      if (spotifyUserId != null) {
+        val sessionId = spotifyAuthenticationService.createSessionId()
+        authToken.clientId = sessionId
         spotifyAuthenticationService.setAuthToken(authToken)
-        response.addCookie(createCookie("clientId", clientId, request))
-        logger.info("Successfully set auth token for user: {}", clientId)
+        response.addCookie(createCookie("clientId", sessionId, request))
+        logger.info("Successfully set auth token for Spotify user: {}", spotifyUserId)
       } else {
         logger.warn("Could not retrieve client ID. Auth token not stored.")
       }
