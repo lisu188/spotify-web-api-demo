@@ -8,6 +8,7 @@ import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.scheduling.TaskScheduler
@@ -33,6 +34,22 @@ class JobServiceTest {
     assertNotNull(status)
     assertEquals(JobState.COMPLETED, status?.state)
     assertEquals(100, status?.progressPercent)
+  }
+
+  @Test
+  fun startJobRejectsSecondActiveJobForClient() {
+    val playlistService = mockk<SpotifyTopPlaylistsService>(relaxed = true)
+    val jobStatusStore = InMemoryJobStatusStore()
+    val scheduler = mockk<TaskScheduler>()
+    every { scheduler.schedule(any<Runnable>(), any<java.util.Date>()) } returns
+      mockk(relaxed = true)
+    val service = JobService(playlistService, jobStatusStore, scheduler)
+
+    service.startYearlyJob("c", "login")
+
+    assertThrows(JobLimitExceededException::class.java) {
+      service.startForgottenObsessionsJob("c", "login")
+    }
   }
 
   @Test

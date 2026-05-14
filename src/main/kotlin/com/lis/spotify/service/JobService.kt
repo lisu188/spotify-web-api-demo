@@ -11,6 +11,8 @@ import java.time.Duration
 import java.time.Instant
 import java.util.Date
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.TaskScheduler
 import org.springframework.stereotype.Service
@@ -23,9 +25,14 @@ class JobService(
 ) {
   private val logger = LoggerFactory.getLogger(JobService::class.java)
   private val clock: Clock = Clock.systemUTC()
+  private val activeJobCount = AtomicInteger(0)
+  private val activeClients = ConcurrentHashMap.newKeySet<String>()
+  private val clientStartTimes = ConcurrentHashMap<String, ArrayDeque<Instant>>()
 
   fun getJobStatus(jobId: String): JobStatus? {
-    return jobStatusStore.findById(jobId)?.toJobStatus()
+    val now = Instant.now(clock)
+    jobStatusStore.deleteExpired(now)
+    return jobStatusStore.findById(jobId)?.takeIf { it.expiresAt.isAfter(now) }?.toJobStatus()
   }
 
   fun startYearlyJob(
@@ -154,99 +161,149 @@ class JobService(
     failureMessage: String,
     work: (((Int, String) -> Unit) -> JobCompletion),
   ): String {
-    val id = UUID.randomUUID().toString()
     val createdAt = Instant.now(clock)
+    reserveJobSlot(clientId, createdAt)
+    val id = UUID.randomUUID().toString()
     val expiresAt = createdAt.plus(JOB_TTL)
-    updateJob(
-      jobId = id,
-      state = JobState.QUEUED,
-      progressPercent = 0,
-      message = queuedMessage,
-      clientId = clientId,
-      lastFmLogin = lastFmLogin,
-      createdAt = createdAt,
-      expiresAt = expiresAt,
-    )
-    scheduler.schedule(
-      {
-        updateJob(
-          jobId = id,
-          state = JobState.RUNNING,
-          progressPercent = 0,
-          message = startMessage,
-          clientId = clientId,
-          lastFmLogin = lastFmLogin,
-          createdAt = createdAt,
-          expiresAt = expiresAt,
-        )
-        try {
-          val completion = work { progressPercent, message ->
+    try {
+      jobStatusStore.deleteExpired(createdAt)
+      updateJob(
+        jobId = id,
+        state = JobState.QUEUED,
+        progressPercent = 0,
+        message = queuedMessage,
+        clientId = clientId,
+        lastFmLogin = lastFmLogin,
+        createdAt = createdAt,
+        expiresAt = expiresAt,
+      )
+      scheduler.schedule(
+        {
+          try {
             updateJob(
               jobId = id,
               state = JobState.RUNNING,
-              progressPercent = progressPercent,
-              message = message,
+              progressPercent = 0,
+              message = startMessage,
               clientId = clientId,
               lastFmLogin = lastFmLogin,
               createdAt = createdAt,
               expiresAt = expiresAt,
             )
+            val completion = work { progressPercent, message ->
+              updateJob(
+                jobId = id,
+                state = JobState.RUNNING,
+                progressPercent = progressPercent,
+                message = message,
+                clientId = clientId,
+                lastFmLogin = lastFmLogin,
+                createdAt = createdAt,
+                expiresAt = expiresAt,
+              )
+            }
+            updateJob(
+              jobId = id,
+              state = JobState.COMPLETED,
+              progressPercent = 100,
+              message = completion.message,
+              playlistIds = completion.playlistIds,
+              clientId = clientId,
+              lastFmLogin = lastFmLogin,
+              createdAt = createdAt,
+              expiresAt = expiresAt,
+            )
+          } catch (e: AuthenticationRequiredException) {
+            logger.error("Authentication required during job {}", id, e)
+            updateJob(
+              jobId = id,
+              state = JobState.FAILED,
+              progressPercent = currentProgress(id),
+              message = authenticationMessage(e.provider),
+              redirectUrl = authenticationRedirectUrl(e.provider, lastFmLogin),
+              clientId = clientId,
+              lastFmLogin = lastFmLogin,
+              createdAt = createdAt,
+              expiresAt = expiresAt,
+            )
+          } catch (e: PlaylistUpdateException) {
+            logger.error("Playlist update failed during job {}", id, e)
+            updateJob(
+              jobId = id,
+              state = JobState.FAILED,
+              progressPercent = currentProgress(id),
+              message = failureMessage,
+              playlistIds = e.playlistIds,
+              clientId = clientId,
+              lastFmLogin = lastFmLogin,
+              createdAt = createdAt,
+              expiresAt = expiresAt,
+            )
+          } catch (e: Exception) {
+            logger.error("Job {} failed", id, e)
+            updateJob(
+              jobId = id,
+              state = JobState.FAILED,
+              progressPercent = currentProgress(id),
+              message = failureMessage,
+              clientId = clientId,
+              lastFmLogin = lastFmLogin,
+              createdAt = createdAt,
+              expiresAt = expiresAt,
+            )
+          } finally {
+            releaseJobSlot(clientId)
           }
-          updateJob(
-            jobId = id,
-            state = JobState.COMPLETED,
-            progressPercent = 100,
-            message = completion.message,
-            playlistIds = completion.playlistIds,
-            clientId = clientId,
-            lastFmLogin = lastFmLogin,
-            createdAt = createdAt,
-            expiresAt = expiresAt,
-          )
-        } catch (e: AuthenticationRequiredException) {
-          logger.error("Authentication required during job {}", id, e)
-          updateJob(
-            jobId = id,
-            state = JobState.FAILED,
-            progressPercent = currentProgress(id),
-            message = authenticationMessage(e.provider),
-            redirectUrl = authenticationRedirectUrl(e.provider, lastFmLogin),
-            clientId = clientId,
-            lastFmLogin = lastFmLogin,
-            createdAt = createdAt,
-            expiresAt = expiresAt,
-          )
-        } catch (e: PlaylistUpdateException) {
-          logger.error("Playlist update failed during job {}", id, e)
-          updateJob(
-            jobId = id,
-            state = JobState.FAILED,
-            progressPercent = currentProgress(id),
-            message = failureMessage,
-            playlistIds = e.playlistIds,
-            clientId = clientId,
-            lastFmLogin = lastFmLogin,
-            createdAt = createdAt,
-            expiresAt = expiresAt,
-          )
-        } catch (e: Exception) {
-          logger.error("Job {} failed", id, e)
-          updateJob(
-            jobId = id,
-            state = JobState.FAILED,
-            progressPercent = currentProgress(id),
-            message = failureMessage,
-            clientId = clientId,
-            lastFmLogin = lastFmLogin,
-            createdAt = createdAt,
-            expiresAt = expiresAt,
-          )
-        }
-      },
-      Date.from(createdAt),
-    )
+        },
+        Date.from(createdAt),
+      )
+    } catch (e: Exception) {
+      releaseJobSlot(clientId)
+      throw e
+    }
     logger.info("Job {} scheduled", id)
     return id
+  }
+
+  private fun reserveJobSlot(clientId: String, now: Instant) {
+    pruneClientStarts(clientId, now)
+    if (!activeClients.add(clientId)) {
+      throw JobLimitExceededException("A playlist job is already running for this client")
+    }
+
+    val total = activeJobCount.incrementAndGet()
+    if (total > MAX_ACTIVE_JOBS) {
+      activeJobCount.decrementAndGet()
+      activeClients.remove(clientId)
+      throw JobLimitExceededException("Too many playlist jobs are running")
+    }
+
+    val starts = clientStartTimes.computeIfAbsent(clientId) { ArrayDeque() }
+    synchronized(starts) {
+      if (starts.size >= MAX_CLIENT_JOB_STARTS_PER_HOUR) {
+        activeJobCount.decrementAndGet()
+        activeClients.remove(clientId)
+        throw JobLimitExceededException("Too many playlist jobs were started recently")
+      }
+      starts.addLast(now)
+    }
+  }
+
+  private fun releaseJobSlot(clientId: String) {
+    activeClients.remove(clientId)
+    activeJobCount.updateAndGet { count -> (count - 1).coerceAtLeast(0) }
+  }
+
+  private fun pruneClientStarts(clientId: String, now: Instant) {
+    val starts = clientStartTimes[clientId] ?: return
+    synchronized(starts) {
+      while (starts.isNotEmpty() && starts.first().plus(CLIENT_RATE_LIMIT_WINDOW).isBefore(now)) {
+        starts.removeFirst()
+      }
+      if (starts.isEmpty()) {
+        clientStartTimes.remove(clientId, starts)
+      }
+    }
   }
 
   private fun updateJob(
@@ -307,6 +364,9 @@ class JobService(
 
   companion object {
     private val JOB_TTL: Duration = Duration.ofDays(7)
+    private val CLIENT_RATE_LIMIT_WINDOW: Duration = Duration.ofHours(1)
+    private const val MAX_ACTIVE_JOBS = 25
+    private const val MAX_CLIENT_JOB_STARTS_PER_HOUR = 10
   }
 
   private data class JobCompletion(
@@ -314,3 +374,5 @@ class JobService(
     val playlistIds: List<String> = emptyList(),
   )
 }
+
+class JobLimitExceededException(message: String) : RuntimeException(message)

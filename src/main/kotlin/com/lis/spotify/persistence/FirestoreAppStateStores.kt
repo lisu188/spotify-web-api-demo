@@ -2,6 +2,7 @@ package com.lis.spotify.persistence
 
 import com.google.cloud.firestore.DocumentSnapshot
 import com.google.cloud.firestore.Firestore
+import java.time.Instant
 import org.slf4j.LoggerFactory
 
 private const val JOBS_COLLECTION = "jobs"
@@ -25,6 +26,22 @@ abstract class FirestoreStoreSupport(protected val firestore: Firestore) {
     val snapshot = firestore.collection(collection).whereEqualTo(field, value).limit(1).get().get()
     return snapshot.documents.firstOrNull { it.exists() }
   }
+
+  protected fun deleteExpiredDocuments(collection: String, now: Instant): Int {
+    val snapshot =
+      firestore
+        .collection(collection)
+        .whereLessThanOrEqualTo("expiresAt", now.toFirestoreTimestamp())
+        .limit(EXPIRED_DOCUMENT_DELETE_LIMIT)
+        .get()
+        .get()
+    snapshot.documents.forEach { it.reference.delete().get() }
+    return snapshot.size()
+  }
+
+  companion object {
+    private const val EXPIRED_DOCUMENT_DELETE_LIMIT = 100
+  }
 }
 
 class FirestoreJobStatusStore(firestore: Firestore) :
@@ -40,6 +57,10 @@ class FirestoreJobStatusStore(firestore: Firestore) :
   override fun findById(jobId: String): StoredJobStatus? {
     val document = loadDocument(JOBS_COLLECTION, jobId) ?: return null
     return StoredJobStatus.fromDocument(document)
+  }
+
+  override fun deleteExpired(now: Instant): Int {
+    return deleteExpiredDocuments(JOBS_COLLECTION, now)
   }
 }
 

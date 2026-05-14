@@ -31,7 +31,9 @@ import com.lis.spotify.AppEnvironment.Spotify
 import com.lis.spotify.domain.AuthToken
 import com.lis.spotify.persistence.SpotifyTokenStore
 import com.lis.spotify.persistence.StoredSpotifyAuthToken
+import java.security.SecureRandom
 import java.time.Clock
+import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -72,6 +74,20 @@ class SpotifyAuthenticationService(
       logger.warn("No token found for clientId={}, returning empty headers", clientId)
       HttpHeaders()
     }
+  }
+
+  fun createSessionId(): String {
+    val bytes = ByteArray(32)
+    sessionRandom.nextBytes(bytes)
+    return SESSION_ID_PREFIX + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+  }
+
+  fun isSessionId(clientId: String): Boolean {
+    return clientId.startsWith(SESSION_ID_PREFIX) && clientId.length > SESSION_ID_PREFIX.length
+  }
+
+  fun isAuthorizedSession(clientId: String): Boolean {
+    return isSessionId(clientId) && getAuthToken(clientId) != null
   }
 
   fun setAuthToken(token: AuthToken) {
@@ -179,5 +195,10 @@ class SpotifyAuthenticationService(
 
   internal fun clearCache() {
     tokenCache.clear()
+  }
+
+  companion object {
+    private const val SESSION_ID_PREFIX = "session_"
+    private val sessionRandom = SecureRandom()
   }
 }

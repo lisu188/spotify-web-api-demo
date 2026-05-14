@@ -27,7 +27,11 @@ class Application {
 
   @Bean
   fun taskScheduler(): TaskScheduler {
-    return ThreadPoolTaskScheduler()
+    return ThreadPoolTaskScheduler().apply {
+      poolSize = 4
+      setThreadNamePrefix("playlist-job-")
+      setRemoveOnCancelPolicy(true)
+    }
   }
 }
 

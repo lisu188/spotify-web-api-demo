@@ -4,6 +4,7 @@ import com.lis.spotify.persistence.RefreshStateStore
 import com.lis.spotify.persistence.StoredRefreshState
 import java.time.Clock
 import java.time.Instant
+import java.util.UUID
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.context.event.ApplicationReadyEvent
@@ -24,6 +25,7 @@ class SpotifyTopPlaylistsRefreshService(
   @Value("\${spotify.top-playlists.refresh-trigger-token:}") private val refreshTriggerToken: String,
 ) {
   private val clock: Clock = Clock.systemUTC()
+  private val refreshTokenCacheClientId = "configured-top-playlists-refresh-${UUID.randomUUID()}"
 
   @EventListener(ApplicationReadyEvent::class)
   fun triggerRefreshOnStartup() {
@@ -69,8 +71,8 @@ class SpotifyTopPlaylistsRefreshService(
       return null
     }
 
-    spotifyAuthenticationService.seedRefreshToken(refreshClientId, refreshToken)
-    if (!spotifyAuthenticationService.refreshToken(refreshClientId)) {
+    spotifyAuthenticationService.seedRefreshToken(refreshTokenCacheClientId, refreshToken)
+    if (!spotifyAuthenticationService.refreshToken(refreshTokenCacheClientId)) {
       logger.warn(
         "Skipping configured top playlist refresh for trigger={} because Spotify token refresh failed",
         trigger,
@@ -87,7 +89,7 @@ class SpotifyTopPlaylistsRefreshService(
     }
 
     return try {
-      val playlistIds = spotifyTopPlaylistsService.updateTopPlaylists(refreshClientId)
+      val playlistIds = spotifyTopPlaylistsService.updateTopPlaylists(refreshTokenCacheClientId)
       val completedAt = Instant.now(clock)
       saveRefreshState(
         clientId = refreshClientId,
