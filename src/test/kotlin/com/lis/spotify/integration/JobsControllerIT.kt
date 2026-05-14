@@ -4,10 +4,12 @@ import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock.configureFor
 import com.github.tomakehurst.wiremock.client.WireMock.reset as wireMockReset
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
+import com.lis.spotify.domain.AuthToken
 import com.lis.spotify.service.AuthenticationRequiredException
 import com.lis.spotify.service.ForgottenObsessionsPlaylistResult
 import com.lis.spotify.service.PrivateMoodPlaylistResult
 import com.lis.spotify.service.PrivateMoodTaxonomyResult
+import com.lis.spotify.service.SpotifyAuthenticationService
 import com.lis.spotify.service.SpotifyTopPlaylistsService
 import io.mockk.clearMocks
 import io.mockk.every
@@ -40,8 +42,10 @@ class JobsControllerIT
 constructor(
   private val rest: TestRestTemplate,
   private val playlistService: SpotifyTopPlaylistsService,
+  private val spotifyAuthenticationService: SpotifyAuthenticationService,
 ) {
   companion object {
+    private const val TEST_SESSION_ID = "session_test"
     val wm = WireMockServer(WireMockConfiguration.options().dynamicPort())
     val baseUrl: String
       get() = "http://localhost:${wm.port()}"
@@ -73,6 +77,10 @@ constructor(
   @BeforeEach
   fun reset() {
     wireMockReset()
+    spotifyAuthenticationService.clearCache()
+    spotifyAuthenticationService.setAuthToken(
+      AuthToken("access", "Bearer", "scope", 3600, "refresh", TEST_SESSION_ID)
+    )
     clearMocks(playlistService)
     every { playlistService.updateYearlyPlaylists(any(), any(), any()) } returns Unit
     every { playlistService.updateForgottenObsessionsPlaylist(any(), any(), any()) } returns
@@ -94,7 +102,7 @@ constructor(
   @Test
   fun jobLifecycle() {
     val headers = HttpHeaders()
-    headers.add(HttpHeaders.COOKIE, "clientId=cid")
+    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
     val resp = rest.postForEntity("/jobs", req, Map::class.java)
     assertEquals(HttpStatus.ACCEPTED, resp.statusCode)
@@ -112,7 +120,7 @@ constructor(
     every { playlistService.updateYearlyPlaylists(any(), any(), any()) } throws
       AuthenticationRequiredException("LASTFM")
     val headers = HttpHeaders()
-    headers.add(HttpHeaders.COOKIE, "clientId=cid")
+    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
 
     val resp = rest.postForEntity("/jobs", req, Map::class.java)
@@ -128,7 +136,7 @@ constructor(
   @Test
   fun forgottenObsessionsJobReturnsPlaylistIds() {
     val headers = HttpHeaders()
-    headers.add(HttpHeaders.COOKIE, "clientId=cid")
+    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
 
     val resp = rest.postForEntity("/jobs/forgotten-obsessions", req, Map::class.java)
@@ -143,7 +151,7 @@ constructor(
   @Test
   fun forgottenObsessionsJobRejectsBlankLogin() {
     val headers = HttpHeaders()
-    headers.add(HttpHeaders.COOKIE, "clientId=cid")
+    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID")
     val req = HttpEntity(mapOf("lastFmLogin" to "   "), headers)
 
     val resp = rest.postForEntity("/jobs/forgotten-obsessions", req, Map::class.java)
@@ -154,7 +162,7 @@ constructor(
   @Test
   fun privateMoodTaxonomyJobReturnsPlaylistIds() {
     val headers = HttpHeaders()
-    headers.add(HttpHeaders.COOKIE, "clientId=cid")
+    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
 
     val resp = rest.postForEntity("/jobs/private-mood-taxonomy", req, Map::class.java)
@@ -172,7 +180,7 @@ constructor(
   @Test
   fun privateMoodTaxonomyJobRejectsBlankLogin() {
     val headers = HttpHeaders()
-    headers.add(HttpHeaders.COOKIE, "clientId=cid")
+    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID")
     val req = HttpEntity(mapOf("lastFmLogin" to "   "), headers)
 
     val resp = rest.postForEntity("/jobs/private-mood-taxonomy", req, Map::class.java)

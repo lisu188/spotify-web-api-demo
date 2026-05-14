@@ -168,9 +168,14 @@ constructor(
     assertAll(
       { assertEquals(HttpStatus.FOUND, response.statusCode) },
       { assertTrue(response.headers.location!!.toString().endsWith("/")) },
-      { assertTrue(cookies.any { it.contains("clientId=cid") }) },
+      {
+        val clientCookie = cookies.firstOrNull { it.contains("clientId=session_") }
+        assertNotNull(clientCookie)
+        val sessionId = clientCookie!!.substringAfter("clientId=").substringBefore(";")
+        assertTrue(spotifyAuthenticationService.isAuthorizedSession(sessionId))
+      },
+      { assertNull(spotifyAuthenticationService.getAuthToken("cid")) },
       { assertTrue(cookies.any { it.contains("spotifyAuthState=") && it.contains("Max-Age=0") }) },
-      { assertNotNull(spotifyAuthenticationService.getAuthToken("cid")) },
     )
   }
 
