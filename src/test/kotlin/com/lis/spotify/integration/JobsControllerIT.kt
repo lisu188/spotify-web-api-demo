@@ -84,10 +84,12 @@ constructor(
       AuthToken("access", "Bearer", "scope", 3600, "refresh", TEST_SESSION_ID)
     )
     clearMocks(playlistService, lastFmAuthenticationService)
-    every { playlistService.updateYearlyPlaylists(any(), any(), any()) } returns Unit
-    every { playlistService.updateForgottenObsessionsPlaylist(any(), any(), any()) } returns
+    every { playlistService.updateYearlyPlaylists(any(), any(), any(), any()) } returns Unit
+    every { playlistService.updateForgottenObsessionsPlaylist(any(), any(), any(), any()) } returns
       ForgottenObsessionsPlaylistResult("playlist-1", 12, 12, 18)
-    every { playlistService.updatePrivateMoodTaxonomyPlaylists(any(), any(), any(), any()) } returns
+    every {
+      playlistService.updatePrivateMoodTaxonomyPlaylists(any(), any(), any(), any(), any())
+    } returns
       PrivateMoodTaxonomyResult(
         listOf(
           PrivateMoodPlaylistResult("Anchor", "Private Mood - Anchor", "anchor-id", 12, 20),
@@ -108,7 +110,7 @@ constructor(
     headers.add(HttpHeaders.COOKIE, "clientId=unknown")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
 
-    val resp = rest.postForEntity("/jobs", req, Map::class.java)
+    val resp = rest.postForEntity("/jobs", req, String::class.java)
 
     assertEquals(HttpStatus.UNAUTHORIZED, resp.statusCode)
   }
@@ -116,7 +118,7 @@ constructor(
   @Test
   fun jobLifecycle() {
     val headers = HttpHeaders()
-    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID")
+    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID; lastFmToken=lastfm-token")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
     val resp = rest.postForEntity("/jobs", req, Map::class.java)
     assertEquals(HttpStatus.ACCEPTED, resp.statusCode)
@@ -131,10 +133,10 @@ constructor(
 
   @Test
   fun jobAuthFailurePreservesLastFmRedirect() {
-    every { playlistService.updateYearlyPlaylists(any(), any(), any()) } throws
+    every { playlistService.updateYearlyPlaylists(any(), any(), any(), any()) } throws
       AuthenticationRequiredException("LASTFM")
     val headers = HttpHeaders()
-    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID")
+    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID; lastFmToken=lastfm-token")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
 
     val resp = rest.postForEntity("/jobs", req, Map::class.java)
@@ -150,7 +152,7 @@ constructor(
   @Test
   fun forgottenObsessionsJobReturnsPlaylistIds() {
     val headers = HttpHeaders()
-    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID")
+    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID; lastFmToken=lastfm-token")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
 
     val resp = rest.postForEntity("/jobs/forgotten-obsessions", req, Map::class.java)
@@ -165,7 +167,7 @@ constructor(
   @Test
   fun forgottenObsessionsJobRejectsBlankLogin() {
     val headers = HttpHeaders()
-    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID")
+    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID; lastFmToken=lastfm-token")
     val req = HttpEntity(mapOf("lastFmLogin" to "   "), headers)
 
     val resp = rest.postForEntity("/jobs/forgotten-obsessions", req, Map::class.java)
@@ -194,7 +196,7 @@ constructor(
   @Test
   fun privateMoodTaxonomyJobRejectsBlankLogin() {
     val headers = HttpHeaders()
-    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID")
+    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID; lastFmToken=lastfm-token")
     val req = HttpEntity(mapOf("lastFmLogin" to "   "), headers)
 
     val resp = rest.postForEntity("/jobs/private-mood-taxonomy", req, Map::class.java)
@@ -219,10 +221,10 @@ constructor(
     @Primary
     fun playlistService(taskScheduler: TaskScheduler): SpotifyTopPlaylistsService {
       val svc = mockk<SpotifyTopPlaylistsService>(relaxed = true)
-      every { svc.updateYearlyPlaylists(any(), any(), any()) } returns Unit
-      every { svc.updateForgottenObsessionsPlaylist(any(), any(), any()) } returns
+      every { svc.updateYearlyPlaylists(any(), any(), any(), any()) } returns Unit
+      every { svc.updateForgottenObsessionsPlaylist(any(), any(), any(), any()) } returns
         ForgottenObsessionsPlaylistResult("playlist-1", 12, 12, 18)
-      every { svc.updatePrivateMoodTaxonomyPlaylists(any(), any(), any(), any()) } returns
+      every { svc.updatePrivateMoodTaxonomyPlaylists(any(), any(), any(), any(), any()) } returns
         PrivateMoodTaxonomyResult(
           listOf(
             PrivateMoodPlaylistResult("Anchor", "Private Mood - Anchor", "anchor-id", 12, 20),
@@ -243,7 +245,11 @@ constructor(
       return svc
     }
 
-    @Bean @Primary fun lastFmAuthenticationService(): LastFmAuthenticationService = mockk()
+    @Bean
+    @Primary
+    fun lastFmAuthenticationService(): LastFmAuthenticationService {
+      return mockk()
+    }
 
     @Bean
     @Primary

@@ -35,7 +35,11 @@ class JobService(
     return jobStatusStore.findById(jobId)?.takeIf { it.expiresAt.isAfter(now) }?.toJobStatus()
   }
 
-  fun startYearlyJob(clientId: String, lastFmLogin: String): String {
+  fun startYearlyJob(
+    clientId: String,
+    lastFmLogin: String,
+    lastFmSessionKey: String? = null,
+  ): String {
     logger.info(
       "Scheduling yearly playlist update for clientId={} lastFmLogin={}",
       clientId,
@@ -48,13 +52,17 @@ class JobService(
       startMessage = "Starting yearly playlist refresh",
       failureMessage = "Yearly playlist refresh failed",
       work = { progress ->
-        playlistService.updateYearlyPlaylists(clientId, lastFmLogin, progress)
+        playlistService.updateYearlyPlaylists(clientId, lastFmLogin, lastFmSessionKey, progress)
         JobCompletion("Yearly playlists refreshed")
       },
     )
   }
 
-  fun startForgottenObsessionsJob(clientId: String, lastFmLogin: String): String {
+  fun startForgottenObsessionsJob(
+    clientId: String,
+    lastFmLogin: String,
+    lastFmSessionKey: String? = null,
+  ): String {
     logger.info(
       "Scheduling forgotten obsessions playlist update for clientId={} lastFmLogin={}",
       clientId,
@@ -68,7 +76,12 @@ class JobService(
       failureMessage = "Forgotten obsessions playlist refresh failed",
       work = { progress ->
         val result =
-          playlistService.updateForgottenObsessionsPlaylist(clientId, lastFmLogin, progress)
+          playlistService.updateForgottenObsessionsPlaylist(
+            clientId,
+            lastFmLogin,
+            lastFmSessionKey,
+            progress,
+          )
         when {
           result.playlistId != null ->
             JobCompletion(
@@ -86,6 +99,7 @@ class JobService(
     clientId: String,
     lastFmLogin: String,
     playlistSize: Int = 50,
+    lastFmSessionKey: String? = null,
   ): String {
     logger.info(
       "Scheduling private mood taxonomy playlist update for clientId={} lastFmLogin={} playlistSize={}",
@@ -105,6 +119,7 @@ class JobService(
             clientId = clientId,
             lastFmLogin = lastFmLogin,
             playlistSize = playlistSize,
+            lastFmSessionKey = lastFmSessionKey,
             progress = progress,
           )
         JobCompletion(

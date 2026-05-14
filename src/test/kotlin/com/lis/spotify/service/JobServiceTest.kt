@@ -29,7 +29,7 @@ class JobServiceTest {
 
     val jobId = service.startYearlyJob("c", "l")
 
-    verify { playlistService.updateYearlyPlaylists("c", "l", any()) }
+    verify { playlistService.updateYearlyPlaylists("c", "l", null, any()) }
     val status = service.getJobStatus(jobId)
     assertNotNull(status)
     assertEquals(JobState.COMPLETED, status?.state)
@@ -63,13 +63,13 @@ class JobServiceTest {
         runnable.captured.run()
         mockk(relaxed = true)
       }
-    every { playlistService.updateYearlyPlaylists(any(), any(), any()) } throws
+    every { playlistService.updateYearlyPlaylists(any(), any(), null, any()) } throws
       AuthenticationRequiredException("LASTFM")
     val service = JobService(playlistService, jobStatusStore, scheduler)
 
     val jobId = service.startYearlyJob("c", "last fm")
 
-    verify { playlistService.updateYearlyPlaylists("c", "last fm", any()) }
+    verify { playlistService.updateYearlyPlaylists("c", "last fm", null, any()) }
     val status = service.getJobStatus(jobId)
     assertEquals(JobState.FAILED, status?.state)
     assertEquals("Last.fm authentication required", status?.message)
@@ -87,7 +87,7 @@ class JobServiceTest {
         runnable.captured.run()
         mockk(relaxed = true)
       }
-    every { playlistService.updateYearlyPlaylists(any(), any(), any()) } throws
+    every { playlistService.updateYearlyPlaylists(any(), any(), null, any()) } throws
       AuthenticationRequiredException("SPOTIFY")
     val service = JobService(playlistService, jobStatusStore, scheduler)
 
@@ -132,7 +132,7 @@ class JobServiceTest {
         runnable.captured.run()
         mockk(relaxed = true)
       }
-    every { playlistService.updateForgottenObsessionsPlaylist(any(), any(), any()) } returns
+    every { playlistService.updateForgottenObsessionsPlaylist(any(), any(), null, any()) } returns
       ForgottenObsessionsPlaylistResult("playlist-1", 12, 12, 18)
     val service = JobService(playlistService, jobStatusStore, scheduler)
 
@@ -155,7 +155,7 @@ class JobServiceTest {
         runnable.captured.run()
         mockk(relaxed = true)
       }
-    every { playlistService.updateForgottenObsessionsPlaylist(any(), any(), any()) } throws
+    every { playlistService.updateForgottenObsessionsPlaylist(any(), any(), null, any()) } throws
       PlaylistUpdateException(listOf("playlist-1"), IllegalStateException("boom"))
     val service = JobService(playlistService, jobStatusStore, scheduler)
 
@@ -177,7 +177,9 @@ class JobServiceTest {
         runnable.captured.run()
         mockk(relaxed = true)
       }
-    every { playlistService.updatePrivateMoodTaxonomyPlaylists(any(), any(), any(), any()) } returns
+    every {
+      playlistService.updatePrivateMoodTaxonomyPlaylists(any(), any(), any(), null, any())
+    } returns
       PrivateMoodTaxonomyResult(
         listOf(
           PrivateMoodPlaylistResult("Anchor", "Private Mood - Anchor", "anchor-id", 12, 20),
@@ -215,8 +217,9 @@ class JobServiceTest {
         runnable.captured.run()
         mockk(relaxed = true)
       }
-    every { playlistService.updatePrivateMoodTaxonomyPlaylists(any(), any(), any(), any()) } throws
-      PlaylistUpdateException(listOf("anchor-id", "surge-id"), IllegalStateException("boom"))
+    every {
+      playlistService.updatePrivateMoodTaxonomyPlaylists(any(), any(), any(), null, any())
+    } throws PlaylistUpdateException(listOf("anchor-id", "surge-id"), IllegalStateException("boom"))
     val service = JobService(playlistService, jobStatusStore, scheduler)
 
     val jobId = service.startPrivateMoodTaxonomyJob("c", "login")

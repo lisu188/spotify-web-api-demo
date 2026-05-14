@@ -30,6 +30,7 @@ class JobsController(
   @PostMapping
   fun start(
     @CookieValue("clientId") clientId: String,
+    @CookieValue("lastFmToken", defaultValue = "") lastFmToken: String,
     @RequestBody request: StartRequest,
   ): ResponseEntity<JobId> {
     requireAuthorizedSession(clientId)
@@ -44,12 +45,20 @@ class JobsController(
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
     }
 
-    return startJob("yearly", clientId) { jobService.startYearlyJob(clientId, lastFmLogin) }
+    if (!lastFmAuthenticationService.isAuthorized(lastFmLogin, lastFmToken)) {
+      logger.warn("Rejecting yearly job for unauthorized Last.fm login={}", lastFmLogin)
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+    }
+
+    return startJob("yearly", clientId) {
+      jobService.startYearlyJob(clientId, lastFmLogin, lastFmToken)
+    }
   }
 
   @PostMapping("/forgotten-obsessions")
   fun startForgottenObsessions(
     @CookieValue("clientId") clientId: String,
+    @CookieValue("lastFmToken", defaultValue = "") lastFmToken: String,
     @RequestBody request: StartRequest,
   ): ResponseEntity<JobId> {
     requireAuthorizedSession(clientId)
@@ -67,8 +76,16 @@ class JobsController(
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
     }
 
+    if (!lastFmAuthenticationService.isAuthorized(lastFmLogin, lastFmToken)) {
+      logger.warn(
+        "Rejecting forgotten obsessions job for unauthorized Last.fm login={}",
+        lastFmLogin,
+      )
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+    }
+
     return startJob("forgotten obsessions", clientId) {
-      jobService.startForgottenObsessionsJob(clientId, lastFmLogin)
+      jobService.startForgottenObsessionsJob(clientId, lastFmLogin, lastFmToken)
     }
   }
 
@@ -103,7 +120,12 @@ class JobsController(
     }
 
     return startJob("private mood taxonomy", clientId) {
-      jobService.startPrivateMoodTaxonomyJob(clientId, lastFmLogin, request.playlistSize ?: 50)
+      jobService.startPrivateMoodTaxonomyJob(
+        clientId,
+        lastFmLogin,
+        request.playlistSize ?: 50,
+        lastFmToken,
+      )
     }
   }
 

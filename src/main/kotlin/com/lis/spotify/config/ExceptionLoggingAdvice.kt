@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ControllerAdvice
 import org.springframework.web.bind.annotation.ExceptionHandler
+import org.springframework.web.server.ResponseStatusException
 
 @ControllerAdvice
 class ExceptionLoggingAdvice {
@@ -31,6 +32,12 @@ class ExceptionLoggingAdvice {
     return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
       .header(HttpHeaders.LOCATION, "/auth/spotify")
       .build()
+  }
+
+  @ExceptionHandler(ResponseStatusException::class)
+  fun handleResponseStatus(ex: ResponseStatusException): ResponseEntity<String> {
+    logger.warn("Request rejected with status {} {}", ex.statusCode, ex.reason)
+    return ResponseEntity.status(ex.statusCode).body(ex.reason)
   }
 
   @ExceptionHandler(Exception::class)

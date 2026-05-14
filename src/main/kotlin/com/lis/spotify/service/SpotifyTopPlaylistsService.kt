@@ -139,6 +139,7 @@ class SpotifyTopPlaylistsService(
   fun updateYearlyPlaylists(
     clientId: String,
     lastFmLogin: String,
+    lastFmSessionKey: String? = null,
     progress: (Int, String) -> Unit = { _, _ -> },
   ) {
     logger.debug("updateYearlyPlaylists {} {}", clientId, lastFmLogin)
@@ -165,7 +166,13 @@ class SpotifyTopPlaylistsService(
               val trackList =
                 spotifySearchService.searchTrackIdsSequentially(
                   lastFmService
-                    .yearlyChartlist(clientId, year, lastFmLogin, yearlyLimit)
+                    .yearlyChartlist(
+                      clientId,
+                      year,
+                      lastFmLogin,
+                      yearlyLimit,
+                      sessionKey = lastFmSessionKey,
+                    )
                     .take(yearlyLimit),
                   clientId,
                 )
@@ -195,6 +202,7 @@ class SpotifyTopPlaylistsService(
   fun updateForgottenObsessionsPlaylist(
     clientId: String,
     lastFmLogin: String,
+    lastFmSessionKey: String? = null,
     progress: (Int, String) -> Unit = { _, _ -> },
   ): ForgottenObsessionsPlaylistResult {
     val normalizedLastFmLogin = lastFmLogin.trim()
@@ -230,6 +238,7 @@ class SpotifyTopPlaylistsService(
                   year,
                   normalizedLastFmLogin,
                   FORGOTTEN_OBSESSIONS_YEARLY_SCROBBLE_LIMIT,
+                  sessionKey = lastFmSessionKey,
                 )
               accumulateForgottenObsessionStats(yearScrobbles, forgottenObsessionStats)
               val completedPercent: Int
@@ -351,6 +360,7 @@ class SpotifyTopPlaylistsService(
     clientId: String,
     lastFmLogin: String,
     playlistSize: Int = PRIVATE_MOOD_DEFAULT_PLAYLIST_SIZE,
+    lastFmSessionKey: String? = null,
     progress: (Int, String) -> Unit = { _, _ -> },
   ): PrivateMoodTaxonomyResult {
     val normalizedLastFmLogin = lastFmLogin.trim()
@@ -388,7 +398,13 @@ class SpotifyTopPlaylistsService(
             yearSemaphore.withPermit {
               logger.info("Scanning private mood history for year {}", year)
               val yearScrobbles =
-                lastFmService.yearlyChartlist(clientId, year, normalizedLastFmLogin, Int.MAX_VALUE)
+                lastFmService.yearlyChartlist(
+                  clientId,
+                  year,
+                  normalizedLastFmLogin,
+                  Int.MAX_VALUE,
+                  sessionKey = lastFmSessionKey,
+                )
               synchronized(scrobbleLock) { scrobbles += yearScrobbles }
               val completedPercent: Int
               synchronized(progressLock) {

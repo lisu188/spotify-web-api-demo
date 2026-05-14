@@ -29,16 +29,19 @@ class JobsControllerTest {
 
   @Test
   fun startReturnsId() {
-    every { service.startYearlyJob("c", "login") } returns "id"
-    val resp = controller.start("c", JobsController.StartRequest("login"))
+    every { lastFmAuthenticationService.isAuthorized("login", "token") } returns true
+    every { service.startYearlyJob("c", "login", "token") } returns "id"
+    val resp = controller.start("c", "token", JobsController.StartRequest("login"))
     assertEquals(JobId("id"), resp.body)
     assertEquals(HttpStatus.ACCEPTED, resp.statusCode)
   }
 
   @Test
   fun startForgottenObsessionsReturnsId() {
-    every { service.startForgottenObsessionsJob("c", "login") } returns "forgotten-id"
-    val resp = controller.startForgottenObsessions("c", JobsController.StartRequest("login"))
+    every { lastFmAuthenticationService.isAuthorized("login", "token") } returns true
+    every { service.startForgottenObsessionsJob("c", "login", "token") } returns "forgotten-id"
+    val resp =
+      controller.startForgottenObsessions("c", "token", JobsController.StartRequest("login"))
     assertEquals(JobId("forgotten-id"), resp.body)
     assertEquals(HttpStatus.ACCEPTED, resp.statusCode)
   }
@@ -46,7 +49,8 @@ class JobsControllerTest {
   @Test
   fun startPrivateMoodTaxonomyReturnsId() {
     every { lastFmAuthenticationService.isAuthorized("login", "token") } returns true
-    every { service.startPrivateMoodTaxonomyJob("c", "login", 50) } returns "private-mood-id"
+    every { service.startPrivateMoodTaxonomyJob("c", "login", 50, "token") } returns
+      "private-mood-id"
 
     val resp =
       controller.startPrivateMoodTaxonomy("c", "token", JobsController.StartRequest("login"))
@@ -59,16 +63,18 @@ class JobsControllerTest {
   fun startRejectsUnauthorizedClient() {
     every { authService.isAuthorized("c") } returns false
 
-    val resp = controller.start("c", JobsController.StartRequest("login"))
+    val resp = controller.start("c", "token", JobsController.StartRequest("login"))
 
     assertEquals(HttpStatus.UNAUTHORIZED, resp.statusCode)
   }
 
   @Test
   fun startReturnsTooManyRequestsWhenJobLimitIsExceeded() {
-    every { service.startYearlyJob("c", "login") } throws JobLimitExceededException("too many")
+    every { lastFmAuthenticationService.isAuthorized("login", "token") } returns true
+    every { service.startYearlyJob("c", "login", "token") } throws
+      JobLimitExceededException("too many")
 
-    val resp = controller.start("c", JobsController.StartRequest("login"))
+    val resp = controller.start("c", "token", JobsController.StartRequest("login"))
 
     assertEquals(HttpStatus.TOO_MANY_REQUESTS, resp.statusCode)
   }
@@ -85,18 +91,18 @@ class JobsControllerTest {
       )
 
     assertEquals(HttpStatus.FORBIDDEN, resp.statusCode)
-    verify(exactly = 0) { service.startPrivateMoodTaxonomyJob(any(), any(), any()) }
+    verify(exactly = 0) { service.startPrivateMoodTaxonomyJob(any(), any(), any(), any()) }
   }
 
   @Test
   fun startRejectsBlankLogin() {
-    val resp = controller.start("c", JobsController.StartRequest("   "))
+    val resp = controller.start("c", "token", JobsController.StartRequest("   "))
     assertEquals(HttpStatus.BAD_REQUEST, resp.statusCode)
   }
 
   @Test
   fun startForgottenObsessionsRejectsBlankLogin() {
-    val resp = controller.startForgottenObsessions("c", JobsController.StartRequest("   "))
+    val resp = controller.startForgottenObsessions("c", "token", JobsController.StartRequest("   "))
     assertEquals(HttpStatus.BAD_REQUEST, resp.statusCode)
   }
 
@@ -107,12 +113,22 @@ class JobsControllerTest {
   }
 
   @Test
+  fun startRejectsUnauthorizedLastFmLogin() {
+    every { lastFmAuthenticationService.isAuthorized("victim", "attacker-token") } returns false
+
+    val resp = controller.start("c", "attacker-token", JobsController.StartRequest("victim"))
+
+    assertEquals(HttpStatus.UNAUTHORIZED, resp.statusCode)
+    verify(exactly = 0) { service.startYearlyJob(any(), any(), any()) }
+  }
+
+  @Test
   fun startRejectsUnauthorizedSession() {
     every { authService.isAuthorizedSession("forged") } returns false
 
     val ex =
       assertThrows(ResponseStatusException::class.java) {
-        controller.start("forged", JobsController.StartRequest("login"))
+        controller.start("forged", "token", JobsController.StartRequest("login"))
       }
 
     assertEquals(HttpStatus.UNAUTHORIZED, ex.statusCode)
