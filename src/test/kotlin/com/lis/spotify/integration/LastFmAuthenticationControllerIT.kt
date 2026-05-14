@@ -8,9 +8,12 @@ import com.github.tomakehurst.wiremock.client.WireMock.reset as wireMockReset
 import com.github.tomakehurst.wiremock.client.WireMock.stubFor
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertAll
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -83,6 +86,34 @@ class LastFmAuthenticationControllerIT @Autowired constructor(private val rest: 
       { assertEquals(HttpStatus.FOUND, response.statusCode) },
       { assertTrue(response.headers.location!!.toString().startsWith(baseUrl)) },
       { assertTrue(cookies.any { it.contains("lastFmLogin=saved-login") }) },
+    )
+  }
+
+  @Test
+  fun authenticateUserIgnoresForwardedHostForCallback() {
+    val noRedirect =
+      rest.withRequestFactorySettings {
+        it.withRedirects(ClientHttpRequestFactorySettings.Redirects.DONT_FOLLOW)
+      }
+    val headers = org.springframework.http.HttpHeaders()
+    headers.add("X-Forwarded-Proto", "https")
+    headers.add("X-Forwarded-Host", "attacker.example")
+    headers.add("X-Forwarded-Port", "443")
+
+    val response =
+      noRedirect.exchange(
+        "/auth/lastfm",
+        org.springframework.http.HttpMethod.GET,
+        org.springframework.http.HttpEntity<String>(headers),
+        String::class.java,
+      )
+    val location = response.headers.location!!.toString()
+    val decodedLocation = URLDecoder.decode(location, StandardCharsets.UTF_8)
+
+    assertAll(
+      { assertEquals(HttpStatus.FOUND, response.statusCode) },
+      { assertFalse(decodedLocation.contains("attacker.example")) },
+      { assertTrue(decodedLocation.contains("cb=http://localhost/auth/lastfm/callback")) },
     )
   }
 

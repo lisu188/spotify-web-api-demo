@@ -1,5 +1,6 @@
 package com.lis.spotify.config
 
+import com.lis.spotify.service.AuthenticationRequiredException
 import com.lis.spotify.service.LastFmException
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
@@ -22,6 +23,14 @@ class ExceptionLoggingAdvice {
     } else {
       ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build()
     }
+  }
+
+  @ExceptionHandler(AuthenticationRequiredException::class)
+  fun handleAuthenticationRequired(ex: AuthenticationRequiredException): ResponseEntity<Void> {
+    logger.warn("{} authentication is required", ex.provider)
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+      .header(HttpHeaders.LOCATION, "/auth/spotify")
+      .build()
   }
 
   @ExceptionHandler(Exception::class)
