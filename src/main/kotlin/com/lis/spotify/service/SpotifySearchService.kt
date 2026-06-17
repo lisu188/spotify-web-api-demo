@@ -84,7 +84,10 @@ class SpotifySearchService(
     val cached = findFreshCacheEntry(cacheKey, now)
     if (cached != null) {
       logger.debug("doSearch persistent cache hit {}", cacheKey)
-      return readCachedResult(cacheKey, cached)
+      val cachedResult = readCachedResult(cacheKey, cached)
+      if (cachedResult != null) {
+        return cachedResult
+      }
     }
 
     val result = fetchSearchResult(query, clientId, cacheKey) ?: return null
