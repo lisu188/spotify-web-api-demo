@@ -7,7 +7,7 @@ This Gradle-based Kotlin/Spring Boot service keeps production sources in `src/ma
 - `./gradlew ktfmtFormat` — format Kotlin sources using the enforced style.
 - `./gradlew build` — compile, run all tests, and assemble production artifacts.
 - `./gradlew test` — execute unit and integration tests locally.
-- `./gradlew jacocoTestCoverageVerification` — ensure ≥80% coverage before merging.
+- `./gradlew jacocoTestCoverageVerification` — ensure ≥90% coverage before merging.
 - `./gradlew bootRun` — start the API with dev settings.
 - `docker build -t spotify-web-api-demo .` / `docker run --rm -p 8080:8080 spotify-web-api-demo` — package and run the image; verify via `curl http://localhost:8080`.
 

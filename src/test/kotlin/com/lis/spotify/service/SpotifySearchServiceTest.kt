@@ -7,6 +7,8 @@ import com.lis.spotify.domain.SearchResultInternal
 import com.lis.spotify.domain.Song
 import com.lis.spotify.domain.Track
 import com.lis.spotify.persistence.InMemorySpotifySearchCacheStore
+import com.lis.spotify.persistence.SpotifySearchCacheStore
+import com.lis.spotify.persistence.StoredSpotifySearchCacheEntry
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -20,11 +22,13 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.web.client.HttpServerErrorException
+import org.springframework.web.client.ResourceAccessException
 
 class SpotifySearchServiceTest {
   @Test
@@ -166,6 +170,28 @@ class SpotifySearchServiceTest {
   }
 
   @Test
+  fun corruptPersistentCacheIsRefetchedAndStored() {
+    val clock = fixedClock()
+    val store = CorruptSpotifySearchCacheStore(clock.instant())
+    val rest = mockk<SpotifyRestService>()
+    val service = SpotifySearchService(rest, store, clock)
+    val result =
+      SearchResult(
+        SearchResultInternal(
+          listOf(Track("1", "t", listOf(Artist("2", "a")), Album("3", "al", emptyList())))
+        )
+      )
+    every { rest.doRequest(any<() -> Any>()) } returns result
+
+    val searchResult = service.doSearch(Song("artist", "title"), "cid")
+
+    assertEquals("1", searchResult?.tracks?.items?.firstOrNull()?.id)
+    assertNotNull(store.savedEntry)
+    assertTrue(store.savedEntry?.payloadJson?.contains("\"tracks\"") == true)
+    verify(exactly = 1) { rest.doRequest(any<() -> Any>()) }
+  }
+
+  @Test
   fun batchSearchUsesConfiguredParallelism() {
     val rest = mockk<SpotifyRestService>()
     val service =
@@ -252,6 +278,53 @@ class SpotifySearchServiceTest {
   }
 
   @Test
+  fun transientNetworkErrorsAreRetriedAndEventuallySucceed() {
+    val rest = mockk<SpotifyRestService>()
+    val service = SpotifySearchService(rest, InMemorySpotifySearchCacheStore(), fixedClock())
+    val sleepCalls = mutableListOf<Long>()
+    service.sleeper = SpotifySearchSleeper { millis -> sleepCalls += millis }
+    val result =
+      SearchResult(
+        SearchResultInternal(
+          listOf(Track("1", "t", listOf(Artist("2", "a")), Album("3", "al", emptyList())))
+        )
+      )
+    val exception = ResourceAccessException("timeout")
+    every { rest.doRequest(any<() -> Any>()) } throws exception andThen result
+
+    val searchResult = service.doSearch(Song("artist", "title"), "cid")
+
+    assertEquals("1", searchResult?.tracks?.items?.firstOrNull()?.id)
+    assertEquals(listOf(SpotifySearchService.SPOTIFY_SEARCH_RETRY_DELAY_MS), sleepCalls)
+    verify(exactly = 2) { rest.doRequest(any<() -> Any>()) }
+  }
+
+  @Test
+  fun repeatedNetworkErrorsSkipFailingTrack() {
+    val rest = mockk<SpotifyRestService>()
+    val service = SpotifySearchService(rest, InMemorySpotifySearchCacheStore(), fixedClock())
+    val sleepCalls = mutableListOf<Long>()
+    service.sleeper = SpotifySearchSleeper { millis -> sleepCalls += millis }
+    val exception = ResourceAccessException("timeout")
+    every { rest.doRequest(any<() -> Any>()) } throws
+      exception andThenThrows
+      exception andThenThrows
+      exception
+
+    val searchResult = service.doSearch(Song("artist", "title"), "cid")
+
+    assertNull(searchResult)
+    assertEquals(
+      listOf(
+        SpotifySearchService.SPOTIFY_SEARCH_RETRY_DELAY_MS,
+        SpotifySearchService.SPOTIFY_SEARCH_RETRY_DELAY_MS * 2,
+      ),
+      sleepCalls,
+    )
+    verify(exactly = 3) { rest.doRequest(any<() -> Any>()) }
+  }
+
+  @Test
   fun repeatedServerErrorsSkipOnlyFailingTrack() {
     val rest = mockk<SpotifyRestService>()
     val service =
@@ -311,5 +384,26 @@ class SpotifySearchServiceTest {
 
   private fun fixedClock(instant: String = "2026-04-08T10:00:00Z"): Clock {
     return Clock.fixed(Instant.parse(instant), ZoneOffset.UTC)
+  }
+
+  private class CorruptSpotifySearchCacheStore(private val now: Instant) : SpotifySearchCacheStore {
+    var savedEntry: StoredSpotifySearchCacheEntry? = null
+
+    override fun save(entry: StoredSpotifySearchCacheEntry): StoredSpotifySearchCacheEntry {
+      savedEntry = entry
+      return entry
+    }
+
+    override fun findByKey(cacheKey: String): StoredSpotifySearchCacheEntry? {
+      return savedEntry
+        ?: StoredSpotifySearchCacheEntry(
+          cacheKey = cacheKey,
+          clientId = "cid",
+          query = "track:title artist:artist",
+          payloadJson = "{not-json",
+          updatedAt = now,
+          expiresAt = now.plus(Duration.ofDays(7)),
+        )
+    }
   }
 }
