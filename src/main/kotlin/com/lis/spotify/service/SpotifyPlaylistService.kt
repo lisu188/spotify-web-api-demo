@@ -16,6 +16,7 @@ import com.lis.spotify.domain.Playlist
 import com.lis.spotify.domain.PlaylistTracks
 import com.lis.spotify.domain.Playlists
 import com.lis.spotify.domain.Track
+import com.lis.spotify.logging.asSafeClientIdForLogs
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
@@ -25,8 +26,8 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
   private fun isUri(id: String) = id.startsWith("spotify:track:")
 
   fun getCurrentUserPlaylists(clientId: String): MutableList<Playlist> {
-    logger.debug("getCurrentUserPlaylists {}", clientId)
-    logger.info("getCurrentUserPlaylists: {}", clientId)
+    logger.debug("getCurrentUserPlaylists {}", clientId.asSafeClientIdForLogs())
+    logger.info("getCurrentUserPlaylists: {}", clientId.asSafeClientIdForLogs())
 
     val playlistList: MutableList<Playlist> = ArrayList()
     var url: String = USER_PLAYLISTS_URL
@@ -36,13 +37,17 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
 
       url = playlists.next.orEmpty()
     } while (!playlists.next.isNullOrEmpty())
-    logger.debug("getCurrentUserPlaylists {} -> {} playlists", clientId, playlistList.size)
+    logger.debug(
+      "getCurrentUserPlaylists {} -> {} playlists",
+      clientId.asSafeClientIdForLogs(),
+      playlistList.size,
+    )
     return playlistList
   }
 
   fun getPlaylistTracks(id: String, clientId: String): List<Track>? {
-    logger.debug("getPlaylistTracks {} {}", id, clientId)
-    logger.info("getPlaylistTracks: {} {}", id, clientId)
+    logger.debug("getPlaylistTracks {} {}", id, clientId.asSafeClientIdForLogs())
+    logger.info("getPlaylistTracks: {} {}", id, clientId.asSafeClientIdForLogs())
 
     val trackList: MutableList<Track> = ArrayList()
     var url: String = PLAYLIST_TRACKS_URL
@@ -53,12 +58,17 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
 
       url = tracks.next.orEmpty()
     } while (!tracks.next.isNullOrEmpty())
-    logger.debug("getPlaylistTracks {} {} -> {} tracks", id, clientId, trackList.size)
+    logger.debug(
+      "getPlaylistTracks {} {} -> {} tracks",
+      id,
+      clientId.asSafeClientIdForLogs(),
+      trackList.size,
+    )
     return trackList
   }
 
   fun getPlaylistTrackIds(id: String, clientId: String): List<String>? {
-    logger.debug("getPlaylistTrackIds {} {}", id, clientId)
+    logger.debug("getPlaylistTrackIds {} {}", id, clientId.asSafeClientIdForLogs())
     return getPlaylistTracks(id, clientId = clientId)?.map { it.id }
   }
 
@@ -66,8 +76,18 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
     require(tracks.isNotEmpty()) { "Track list must not be empty" }
     tracks.forEach { require(!it.startsWith("spotify:") || isUri(it)) { "Invalid track URI: $it" } }
 
-    logger.debug("deleteTracksFromPlaylist {} {} {}", playlistId, clientId, tracks.size)
-    logger.info("deleteTracksFromPlaylist: {} {} {}", playlistId, clientId, tracks)
+    logger.debug(
+      "deleteTracksFromPlaylist {} {} {}",
+      playlistId,
+      clientId.asSafeClientIdForLogs(),
+      tracks.size,
+    )
+    logger.info(
+      "deleteTracksFromPlaylist: {} {} {}",
+      playlistId,
+      clientId.asSafeClientIdForLogs(),
+      tracks,
+    )
 
     tracks.chunked(100).map { chunk ->
       val payload =
@@ -80,12 +100,27 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
         clientId = clientId,
       )
     }
-    logger.debug("deleteTracksFromPlaylist {} {} -> removed {}", playlistId, clientId, tracks.size)
+    logger.debug(
+      "deleteTracksFromPlaylist {} {} -> removed {}",
+      playlistId,
+      clientId.asSafeClientIdForLogs(),
+      tracks.size,
+    )
   }
 
   fun addTracksToPlaylist(playlistId: String, tracks: List<String>, clientId: String) {
-    logger.debug("addTracksToPlaylist {} {} {}", playlistId, clientId, tracks.size)
-    logger.info("addTracksToPlaylist: {} {} {}", playlistId, clientId, tracks)
+    logger.debug(
+      "addTracksToPlaylist {} {} {}",
+      playlistId,
+      clientId.asSafeClientIdForLogs(),
+      tracks.size,
+    )
+    logger.info(
+      "addTracksToPlaylist: {} {} {}",
+      playlistId,
+      clientId.asSafeClientIdForLogs(),
+      tracks,
+    )
 
     tracks.chunked(100).map {
       spotifyRestService.doPost<Any>(
@@ -95,7 +130,12 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
         clientId = clientId,
       )
     }
-    logger.debug("addTracksToPlaylist {} {} -> added {}", playlistId, clientId, tracks.size)
+    logger.debug(
+      "addTracksToPlaylist {} {} -> added {}",
+      playlistId,
+      clientId.asSafeClientIdForLogs(),
+      tracks.size,
+    )
   }
 
   private fun getDiff(old: List<String>, new: List<String>): ArrayList<String> {
@@ -103,8 +143,18 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
   }
 
   fun replacePlaylistTracks(id: String, trackList: List<String>, clientId: String) {
-    logger.debug("replacePlaylistTracks {} {} {}", id, clientId, trackList.size)
-    logger.info("replacePlaylistTracks: {} {} {}", id, clientId, trackList.size)
+    logger.debug(
+      "replacePlaylistTracks {} {} {}",
+      id,
+      clientId.asSafeClientIdForLogs(),
+      trackList.size,
+    )
+    logger.info(
+      "replacePlaylistTracks: {} {} {}",
+      id,
+      clientId.asSafeClientIdForLogs(),
+      trackList.size,
+    )
 
     spotifyRestService.doPut<Any>(
       PLAYLIST_TRACKS_URL,
@@ -112,7 +162,12 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
       params = mapOf("id" to id),
       clientId = clientId,
     )
-    logger.debug("replacePlaylistTracks {} {} -> replaced {}", id, clientId, trackList.size)
+    logger.debug(
+      "replacePlaylistTracks {} {} -> replaced {}",
+      id,
+      clientId.asSafeClientIdForLogs(),
+      trackList.size,
+    )
   }
 
   fun deduplicatePlaylist(id: String, clientId: String) {
@@ -133,8 +188,8 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
     trackList: List<String>,
     clientId: String,
   ): Map<String, List<String>> {
-    logger.debug("modifyPlaylist {} {} {}", id, clientId, trackList.size)
-    logger.info("modifyPlaylist: {} {} {}", id, clientId, trackList.size)
+    logger.debug("modifyPlaylist {} {} {}", id, clientId.asSafeClientIdForLogs(), trackList.size)
+    logger.info("modifyPlaylist: {} {} {}", id, clientId.asSafeClientIdForLogs(), trackList.size)
 
     val old = getPlaylistTrackIds(id, clientId).orEmpty()
     val oldSet = old.toSet()
@@ -154,7 +209,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
     logger.debug(
       "modifyPlaylist {} {} -> added {} removed {}",
       id,
-      clientId,
+      clientId.asSafeClientIdForLogs(),
       tracksToAdd.size,
       tracksToRemove.size,
     )
@@ -162,8 +217,8 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
   }
 
   fun createPlaylist(name: String, clientId: String, public: Boolean = true): Playlist {
-    logger.debug("createPlaylist {} {} public={}", name, clientId, public)
-    logger.info("createPlaylist: {} {} public={}", name, clientId, public)
+    logger.debug("createPlaylist {} {} public={}", name, clientId.asSafeClientIdForLogs(), public)
+    logger.info("createPlaylist: {} {} public={}", name, clientId.asSafeClientIdForLogs(), public)
 
     return spotifyRestService.doPost<Playlist>(
       USER_PLAYLISTS_URL,
@@ -177,8 +232,18 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
     clientId: String,
     public: Boolean = true,
   ): Playlist {
-    logger.debug("getOrCreatePlaylist {} {} public={}", playlistName, clientId, public)
-    logger.info("getOrCreatePlaylist: {} {} public={}", playlistName, clientId, public)
+    logger.debug(
+      "getOrCreatePlaylist {} {} public={}",
+      playlistName,
+      clientId.asSafeClientIdForLogs(),
+      public,
+    )
+    logger.info(
+      "getOrCreatePlaylist: {} {} public={}",
+      playlistName,
+      clientId.asSafeClientIdForLogs(),
+      public,
+    )
 
     val findAny =
       getCurrentUserPlaylists(clientId).stream().filter { it.name == playlistName }.findAny()

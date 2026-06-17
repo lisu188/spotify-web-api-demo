@@ -18,6 +18,7 @@ import com.google.common.cache.CacheBuilder
 import com.lis.spotify.domain.SearchResult
 import com.lis.spotify.domain.Song
 import com.lis.spotify.domain.Track
+import com.lis.spotify.logging.asSafeClientIdForLogs
 import com.lis.spotify.persistence.SpotifySearchCacheStore
 import com.lis.spotify.persistence.StoredSpotifySearchCacheEntry
 import java.nio.charset.StandardCharsets
@@ -77,7 +78,7 @@ class SpotifySearchService(
     CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.HOURS).build()
 
   fun doSearch(song: Song, clientId: String): SearchResult? {
-    logger.debug("doSearch single {} {}", song, clientId)
+    logger.debug("doSearch single {} {}", song, clientId.asSafeClientIdForLogs())
     val query = buildQuery(song)
     val cacheKey = cacheKey(clientId, query)
     val now = clock.instant()
@@ -94,14 +95,14 @@ class SpotifySearchService(
   }
 
   fun doSearch(values: List<Song>, clientId: String, progress: () -> Unit = {}): List<String> {
-    logger.debug("doSearch batch {} {}", clientId, values.size)
-    logger.info("doSearch: {} {}", clientId, values.size)
+    logger.debug("doSearch batch {} {}", clientId.asSafeClientIdForLogs(), values.size)
+    logger.info("doSearch: {} {}", clientId.asSafeClientIdForLogs(), values.size)
     lateinit var retVal: List<String>
     val time = measureTimeMillis {
       retVal = runBlocking(Dispatchers.IO) { searchTrackIds(values, clientId, progress) }
     }
     logger.debug("doSearch batch result {} items", retVal.size)
-    logger.info("doSearch: {} {} took: {}", clientId, values.size, time)
+    logger.info("doSearch: {} {} took: {}", clientId.asSafeClientIdForLogs(), values.size, time)
     return retVal
   }
 

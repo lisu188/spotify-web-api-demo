@@ -12,6 +12,7 @@
 
 package com.lis.spotify.service
 
+import com.lis.spotify.logging.asSafeClientIdForLogs
 import org.slf4j.LoggerFactory
 import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.http.HttpEntity
@@ -58,7 +59,7 @@ class SpotifyRestService(
       } catch (e: HttpClientErrorException.Unauthorized) {
         logger.warn(
           "Unauthorized Spotify request for clientId={}; attempting token refresh.",
-          clientId,
+          clientId.asSafeClientIdForLogs(),
         )
         if (spotifyAuthenticationService.refreshToken(clientId)) {
           try {
@@ -73,12 +74,15 @@ class SpotifyRestService(
           } catch (retryEx: HttpClientErrorException.Unauthorized) {
             logger.error(
               "Unauthorized Spotify request for clientId={} after refresh attempt.",
-              clientId,
+              clientId.asSafeClientIdForLogs(),
               retryEx,
             )
           }
         } else {
-          logger.warn("Could not refresh Spotify token for clientId={}", clientId)
+          logger.warn(
+            "Could not refresh Spotify token for clientId={}",
+            clientId.asSafeClientIdForLogs(),
+          )
         }
         throw AuthenticationRequiredException("SPOTIFY")
       }

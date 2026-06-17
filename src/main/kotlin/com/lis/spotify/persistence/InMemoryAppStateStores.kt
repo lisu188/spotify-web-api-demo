@@ -1,5 +1,6 @@
 package com.lis.spotify.persistence
 
+import com.lis.spotify.logging.asSafeClientIdForLogs
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
@@ -36,7 +37,7 @@ class InMemorySpotifyTokenStore : SpotifyTokenStore {
 
   override fun save(token: StoredSpotifyAuthToken): StoredSpotifyAuthToken {
     tokens[token.clientId] = token
-    logger.debug("Saved in-memory Spotify token {}", token.clientId)
+    logger.debug("Saved in-memory Spotify token {}", token.clientId.asSafeClientIdForLogs())
     return token
   }
 

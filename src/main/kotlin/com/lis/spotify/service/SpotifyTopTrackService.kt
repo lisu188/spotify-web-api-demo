@@ -14,6 +14,7 @@ package com.lis.spotify.service
 
 import com.lis.spotify.domain.Track
 import com.lis.spotify.domain.Tracks
+import com.lis.spotify.logging.asSafeClientIdForLogs
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
@@ -29,41 +30,54 @@ class SpotifyTopTrackService(var spotifyRestService: SpotifyRestService) {
   }
 
   private fun getTopTracks(term: String, clientId: String): Tracks {
-    logger.debug("getTopTracks {} {}", term, clientId)
+    logger.debug("getTopTracks {} {}", term, clientId.asSafeClientIdForLogs())
     val tracks =
       spotifyRestService.doGet<Tracks>(
         URL,
         params = mapOf("limit" to 50, "time_range" to term),
         clientId = clientId,
       )
-    logger.debug("getTopTracks {} {} -> {} items", term, clientId, tracks.items.size)
+    logger.debug(
+      "getTopTracks {} {} -> {} items",
+      term,
+      clientId.asSafeClientIdForLogs(),
+      tracks.items.size,
+    )
     return tracks
   }
 
   fun getTopTracksLongTerm(clientId: String): List<Track> {
-    logger.info("Fetching long-term top tracks for {}", clientId)
-    logger.debug("getTopTracksLongTerm {}", clientId)
+    logger.info("Fetching long-term top tracks for {}", clientId.asSafeClientIdForLogs())
+    logger.debug("getTopTracksLongTerm {}", clientId.asSafeClientIdForLogs())
     val items = getTopTracks(LONG_TERM, clientId).items
-    logger.debug("getTopTracksLongTerm {} -> {} items", clientId, items.size)
-    logger.info("Fetched {} long-term tracks for {}", items.size, clientId)
+    logger.debug(
+      "getTopTracksLongTerm {} -> {} items",
+      clientId.asSafeClientIdForLogs(),
+      items.size,
+    )
+    logger.info("Fetched {} long-term tracks for {}", items.size, clientId.asSafeClientIdForLogs())
     return items
   }
 
   fun getTopTracksMidTerm(clientId: String): List<Track> {
-    logger.info("Fetching mid-term top tracks for {}", clientId)
-    logger.debug("getTopTracksMidTerm {}", clientId)
+    logger.info("Fetching mid-term top tracks for {}", clientId.asSafeClientIdForLogs())
+    logger.debug("getTopTracksMidTerm {}", clientId.asSafeClientIdForLogs())
     val items = getTopTracks(MID_TERM, clientId).items
-    logger.debug("getTopTracksMidTerm {} -> {} items", clientId, items.size)
-    logger.info("Fetched {} mid-term tracks for {}", items.size, clientId)
+    logger.debug("getTopTracksMidTerm {} -> {} items", clientId.asSafeClientIdForLogs(), items.size)
+    logger.info("Fetched {} mid-term tracks for {}", items.size, clientId.asSafeClientIdForLogs())
     return items
   }
 
   fun getTopTracksShortTerm(clientId: String): List<Track> {
-    logger.info("Fetching short-term top tracks for {}", clientId)
-    logger.debug("getTopTracksShortTerm {}", clientId)
+    logger.info("Fetching short-term top tracks for {}", clientId.asSafeClientIdForLogs())
+    logger.debug("getTopTracksShortTerm {}", clientId.asSafeClientIdForLogs())
     val items = getTopTracks(SHORT_TERM, clientId).items
-    logger.debug("getTopTracksShortTerm {} -> {} items", clientId, items.size)
-    logger.info("Fetched {} short-term tracks for {}", items.size, clientId)
+    logger.debug(
+      "getTopTracksShortTerm {} -> {} items",
+      clientId.asSafeClientIdForLogs(),
+      items.size,
+    )
+    logger.info("Fetched {} short-term tracks for {}", items.size, clientId.asSafeClientIdForLogs())
     return items
   }
 }

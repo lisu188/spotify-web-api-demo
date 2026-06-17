@@ -2,6 +2,7 @@ package com.lis.spotify.controller
 
 import com.lis.spotify.domain.JobId
 import com.lis.spotify.domain.JobStatus
+import com.lis.spotify.logging.asSafeClientIdForLogs
 import com.lis.spotify.service.JobLimitExceededException
 import com.lis.spotify.service.JobService
 import com.lis.spotify.service.LastFmAuthenticationService
@@ -36,12 +37,18 @@ class JobsController(
     requireAuthorizedSession(clientId)
     val lastFmLogin = request.lastFmLogin.trim()
     if (lastFmLogin.isEmpty()) {
-      logger.warn("Rejecting yearly job without Last.fm login for clientId={}", clientId)
+      logger.warn(
+        "Rejecting yearly job without Last.fm login for clientId={}",
+        clientId.asSafeClientIdForLogs(),
+      )
       return ResponseEntity.badRequest().build()
     }
 
     if (!spotifyAuthenticationService.isAuthorized(clientId)) {
-      logger.warn("Rejecting yearly job for unauthorized clientId={}", clientId)
+      logger.warn(
+        "Rejecting yearly job for unauthorized clientId={}",
+        clientId.asSafeClientIdForLogs(),
+      )
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
     }
 
@@ -66,13 +73,16 @@ class JobsController(
     if (lastFmLogin.isEmpty()) {
       logger.warn(
         "Rejecting forgotten obsessions job without Last.fm login for clientId={}",
-        clientId,
+        clientId.asSafeClientIdForLogs(),
       )
       return ResponseEntity.badRequest().build()
     }
 
     if (!spotifyAuthenticationService.isAuthorized(clientId)) {
-      logger.warn("Rejecting forgotten obsessions job for unauthorized clientId={}", clientId)
+      logger.warn(
+        "Rejecting forgotten obsessions job for unauthorized clientId={}",
+        clientId.asSafeClientIdForLogs(),
+      )
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
     }
 
@@ -100,13 +110,16 @@ class JobsController(
     if (lastFmLogin.isEmpty()) {
       logger.warn(
         "Rejecting private mood taxonomy job without Last.fm login for clientId={}",
-        clientId,
+        clientId.asSafeClientIdForLogs(),
       )
       return ResponseEntity.badRequest().build()
     }
 
     if (!spotifyAuthenticationService.isAuthorized(clientId)) {
-      logger.warn("Rejecting private mood taxonomy job for unauthorized clientId={}", clientId)
+      logger.warn(
+        "Rejecting private mood taxonomy job for unauthorized clientId={}",
+        clientId.asSafeClientIdForLogs(),
+      )
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
     }
 
@@ -114,7 +127,7 @@ class JobsController(
       logger.warn(
         "Rejecting private mood taxonomy job for unauthorized Last.fm login={} clientId={}",
         lastFmLogin,
-        clientId,
+        clientId.asSafeClientIdForLogs(),
       )
       return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
     }
@@ -147,13 +160,18 @@ class JobsController(
     clientId: String,
     starter: () -> String,
   ): ResponseEntity<JobId> {
-    logger.info("Starting {} job for clientId={}", jobName, clientId)
+    logger.info("Starting {} job for clientId={}", jobName, clientId.asSafeClientIdForLogs())
     return try {
       val id = starter()
       logger.info("{} job {} scheduled", jobName, id)
       ResponseEntity.accepted().body(JobId(id))
     } catch (e: JobLimitExceededException) {
-      logger.warn("Rejecting {} job for clientId={}: {}", jobName, clientId, e.message)
+      logger.warn(
+        "Rejecting {} job for clientId={}: {}",
+        jobName,
+        clientId.asSafeClientIdForLogs(),
+        e.message,
+      )
       ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build()
     }
   }

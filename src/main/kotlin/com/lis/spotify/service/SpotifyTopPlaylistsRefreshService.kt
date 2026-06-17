@@ -1,5 +1,6 @@
 package com.lis.spotify.service
 
+import com.lis.spotify.logging.asSafeClientIdForLogs
 import com.lis.spotify.persistence.RefreshStateStore
 import com.lis.spotify.persistence.StoredRefreshState
 import java.time.Clock
@@ -102,7 +103,7 @@ class SpotifyTopPlaylistsRefreshService(
       logger.info(
         "Configured top playlist refresh finished for trigger={} clientId={} playlists={}",
         trigger,
-        refreshClientId,
+        refreshClientId.asSafeClientIdForLogs(),
         playlistIds,
       )
       playlistIds
@@ -110,7 +111,7 @@ class SpotifyTopPlaylistsRefreshService(
       logger.error(
         "Configured top playlist refresh failed for trigger={} clientId={}",
         trigger,
-        refreshClientId,
+        refreshClientId.asSafeClientIdForLogs(),
         ex,
       )
       saveRefreshState(

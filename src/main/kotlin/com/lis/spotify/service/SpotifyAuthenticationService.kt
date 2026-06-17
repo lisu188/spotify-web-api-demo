@@ -29,6 +29,7 @@ package com.lis.spotify.service
 
 import com.lis.spotify.AppEnvironment.Spotify
 import com.lis.spotify.domain.AuthToken
+import com.lis.spotify.logging.asSafeClientIdForLogs
 import com.lis.spotify.persistence.SpotifyTokenStore
 import com.lis.spotify.persistence.StoredSpotifyAuthToken
 import java.security.SecureRandom
@@ -57,7 +58,10 @@ class SpotifyAuthenticationService(
   private val tokenCache = ConcurrentHashMap<String, AuthToken>()
 
   fun getHeaders(token: AuthToken): HttpHeaders {
-    logger.debug("Creating headers with Bearer token for clientId={}", token.clientId)
+    logger.debug(
+      "Creating headers with Bearer token for clientId={}",
+      token.clientId.asSafeClientIdForLogs(),
+    )
     return HttpHeaders().apply {
       this[HttpHeaders.AUTHORIZATION] = "Bearer ${token.access_token}"
       this[HttpHeaders.ACCEPT] = "application/json"
@@ -68,10 +72,13 @@ class SpotifyAuthenticationService(
   fun getHeaders(clientId: String): HttpHeaders {
     val authToken = getAuthToken(clientId)
     return if (authToken != null) {
-      logger.debug("Creating headers for clientId={}", clientId)
+      logger.debug("Creating headers for clientId={}", clientId.asSafeClientIdForLogs())
       getHeaders(authToken)
     } else {
-      logger.warn("No token found for clientId={}, returning empty headers", clientId)
+      logger.warn(
+        "No token found for clientId={}, returning empty headers",
+        clientId.asSafeClientIdForLogs(),
+      )
       HttpHeaders()
     }
   }
@@ -93,10 +100,10 @@ class SpotifyAuthenticationService(
   fun setAuthToken(token: AuthToken) {
     val clientId =
       requireNotNull(token.clientId) { "clientId is required to store a Spotify auth token" }
-    logger.info("Storing AuthToken for clientId={}", clientId)
+    logger.info("Storing AuthToken for clientId={}", clientId.asSafeClientIdForLogs())
     spotifyTokenStore.save(StoredSpotifyAuthToken.fromAuthToken(token, clock.instant()))
     tokenCache[clientId] = token
-    logger.debug("AuthToken persisted and cached for {}", clientId)
+    logger.debug("AuthToken persisted and cached for {}", clientId.asSafeClientIdForLogs())
   }
 
   fun seedRefreshToken(clientId: String, refreshToken: String) {
@@ -107,7 +114,7 @@ class SpotifyAuthenticationService(
 
     val existing = getAuthToken(clientId)
     if (existing?.refresh_token == refreshToken) {
-      logger.debug("Refresh token already cached for clientId={}", clientId)
+      logger.debug("Refresh token already cached for clientId={}", clientId.asSafeClientIdForLogs())
       return
     }
 
@@ -124,10 +131,13 @@ class SpotifyAuthenticationService(
   }
 
   fun getAuthToken(clientId: String): AuthToken? {
-    logger.debug("Attempting to retrieve AuthToken from cache for clientId={}", clientId)
+    logger.debug(
+      "Attempting to retrieve AuthToken from cache for clientId={}",
+      clientId.asSafeClientIdForLogs(),
+    )
     val cached = tokenCache[clientId]
     if (cached != null) {
-      logger.debug("getAuthToken {} found in cache", clientId)
+      logger.debug("getAuthToken {} found in cache", clientId.asSafeClientIdForLogs())
       return cached
     }
 
@@ -135,16 +145,19 @@ class SpotifyAuthenticationService(
     if (token != null) {
       tokenCache[clientId] = token
     }
-    logger.debug("getAuthToken {} found={}", clientId, token != null)
+    logger.debug("getAuthToken {} found={}", clientId.asSafeClientIdForLogs(), token != null)
     return token
   }
 
   fun refreshToken(clientId: String): Boolean {
-    logger.info("Attempting to refresh token for clientId={}", clientId)
+    logger.info("Attempting to refresh token for clientId={}", clientId.asSafeClientIdForLogs())
     val currentToken = getAuthToken(clientId)
     val refreshTokenValue = currentToken?.refresh_token.orEmpty()
     if (refreshTokenValue.isEmpty()) {
-      logger.warn("No refresh token available for clientId={}; cannot refresh.", clientId)
+      logger.warn(
+        "No refresh token available for clientId={}; cannot refresh.",
+        clientId.asSafeClientIdForLogs(),
+      )
       return false
     }
 
@@ -165,7 +178,10 @@ class SpotifyAuthenticationService(
           .postForObject<AuthToken>(tokenUrl, entity)
 
       if (authToken == null) {
-        logger.warn("Spotify token refresh returned no body for clientId={}", clientId)
+        logger.warn(
+          "Spotify token refresh returned no body for clientId={}",
+          clientId.asSafeClientIdForLogs(),
+        )
         false
       } else {
         // Preserve the existing refresh token.
@@ -174,22 +190,26 @@ class SpotifyAuthenticationService(
 
         logger.info(
           "Successfully refreshed token (access token redacted) for clientId={}",
-          clientId,
+          clientId.asSafeClientIdForLogs(),
         )
         setAuthToken(authToken)
-        logger.debug("refreshToken {} new token stored", clientId)
+        logger.debug("refreshToken {} new token stored", clientId.asSafeClientIdForLogs())
         true
       }
     } catch (ex: Exception) {
-      logger.error("Error while refreshing token for clientId={}", clientId, ex)
+      logger.error(
+        "Error while refreshing token for clientId={}",
+        clientId.asSafeClientIdForLogs(),
+        ex,
+      )
       false
     }
   }
 
   fun isAuthorized(clientId: String): Boolean {
-    logger.debug("Checking if clientId={} is authorized", clientId)
+    logger.debug("Checking if clientId={} is authorized", clientId.asSafeClientIdForLogs())
     val authorized = clientId.isNotEmpty() && getAuthToken(clientId) != null
-    logger.debug("isAuthorized {} -> {}", clientId, authorized)
+    logger.debug("isAuthorized {} -> {}", clientId.asSafeClientIdForLogs(), authorized)
     return authorized
   }
 

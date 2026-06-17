@@ -2,6 +2,7 @@ package com.lis.spotify.persistence
 
 import com.google.cloud.firestore.DocumentSnapshot
 import com.google.cloud.firestore.Firestore
+import com.lis.spotify.logging.asSafeClientIdForLogs
 import java.time.Instant
 import org.slf4j.LoggerFactory
 
@@ -70,7 +71,7 @@ class FirestoreSpotifyTokenStore(firestore: Firestore) :
 
   override fun save(token: StoredSpotifyAuthToken): StoredSpotifyAuthToken {
     saveDocument(SPOTIFY_AUTH_TOKENS_COLLECTION, token.clientId, token.toFirestoreMap())
-    logger.debug("Saved Firestore Spotify token {}", token.clientId)
+    logger.debug("Saved Firestore Spotify token {}", token.clientId.asSafeClientIdForLogs())
     return token
   }
 
