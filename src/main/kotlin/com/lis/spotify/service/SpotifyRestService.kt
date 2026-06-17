@@ -33,7 +33,10 @@ class SpotifyRestService(
 ) {
 
   val restTemplate: RestTemplate =
-    restTemplateBuilder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java).build()
+    restTemplateBuilder
+      .withDefaultTimeouts()
+      .requestFactory(HttpComponentsClientHttpRequestFactory::class.java)
+      .build()
   private val retryTemplate: RetryTemplate =
     RetryTemplate.builder()
       .maxAttempts(3)

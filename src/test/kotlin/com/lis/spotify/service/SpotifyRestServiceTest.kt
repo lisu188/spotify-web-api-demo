@@ -28,7 +28,7 @@ class SpotifyRestServiceTest {
   @Test
   fun doGetRetriesAndReturns() {
     val restTemplate = mockk<RestTemplate>()
-    val builder = mockk<RestTemplateBuilder>()
+    val builder = timeoutBuilder()
     val auth = mockk<SpotifyAuthenticationService>()
     every { builder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java) } returns
       builder
@@ -52,7 +52,7 @@ class SpotifyRestServiceTest {
   @Test
   fun postAndDeleteReturnValues() {
     val restTemplate = mockk<RestTemplate>()
-    val builder = mockk<RestTemplateBuilder>()
+    val builder = timeoutBuilder()
     val auth = mockk<SpotifyAuthenticationService>()
     every { builder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java) } returns
       builder
@@ -87,7 +87,7 @@ class SpotifyRestServiceTest {
   @Test
   fun postReturnsUnitWhenBodyIsNull() {
     val restTemplate = mockk<RestTemplate>()
-    val builder = mockk<RestTemplateBuilder>()
+    val builder = timeoutBuilder()
     val auth = mockk<SpotifyAuthenticationService>()
     every { builder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java) } returns
       builder
@@ -111,7 +111,7 @@ class SpotifyRestServiceTest {
   @Test
   fun retriesOnTooManyRequests() {
     val restTemplate = mockk<RestTemplate>()
-    val builder = mockk<RestTemplateBuilder>()
+    val builder = timeoutBuilder()
     val auth = mockk<SpotifyAuthenticationService>()
     every { builder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java) } returns
       builder
@@ -143,7 +143,7 @@ class SpotifyRestServiceTest {
   @Test
   fun usesRetryAfterHeaderAsBackoff() {
     val restTemplate = mockk<RestTemplate>()
-    val builder = mockk<RestTemplateBuilder>()
+    val builder = timeoutBuilder()
     val auth = mockk<SpotifyAuthenticationService>()
     val sleeper = mockk<Sleeper>(relaxUnitFun = true)
     every { builder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java) } returns
@@ -177,7 +177,7 @@ class SpotifyRestServiceTest {
   @Test
   fun unauthorizedThrowsAuthExceptionWhenRefreshFails() {
     val restTemplate = mockk<RestTemplate>()
-    val builder = mockk<RestTemplateBuilder>()
+    val builder = timeoutBuilder()
     val auth = mockk<SpotifyAuthenticationService>()
     every { builder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java) } returns
       builder
@@ -212,7 +212,7 @@ class SpotifyRestServiceTest {
   @Test
   fun unauthorizedRetriesOnceAfterRefreshingToken() {
     val restTemplate = mockk<RestTemplate>()
-    val builder = mockk<RestTemplateBuilder>()
+    val builder = timeoutBuilder()
     val auth = mockk<SpotifyAuthenticationService>()
     every { builder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java) } returns
       builder
@@ -242,5 +242,12 @@ class SpotifyRestServiceTest {
 
     assertEquals("ok", result)
     verify(exactly = 1) { auth.refreshToken("cid") }
+  }
+
+  private fun timeoutBuilder(): RestTemplateBuilder {
+    val builder = mockk<RestTemplateBuilder>()
+    every { builder.connectTimeout(any()) } returns builder
+    every { builder.readTimeout(any()) } returns builder
+    return builder
   }
 }

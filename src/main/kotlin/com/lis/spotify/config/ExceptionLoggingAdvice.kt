@@ -6,8 +6,14 @@ import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.http.converter.HttpMessageNotReadableException
+import org.springframework.web.ErrorResponse
+import org.springframework.web.bind.MethodArgumentNotValidException
+import org.springframework.web.bind.MissingRequestCookieException
+import org.springframework.web.bind.MissingServletRequestParameterException
 import org.springframework.web.bind.annotation.ControllerAdvice
 import org.springframework.web.bind.annotation.ExceptionHandler
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import org.springframework.web.server.ResponseStatusException
 
 @ControllerAdvice
@@ -40,9 +46,23 @@ class ExceptionLoggingAdvice {
     return ResponseEntity.status(ex.statusCode).body(ex.reason)
   }
 
+  @ExceptionHandler(
+    HttpMessageNotReadableException::class,
+    MissingRequestCookieException::class,
+    MissingServletRequestParameterException::class,
+    MethodArgumentNotValidException::class,
+    MethodArgumentTypeMismatchException::class,
+  )
+  fun handleBadRequest(ex: Exception): ResponseEntity<String> {
+    val status = (ex as? ErrorResponse)?.statusCode ?: HttpStatus.BAD_REQUEST
+    val detail = (ex as? ErrorResponse)?.body?.detail ?: "Bad request"
+    logger.warn("Request rejected with status {} {}", status, detail)
+    return ResponseEntity.status(status).body(detail)
+  }
+
   @ExceptionHandler(Exception::class)
   fun handle(ex: Exception): ResponseEntity<String> {
     logger.error("Unhandled exception", ex)
-    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ex.message)
+    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Internal server error")
   }
 }

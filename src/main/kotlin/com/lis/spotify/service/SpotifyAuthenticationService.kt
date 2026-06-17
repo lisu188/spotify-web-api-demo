@@ -160,6 +160,7 @@ class SpotifyAuthenticationService(
     return try {
       val authToken =
         restTemplateBuilder
+          .withDefaultTimeouts()
           .basicAuthentication(Spotify.CLIENT_ID, Spotify.CLIENT_SECRET)
           .build()
           .postForObject<AuthToken>(tokenUrl, entity)

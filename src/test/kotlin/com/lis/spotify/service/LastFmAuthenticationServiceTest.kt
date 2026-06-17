@@ -28,6 +28,15 @@ class LastFmAuthenticationServiceTest {
   }
 
   @Test
+  fun getAuthorizationUrlIncludesStateInCallback() {
+    val service = LastFmAuthenticationService(InMemoryLastFmSessionStore())
+    val url = service.getAuthorizationUrl("state-value")
+    val encoded =
+      URLEncoder.encode("${AppEnvironment.LastFm.CALLBACK_URL}?state=state-value", "UTF-8")
+    assert(url.contains("cb=$encoded"))
+  }
+
+  @Test
   fun getSessionHandlesResponse() {
     val rest = mockk<RestTemplate>()
     val service = LastFmAuthenticationService(InMemoryLastFmSessionStore())

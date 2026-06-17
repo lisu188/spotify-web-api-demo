@@ -23,6 +23,8 @@ class SpotifyAuthenticationServiceTest {
   private val service = SpotifyAuthenticationService(builder, store)
 
   init {
+    every { builder.connectTimeout(any()) } returns builder
+    every { builder.readTimeout(any()) } returns builder
     every { builder.build() } returns restTemplate
   }
 

@@ -29,7 +29,9 @@ class SpotifyTopPlaylistsController(
   private val spotifyAuthenticationService: SpotifyAuthenticationService,
 ) {
   @PostMapping("/updateTopPlaylists")
-  fun updateTopPlaylists(@CookieValue("clientId") clientId: String): List<String> {
+  fun updateTopPlaylists(
+    @CookieValue("clientId", defaultValue = "") clientId: String
+  ): List<String> {
     requireAuthorizedSession(clientId)
     logger.info("Updating top playlists for {}", clientId)
     logger.debug("updateTopPlaylists for {}", clientId)

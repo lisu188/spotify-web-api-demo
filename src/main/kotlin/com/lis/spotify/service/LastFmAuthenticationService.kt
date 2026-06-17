@@ -9,13 +9,13 @@ import java.time.Clock
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import org.slf4j.LoggerFactory
+import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.util.LinkedMultiValueMap
 import org.springframework.util.MultiValueMap
-import org.springframework.web.client.RestTemplate
 import org.springframework.web.util.UriComponentsBuilder
 
 /**
@@ -26,9 +26,12 @@ import org.springframework.web.util.UriComponentsBuilder
  * secret, and then generating an MD5 hash.
  */
 @Service
-class LastFmAuthenticationService(private val lastFmSessionStore: LastFmSessionStore) {
+class LastFmAuthenticationService(
+  private val lastFmSessionStore: LastFmSessionStore,
+  restTemplateBuilder: RestTemplateBuilder = RestTemplateBuilder(),
+) {
 
-  private val restTemplate = RestTemplate()
+  private val restTemplate = restTemplateBuilder.withDefaultTimeouts().build()
   private val logger = LoggerFactory.getLogger(LastFmAuthenticationService::class.java)
   private val clock: Clock = Clock.systemUTC()
   private val sessionCache = ConcurrentHashMap<String, String>()
@@ -79,13 +82,18 @@ class LastFmAuthenticationService(private val lastFmSessionStore: LastFmSessionS
    *
    * Format: https://www.last.fm/api/auth/?api_key=xxx&cb=<redirectUri>
    */
-  fun getAuthorizationUrl(): String {
+  fun getAuthorizationUrl(state: String? = null): String {
     logger.debug("getAuthorizationUrl() called")
+    val callbackUrl =
+      UriComponentsBuilder.fromHttpUrl(LastFm.CALLBACK_URL)
+        .apply { state?.takeIf { it.isNotBlank() }?.let { queryParam("state", it) } }
+        .build()
+        .toUriString()
     return UriComponentsBuilder.fromHttpUrl(LastFm.AUTHORIZE_URL)
       .queryParam("api_key", LastFm.API_KEY)
       .queryParam("cb", "{cb}")
       .encode()
-      .buildAndExpand(LastFm.CALLBACK_URL)
+      .buildAndExpand(callbackUrl)
       .toUriString()
   }
 
@@ -103,7 +111,7 @@ class LastFmAuthenticationService(private val lastFmSessionStore: LastFmSessionS
    * @return A map containing session data if successful; otherwise, null.
    */
   fun getSession(token: String): Map<String, Any>? {
-    logger.debug("getSession called with token {}", token)
+    logger.debug("getSession called with tokenPresent={}", token.isNotBlank())
     val method = "auth.getSession"
     // Create signature string:
     // "api_keyYOUR_API_KEYmethodauth.getSessiontokenYOUR_TOKENYOUR_API_SECRET"
@@ -137,7 +145,7 @@ class LastFmAuthenticationService(private val lastFmSessionStore: LastFmSessionS
       }
       body
     } catch (ex: Exception) {
-      logger.error("Error getting session for token $token", ex)
+      logger.error("Error getting Last.fm session", ex)
       null
     }
   }

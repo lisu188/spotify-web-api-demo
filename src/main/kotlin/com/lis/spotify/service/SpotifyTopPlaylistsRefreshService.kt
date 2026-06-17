@@ -121,7 +121,7 @@ class SpotifyTopPlaylistsRefreshService(
         lastPlaylistIds = previousState?.lastPlaylistIds.orEmpty(),
         updatedAt = Instant.now(clock),
       )
-      throw ex
+      null
     }
   }
 
