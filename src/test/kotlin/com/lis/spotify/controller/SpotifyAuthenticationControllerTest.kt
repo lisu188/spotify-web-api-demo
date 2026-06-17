@@ -25,7 +25,7 @@ import org.springframework.web.client.RestTemplate
 class SpotifyAuthenticationControllerTest {
   private val spotifyService = mockk<SpotifyAuthenticationService>(relaxed = true)
   private val restTemplate = mockk<RestTemplate>()
-  private val builder = mockk<RestTemplateBuilder>()
+  private val builder = timeoutBuilder()
   private val controller = SpotifyAuthenticationController(spotifyService, builder)
 
   @Test
@@ -158,5 +158,12 @@ class SpotifyAuthenticationControllerTest {
         match { it.name == "spotifyAuthState" && it.maxAge == 0 && it.path == "/" && !it.secure }
       )
     }
+  }
+
+  private fun timeoutBuilder(): RestTemplateBuilder {
+    val builder = mockk<RestTemplateBuilder>()
+    every { builder.connectTimeout(any()) } returns builder
+    every { builder.readTimeout(any()) } returns builder
+    return builder
   }
 }

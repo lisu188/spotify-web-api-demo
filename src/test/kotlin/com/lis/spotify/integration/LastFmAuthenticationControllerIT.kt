@@ -86,6 +86,7 @@ class LastFmAuthenticationControllerIT @Autowired constructor(private val rest: 
       { assertEquals(HttpStatus.FOUND, response.statusCode) },
       { assertTrue(response.headers.location!!.toString().startsWith(baseUrl)) },
       { assertTrue(cookies.any { it.contains("lastFmLogin=saved-login") }) },
+      { assertTrue(cookies.any { it.contains("lastFmAuthState=") }) },
     )
   }
 
@@ -114,6 +115,7 @@ class LastFmAuthenticationControllerIT @Autowired constructor(private val rest: 
       { assertEquals(HttpStatus.FOUND, response.statusCode) },
       { assertFalse(decodedLocation.contains("attacker.example")) },
       { assertTrue(decodedLocation.contains("cb=http://localhost/auth/lastfm/callback")) },
+      { assertTrue(decodedLocation.contains("state=")) },
     )
   }
 
@@ -127,7 +129,15 @@ class LastFmAuthenticationControllerIT @Autowired constructor(private val rest: 
       rest.withRequestFactorySettings {
         it.withRedirects(ClientHttpRequestFactorySettings.Redirects.DONT_FOLLOW)
       }
-    val response = noRedirect.getForEntity("/auth/lastfm/callback?token=t", String::class.java)
+    val headers = org.springframework.http.HttpHeaders()
+    headers.add(org.springframework.http.HttpHeaders.COOKIE, "lastFmAuthState=state")
+    val response =
+      noRedirect.exchange(
+        "/auth/lastfm/callback?token=t&state=state",
+        org.springframework.http.HttpMethod.GET,
+        org.springframework.http.HttpEntity<String>(headers),
+        String::class.java,
+      )
     val cookies = response.headers["Set-Cookie"].orEmpty()
     assertAll(
       { assertEquals(HttpStatus.FOUND, response.statusCode) },
@@ -145,11 +155,14 @@ class LastFmAuthenticationControllerIT @Autowired constructor(private val rest: 
         it.withRedirects(ClientHttpRequestFactorySettings.Redirects.DONT_FOLLOW)
       }
     val headers = org.springframework.http.HttpHeaders()
-    headers.add(org.springframework.http.HttpHeaders.COOKIE, "lastFmLogin=remembered")
+    headers.add(
+      org.springframework.http.HttpHeaders.COOKIE,
+      "lastFmLogin=remembered; lastFmAuthState=state",
+    )
 
     val response =
       noRedirect.exchange(
-        "/auth/lastfm/callback?token=t",
+        "/auth/lastfm/callback?token=t&state=state",
         org.springframework.http.HttpMethod.GET,
         org.springframework.http.HttpEntity<String>(headers),
         String::class.java,

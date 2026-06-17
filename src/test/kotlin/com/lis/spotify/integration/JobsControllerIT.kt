@@ -124,7 +124,7 @@ constructor(
     assertEquals(HttpStatus.ACCEPTED, resp.statusCode)
     val jobId = resp.body?.get("jobId") as String
 
-    val status = rest.getForEntity("/jobs/$jobId", Map::class.java)
+    val status = getJobStatus(jobId)
 
     assertEquals(HttpStatus.OK, status.statusCode)
     assertEquals("COMPLETED", status.body?.get("state"))
@@ -142,7 +142,7 @@ constructor(
     val resp = rest.postForEntity("/jobs", req, Map::class.java)
     val jobId = resp.body?.get("jobId") as String
 
-    val status = rest.getForEntity("/jobs/$jobId", Map::class.java)
+    val status = getJobStatus(jobId)
 
     assertEquals(HttpStatus.OK, status.statusCode)
     assertEquals("FAILED", status.body?.get("state"))
@@ -157,7 +157,7 @@ constructor(
 
     val resp = rest.postForEntity("/jobs/forgotten-obsessions", req, Map::class.java)
     val jobId = resp.body?.get("jobId") as String
-    val status = rest.getForEntity("/jobs/$jobId", Map::class.java)
+    val status = getJobStatus(jobId)
 
     assertEquals(HttpStatus.OK, status.statusCode)
     assertEquals("COMPLETED", status.body?.get("state"))
@@ -183,7 +183,7 @@ constructor(
 
     val resp = rest.postForEntity("/jobs/private-mood-taxonomy", req, Map::class.java)
     val jobId = resp.body?.get("jobId") as String
-    val status = rest.getForEntity("/jobs/$jobId", Map::class.java)
+    val status = getJobStatus(jobId)
 
     assertEquals(HttpStatus.OK, status.statusCode)
     assertEquals("COMPLETED", status.body?.get("state"))
@@ -213,7 +213,20 @@ constructor(
 
     val resp = rest.postForEntity("/jobs/private-mood-taxonomy", req, Map::class.java)
 
-    assertEquals(HttpStatus.FORBIDDEN, resp.statusCode)
+    assertEquals(HttpStatus.UNAUTHORIZED, resp.statusCode)
+    assertEquals("/auth/lastfm?lastFmLogin=victim", resp.headers.location.toString())
+  }
+
+  @Suppress("UNCHECKED_CAST")
+  private fun getJobStatus(jobId: String): ResponseEntity<Map<String, Any>> {
+    val headers = HttpHeaders()
+    headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID")
+    return rest.exchange(
+      "/jobs/$jobId",
+      HttpMethod.GET,
+      HttpEntity<String>(headers),
+      Map::class.java,
+    ) as ResponseEntity<Map<String, Any>>
   }
 
   class Config {

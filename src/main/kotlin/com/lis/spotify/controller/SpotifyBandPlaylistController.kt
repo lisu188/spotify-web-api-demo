@@ -31,7 +31,7 @@ class SpotifyBandPlaylistController(
 ) {
   @PostMapping("/bandPlaylist")
   fun createBandPlaylist(
-    @CookieValue("clientId") clientId: String,
+    @CookieValue("clientId", defaultValue = "") clientId: String,
     @RequestBody request: BandPlaylistRequest,
   ): ResponseEntity<String> {
     requireAuthorizedSession(clientId)

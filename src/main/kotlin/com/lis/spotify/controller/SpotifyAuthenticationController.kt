@@ -4,6 +4,7 @@ import com.lis.spotify.AppEnvironment.Spotify
 import com.lis.spotify.domain.AuthToken
 import com.lis.spotify.domain.User
 import com.lis.spotify.service.SpotifyAuthenticationService
+import com.lis.spotify.service.withDefaultTimeouts
 import jakarta.servlet.http.Cookie
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -31,21 +32,14 @@ class SpotifyAuthenticationController(
   private val restTemplateBuilder: RestTemplateBuilder,
 ) {
 
-  private fun callbackUrl(request: HttpServletRequest): String {
-    val proto = request.getHeader("X-Forwarded-Proto") ?: request.scheme
-    val host = request.getHeader("X-Forwarded-Host") ?: request.serverName
-    val portHeader = request.getHeader("X-Forwarded-Port")
-    val port = portHeader ?: request.serverPort.toString()
-    val defaultPort = if (proto == "https") "443" else "80"
-    val portPart = if (port == defaultPort || port.isEmpty()) "" else ":$port"
-    return "$proto://$host$portPart" + Spotify.CALLBACK_PATH
-  }
+  private fun callbackUrl(): String = Spotify.CALLBACK_URL
 
   fun getCurrentUserId(token: AuthToken): String? {
     logger.debug("Attempting to retrieve current user ID using provided AuthToken.")
     return try {
       val response =
         restTemplateBuilder
+          .withDefaultTimeouts()
           .build()
           .exchange<User>(
             Spotify.USER_INFO_URL,
@@ -105,8 +99,8 @@ class SpotifyAuthenticationController(
     @RequestParam(required = false) state: String?,
     response: HttpServletResponse,
   ): String {
-    logger.debug("callback with code {}", code)
-    logger.info("Received callback from Spotify with code: {}", code)
+    logger.debug("callback with codePresent={}", code.isNotBlank())
+    logger.info("Received callback from Spotify")
 
     val expectedState = getCookieValue(request, SPOTIFY_AUTH_STATE_COOKIE)
     if (expectedState.isNullOrBlank() || state.isNullOrBlank() || state != expectedState) {
@@ -125,13 +119,14 @@ class SpotifyAuthenticationController(
       LinkedMultiValueMap<String, String>().apply {
         add("grant_type", "authorization_code")
         add("code", code)
-        add("redirect_uri", callbackUrl(request))
+        add("redirect_uri", callbackUrl())
       }
     val entity = HttpEntity(body, headers)
 
     return try {
       val authToken =
         restTemplateBuilder
+          .withDefaultTimeouts()
           .basicAuthentication(Spotify.CLIENT_ID, Spotify.CLIENT_SECRET)
           .build()
           .postForObject<AuthToken>(Spotify.TOKEN_URL, entity)
@@ -171,7 +166,7 @@ class SpotifyAuthenticationController(
         .queryParam("response_type", "code")
         .queryParam("client_id", Spotify.CLIENT_ID)
         .queryParam("scope", Spotify.SCOPES)
-        .queryParam("redirect_uri", callbackUrl(request))
+        .queryParam("redirect_uri", callbackUrl())
         .queryParam("state", state)
     logger.debug("Redirecting user to Spotify authorization URL.")
     return "redirect:" + builder.toUriString()

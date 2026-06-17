@@ -90,7 +90,8 @@ class JobsControllerTest {
         JobsController.StartRequest("victim"),
       )
 
-    assertEquals(HttpStatus.FORBIDDEN, resp.statusCode)
+    assertEquals(HttpStatus.UNAUTHORIZED, resp.statusCode)
+    assertEquals("/auth/lastfm?lastFmLogin=victim", resp.headers.location.toString())
     verify(exactly = 0) { service.startPrivateMoodTaxonomyJob(any(), any(), any(), any()) }
   }
 
@@ -119,6 +120,7 @@ class JobsControllerTest {
     val resp = controller.start("c", "attacker-token", JobsController.StartRequest("victim"))
 
     assertEquals(HttpStatus.UNAUTHORIZED, resp.statusCode)
+    assertEquals("/auth/lastfm?lastFmLogin=victim", resp.headers.location.toString())
     verify(exactly = 0) { service.startYearlyJob(any(), any(), any()) }
   }
 
@@ -137,11 +139,21 @@ class JobsControllerTest {
   @Test
   fun getStatusReturnsJobStatus() {
     val status = JobStatus("id", JobState.RUNNING, 25, "Processing 2025 (1/21)")
-    every { service.getJobStatus("id") } returns status
+    every { service.getJobStatus("id", "c") } returns status
 
-    val response = controller.getStatus("id")
+    val response = controller.getStatus("c", "id")
 
     assertEquals(HttpStatus.OK, response.statusCode)
     assertEquals(status, response.body)
+  }
+
+  @Test
+  fun getStatusReturnsNotFoundForDifferentClient() {
+    every { authService.isAuthorizedSession("other") } returns true
+    every { service.getJobStatus("id", "other") } returns null
+
+    val response = controller.getStatus("other", "id")
+
+    assertEquals(HttpStatus.NOT_FOUND, response.statusCode)
   }
 }

@@ -26,10 +26,10 @@ class MainController(
     @CookieValue("lastFmToken", defaultValue = "") lastFmToken: String,
   ): String {
     logger.debug(
-      "Entering main() with clientId='{}', lastFmLogin='{}' and lastFmToken='{}'",
+      "Entering main() with clientId='{}', lastFmLogin='{}' and lastFmTokenPresent={}",
       clientId,
       lastFmLogin,
-      lastFmToken,
+      lastFmToken.isNotBlank(),
     )
 
     val spotifyAuthorized =

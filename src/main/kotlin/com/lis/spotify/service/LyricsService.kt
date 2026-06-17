@@ -14,6 +14,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
@@ -21,7 +22,6 @@ import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.web.client.HttpStatusCodeException
 import org.springframework.web.client.ResourceAccessException
-import org.springframework.web.client.RestTemplate
 import org.springframework.web.util.UriComponentsBuilder
 
 @Service
@@ -38,8 +38,9 @@ class LyricsService(
   configuredOpenAiModel: String = DEFAULT_OPENAI_MODEL,
   @Value("\${lyrics.mood.openai.batch-size:8}")
   configuredOpenAiBatchSize: Int = DEFAULT_OPENAI_BATCH_SIZE,
+  restTemplateBuilder: RestTemplateBuilder = RestTemplateBuilder(),
 ) {
-  internal var rest = RestTemplate()
+  internal var rest = restTemplateBuilder.withDefaultTimeouts().build()
   internal var mapper = jacksonObjectMapper()
   internal var baseUrl = configuredBaseUrl.trimEnd('/')
   internal var fetchParallelism = configuredFetchParallelism.coerceAtLeast(1)

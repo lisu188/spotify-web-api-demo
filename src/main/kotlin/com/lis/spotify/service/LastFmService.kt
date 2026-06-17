@@ -25,10 +25,10 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.stereotype.Service
 import org.springframework.web.client.HttpStatusCodeException
 import org.springframework.web.client.ResourceAccessException
-import org.springframework.web.client.RestTemplate
 import org.springframework.web.util.UriComponentsBuilder
 
 @Service
@@ -43,9 +43,10 @@ class LastFmService(
   @Value("\${lastfm.recent-tracks.persistent-cache.enabled:false}")
   configuredPersistentRecentTracksCacheEnabled: Boolean =
     DEFAULT_PERSISTENT_RECENT_TRACKS_CACHE_ENABLED,
+  restTemplateBuilder: RestTemplateBuilder = RestTemplateBuilder(),
 ) {
 
-  internal var rest = RestTemplate()
+  internal var rest = restTemplateBuilder.withDefaultTimeouts().build()
   internal var sleeper: LastFmSleeper = LastFmSleeper { millis -> Thread.sleep(millis) }
   internal var recentTracksParallelism = configuredRecentTracksParallelism.coerceAtLeast(1)
   internal var cacheTtl = configuredCacheTtl

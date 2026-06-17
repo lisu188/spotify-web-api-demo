@@ -48,7 +48,7 @@ function appendPlayButton(div, playlistId, label) {
 }
 
 function renderPlaylistEmbeds(div, playlistIds, labels) {
-    $('#' + div).empty();
+    $('#' + div + ' .playlist-embed').remove();
     for (var i = 0; i < playlistIds.length; i += 1) {
         appendPlayButton(div, playlistIds[i], labels && labels[i] ? labels[i] : null);
     }
@@ -294,7 +294,16 @@ function startLastfmJob(jobPath, startMessage, failureMessage, playlistConfig) {
             }
             pollLastfmJob(data.jobId);
         },
-        error: function () {
+        error: function (xhr) {
+            var redirectUrl = xhr.getResponseHeader('Location');
+            if (redirectUrl) {
+                lastFmJobRunning = false;
+                lastFmPlaylistConfig = null;
+                updateLastfmButtonState();
+                setLastfmStatus('Last.fm authentication required. Redirecting...');
+                redirectToLastfmAuth(redirectUrl);
+                return;
+            }
             lastFmJobRunning = false;
             lastFmPlaylistConfig = null;
             updateLastfmButtonState();

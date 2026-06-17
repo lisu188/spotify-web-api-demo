@@ -6,7 +6,10 @@ import com.lis.spotify.service.JobLimitExceededException
 import com.lis.spotify.service.JobService
 import com.lis.spotify.service.LastFmAuthenticationService
 import com.lis.spotify.service.SpotifyAuthenticationService
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import org.slf4j.LoggerFactory
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.CookieValue
@@ -29,7 +32,7 @@ class JobsController(
 
   @PostMapping
   fun start(
-    @CookieValue("clientId") clientId: String,
+    @CookieValue("clientId", defaultValue = "") clientId: String,
     @CookieValue("lastFmToken", defaultValue = "") lastFmToken: String,
     @RequestBody request: StartRequest,
   ): ResponseEntity<JobId> {
@@ -47,7 +50,7 @@ class JobsController(
 
     if (!lastFmAuthenticationService.isAuthorized(lastFmLogin, lastFmToken)) {
       logger.warn("Rejecting yearly job for unauthorized Last.fm login={}", lastFmLogin)
-      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+      return lastFmAuthenticationRequired(lastFmLogin)
     }
 
     return startJob("yearly", clientId) {
@@ -57,7 +60,7 @@ class JobsController(
 
   @PostMapping("/forgotten-obsessions")
   fun startForgottenObsessions(
-    @CookieValue("clientId") clientId: String,
+    @CookieValue("clientId", defaultValue = "") clientId: String,
     @CookieValue("lastFmToken", defaultValue = "") lastFmToken: String,
     @RequestBody request: StartRequest,
   ): ResponseEntity<JobId> {
@@ -81,7 +84,7 @@ class JobsController(
         "Rejecting forgotten obsessions job for unauthorized Last.fm login={}",
         lastFmLogin,
       )
-      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+      return lastFmAuthenticationRequired(lastFmLogin)
     }
 
     return startJob("forgotten obsessions", clientId) {
@@ -91,7 +94,7 @@ class JobsController(
 
   @PostMapping("/private-mood-taxonomy")
   fun startPrivateMoodTaxonomy(
-    @CookieValue("clientId") clientId: String,
+    @CookieValue("clientId", defaultValue = "") clientId: String,
     @CookieValue("lastFmToken", defaultValue = "") lastFmToken: String,
     @RequestBody request: StartRequest,
   ): ResponseEntity<JobId> {
@@ -116,7 +119,7 @@ class JobsController(
         lastFmLogin,
         clientId,
       )
-      return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+      return lastFmAuthenticationRequired(lastFmLogin)
     }
 
     return startJob("private mood taxonomy", clientId) {
@@ -137,9 +140,21 @@ class JobsController(
   }
 
   @GetMapping("/{jobId}")
-  fun getStatus(@PathVariable jobId: String): ResponseEntity<JobStatus> {
-    val status = jobService.getJobStatus(jobId) ?: return ResponseEntity.notFound().build()
+  fun getStatus(
+    @CookieValue("clientId", defaultValue = "") clientId: String,
+    @PathVariable jobId: String,
+  ): ResponseEntity<JobStatus> {
+    requireAuthorizedSession(clientId)
+    val status =
+      jobService.getJobStatus(jobId, clientId) ?: return ResponseEntity.notFound().build()
     return ResponseEntity.ok(status)
+  }
+
+  private fun lastFmAuthenticationRequired(lastFmLogin: String): ResponseEntity<JobId> {
+    val encodedLogin = URLEncoder.encode(lastFmLogin, StandardCharsets.UTF_8)
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+      .header(HttpHeaders.LOCATION, "/auth/lastfm?lastFmLogin=$encodedLogin")
+      .build()
   }
 
   private fun startJob(

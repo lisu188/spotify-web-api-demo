@@ -29,10 +29,20 @@ class JobService(
   private val activeClients = ConcurrentHashMap.newKeySet<String>()
   private val clientStartTimes = ConcurrentHashMap<String, ArrayDeque<Instant>>()
 
-  fun getJobStatus(jobId: String): JobStatus? {
+  fun getJobStatus(jobId: String, clientId: String? = null): JobStatus? {
     val now = Instant.now(clock)
     jobStatusStore.deleteExpired(now)
-    return jobStatusStore.findById(jobId)?.takeIf { it.expiresAt.isAfter(now) }?.toJobStatus()
+    val storedStatus =
+      jobStatusStore.findById(jobId)?.takeIf { it.expiresAt.isAfter(now) } ?: return null
+    if (clientId != null && storedStatus.clientId != clientId) {
+      logger.warn(
+        "Rejecting job status read for jobId={} by non-owner clientId={}",
+        jobId,
+        clientId,
+      )
+      return null
+    }
+    return storedStatus.toJobStatus()
   }
 
   fun startYearlyJob(
