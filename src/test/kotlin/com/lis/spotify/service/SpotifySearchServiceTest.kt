@@ -192,6 +192,20 @@ class SpotifySearchServiceTest {
   }
 
   @Test
+  fun searchSurvivesPersistentCacheStoreFailures() {
+    val rest = mockk<SpotifyRestService>()
+    val service = SpotifySearchService(rest, ThrowingSpotifySearchCacheStore(), fixedClock())
+    val track = Track("1", "t", listOf(Artist("2", "a")), Album("3", "al", emptyList()))
+    val result = SearchResult(SearchResultInternal(listOf(track)))
+    every { rest.doRequest(any<() -> Any>()) } returns result
+
+    // A failing persistent cache must degrade gracefully, not abort the whole batch search.
+    val ids = service.doSearch(listOf(Song("a", "t")), "cid")
+
+    assertEquals(listOf("1"), ids)
+  }
+
+  @Test
   fun batchSearchUsesConfiguredParallelism() {
     val rest = mockk<SpotifyRestService>()
     val service =
@@ -384,6 +398,16 @@ class SpotifySearchServiceTest {
 
   private fun fixedClock(instant: String = "2026-04-08T10:00:00Z"): Clock {
     return Clock.fixed(Instant.parse(instant), ZoneOffset.UTC)
+  }
+
+  private class ThrowingSpotifySearchCacheStore : SpotifySearchCacheStore {
+    override fun save(entry: StoredSpotifySearchCacheEntry): StoredSpotifySearchCacheEntry {
+      throw RuntimeException("persistent cache save unavailable")
+    }
+
+    override fun findByKey(cacheKey: String): StoredSpotifySearchCacheEntry? {
+      throw RuntimeException("persistent cache read unavailable")
+    }
   }
 
   private class CorruptSpotifySearchCacheStore(private val now: Instant) : SpotifySearchCacheStore {

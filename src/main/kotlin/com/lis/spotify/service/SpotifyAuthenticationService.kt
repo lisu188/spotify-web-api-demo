@@ -169,9 +169,11 @@ class SpotifyAuthenticationService(
         logger.warn("Spotify token refresh returned no body for clientId={}", clientId)
         false
       } else {
-        // Preserve the existing refresh token.
+        // Spotify may rotate the refresh token on refresh; keep the new one when present and
+        // only fall back to the existing token if the response omits it.
         authToken.clientId = clientId
-        authToken.refresh_token = refreshTokenValue
+        authToken.refresh_token =
+          authToken.refresh_token?.takeIf { it.isNotBlank() } ?: refreshTokenValue
 
         logger.info(
           "Successfully refreshed token (access token redacted) for clientId={}",

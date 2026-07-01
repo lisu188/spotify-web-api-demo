@@ -403,6 +403,50 @@ class SpotifyTopPlaylistsServiceTest {
     verify(exactly = 0) { playlistService.modifyPlaylist(any(), any(), any()) }
   }
 
+  @Test
+  fun updateForgottenObsessionsPlaylistCountsUniqueSpotifyMatchesAcrossBatches() {
+    val playlistService = mockk<SpotifyPlaylistService>(relaxed = true)
+    val trackService = mockk<SpotifyTopTrackService>(relaxed = true)
+    val lastFmService = mockk<LastFmService>()
+    val searchService = mockk<SpotifySearchService>()
+    val playlist = Playlist("forgotten-id", "Forgotten Obsessions")
+    val service =
+      SpotifyTopPlaylistsService(playlistService, trackService, lastFmService, searchService)
+
+    service.firstSupportedYear = 2024
+    service.currentYearProvider = { 2024 }
+
+    every {
+      lastFmService.yearlyChartlist(
+        "cid",
+        2024,
+        "login",
+        SpotifyTopPlaylistsService.FORGOTTEN_OBSESSIONS_YEARLY_SCROBBLE_LIMIT,
+      )
+    } returns
+      (1..150).flatMap { index ->
+        (1..5).map { play ->
+          Song(
+            artist = "Artist $index",
+            title = "Song $index",
+            playedAtEpochSecond = 1_500_000_000L + play,
+          )
+        }
+      }
+    // Two search batches that overlap on track-21..30, so 30 + 30 raw matches are only 50 unique.
+    coEvery { searchService.searchTrackIds(any(), "cid") } returnsMany
+      listOf((1..30).map { "track-$it" }, (21..50).map { "track-$it" })
+    every { playlistService.getCurrentUserPlaylists("cid") } returns mutableListOf()
+    every { playlistService.createPlaylist("Forgotten Obsessions", "cid") } returns playlist
+    every { playlistService.modifyPlaylist(any(), any(), "cid") } returns emptyMap()
+
+    val result = service.updateForgottenObsessionsPlaylist("cid", "login")
+
+    assertEquals("forgotten-id", result.playlistId)
+    assertEquals(50, result.playlistTrackCount)
+    assertEquals(50, result.spotifyMatchCount)
+  }
+
   private fun fixedClock(instant: String = "2026-04-08T10:00:00Z"): Clock {
     return Clock.fixed(Instant.parse(instant), ZoneOffset.UTC)
   }

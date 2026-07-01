@@ -2,7 +2,12 @@ package com.lis.spotify.persistence
 
 import com.lis.spotify.domain.JobState
 import java.time.Instant
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 
@@ -25,6 +30,26 @@ class InMemoryAppStateStoresTest {
     store.clear()
 
     assertNull(store.findById("active"))
+  }
+
+  @Test
+  fun deleteExpiredDoesNotDropAJobThatIsConcurrentlyRefreshed() = runBlocking {
+    val store = InMemoryJobStatusStore()
+    val now = Instant.parse("2026-04-08T10:00:00Z")
+    // Seed the job as already expired so cleanup will target it.
+    store.save(storedJob("job", now.minusSeconds(1)))
+
+    coroutineScope {
+      launch(Dispatchers.Default) {
+        repeat(5000) { store.save(storedJob("job", now.plusSeconds(3600))) }
+      }
+      launch(Dispatchers.Default) { repeat(5000) { store.deleteExpired(now) } }
+    }
+
+    // A refreshed (non-expired) job must survive concurrent cleanup passes.
+    store.save(storedJob("job", now.plusSeconds(3600)))
+    store.deleteExpired(now)
+    assertNotNull(store.findById("job"))
   }
 
   @Test

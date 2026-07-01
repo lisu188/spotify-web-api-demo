@@ -77,6 +77,7 @@ class LyricsService(
 
     val lookupCandidates = buildLyricsLookupCandidates(song)
     var lyrics: String? = null
+    var transientFailure = false
 
     for ((index, candidate) in lookupCandidates.withIndex()) {
       try {
@@ -122,14 +123,17 @@ class LyricsService(
           }
           else -> {
             logger.warn("Lyrics lookup failed for {} - {}", song.artist, song.title, ex)
+            transientFailure = true
             break
           }
         }
       } catch (ex: ResourceAccessException) {
         logger.warn("Lyrics lookup network error for {} - {}", song.artist, song.title, ex)
+        transientFailure = true
         break
       } catch (ex: Exception) {
         logger.warn("Unexpected lyrics lookup failure for {} - {}", song.artist, song.title, ex)
+        transientFailure = true
         break
       }
 
@@ -145,7 +149,11 @@ class LyricsService(
       }
     }
 
-    lyricsCache.put(key, LyricsLookupResult(lyrics))
+    // Only cache a definitive result. A transient/network failure left lyrics unresolved, so
+    // caching null here would suppress retries for the full cache TTL after a momentary outage.
+    if (!transientFailure) {
+      lyricsCache.put(key, LyricsLookupResult(lyrics))
+    }
     return lyrics
   }
 

@@ -5,6 +5,9 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -80,6 +83,53 @@ class SpotifyTopPlaylistsRefreshServiceTest {
     verify { authService.refreshToken(cacheClientId.captured) }
     verify(exactly = 0) { topPlaylistsService.updateTopPlaylists(any()) }
     assertEquals("FAILED_SPOTIFY_REFRESH", refreshStateStore.getTopPlaylists()?.lastStatus)
+  }
+
+  @Test
+  fun refreshConfiguredPlaylistsSkipsWhenAlreadyRunning() {
+    val authService = mockk<SpotifyAuthenticationService>(relaxed = true)
+    val topPlaylistsService = mockk<SpotifyTopPlaylistsService>()
+    val refreshStateStore = InMemoryRefreshStateStore()
+    every { authService.refreshToken(any()) } returns true
+
+    val started = CountDownLatch(1)
+    val release = CountDownLatch(1)
+    every { topPlaylistsService.updateTopPlaylists(any()) } answers
+      {
+        started.countDown()
+        release.await(2, TimeUnit.SECONDS)
+        listOf("playlist-1")
+      }
+
+    val service =
+      SpotifyTopPlaylistsRefreshService(
+        spotifyAuthenticationService = authService,
+        spotifyTopPlaylistsService = topPlaylistsService,
+        refreshStateStore = refreshStateStore,
+        refreshEnabled = true,
+        refreshClientId = "cid",
+        refreshToken = "refresh-token",
+        refreshOnStartupEnabled = true,
+        refreshTriggerToken = "secret",
+      )
+
+    val executor = Executors.newSingleThreadExecutor()
+    try {
+      val first = executor.submit<List<String>?> { service.refreshConfiguredPlaylists("first") }
+      assertTrue(started.await(2, TimeUnit.SECONDS))
+
+      // A second trigger while the first run is in flight must be skipped, not run concurrently.
+      val second = service.refreshConfiguredPlaylists("second")
+      assertNull(second)
+
+      release.countDown()
+      assertEquals(listOf("playlist-1"), first.get(2, TimeUnit.SECONDS))
+    } finally {
+      release.countDown()
+      executor.shutdownNow()
+    }
+
+    verify(exactly = 1) { topPlaylistsService.updateTopPlaylists(any()) }
   }
 
   @Test

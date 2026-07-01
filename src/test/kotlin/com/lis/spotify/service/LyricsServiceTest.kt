@@ -128,6 +128,41 @@ class LyricsServiceTest {
   }
 
   @Test
+  fun fetchLyricsDoesNotCacheNullAfterTransientFailure() {
+    val rest = mockk<RestTemplate>()
+    val service = LyricsService()
+    service.rest = rest
+    service.retryBaseDelayMillis = 0
+    service.retrySleeper = {}
+    val unavailable =
+      HttpClientErrorException.create(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "",
+        HttpHeaders(),
+        ByteArray(0),
+        null,
+      )
+    var outageCleared = false
+
+    every { rest.getForObject(any<URI>(), Map::class.java) } answers
+      {
+        if (!outageCleared) {
+          throw unavailable
+        }
+        mapOf("plainLyrics" to "recovered", "instrumental" to false)
+      }
+
+    // A persistent transient outage must leave the lookup uncached, not poison it as "no lyrics".
+    val first = service.fetchLyrics(Song("Artist A", "Song A"))
+    assertNull(first)
+
+    // Once the outage clears, the next lookup must retry rather than return a cached null.
+    outageCleared = true
+    val second = service.fetchLyrics(Song("Artist A", "Song A"))
+    assertEquals("recovered", second)
+  }
+
+  @Test
   fun buildPrivateMoodLyricsProfilesUsesOpenAiAndFallsBackForMissingAssessments() {
     val rest = mockk<RestTemplate>()
     val service = LyricsService()
