@@ -1,7 +1,7 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 val kotlinVersion = "2.2.0"
-val javaVersion = (project.findProperty("javaVersion") as String?)?.toInt() ?: 17
+val javaVersion = (project.findProperty("javaVersion") as String?)?.toInt() ?: 21
 
 plugins {
   id("org.springframework.boot") version "3.5.3"

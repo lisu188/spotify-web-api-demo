@@ -1,4 +1,4 @@
-ARG JAVA_VERSION=17
+ARG JAVA_VERSION=21
 
 # Build stage
 FROM gradle:8.10-jdk${JAVA_VERSION} AS builder
