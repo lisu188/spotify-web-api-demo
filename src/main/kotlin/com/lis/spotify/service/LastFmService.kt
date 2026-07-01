@@ -455,6 +455,7 @@ class LastFmService(
     var artist: String? = null
     var title: String? = null
     var playedAtEpochSecond: Long? = null
+    var nowPlaying = false
 
     while (parser.nextToken() != JsonToken.END_OBJECT) {
       if (parser.currentToken != JsonToken.FIELD_NAME) {
@@ -467,8 +468,15 @@ class LastFmService(
         "artist" -> artist = parseRecentTrackArtist(parser)
         "name" -> title = parser.valueAsString
         "date" -> playedAtEpochSecond = parseRecentTrackPlayedAt(parser)
+        "@attr" -> nowPlaying = parseRecentTrackNowPlaying(parser)
         else -> parser.skipChildren()
       }
+    }
+
+    // Last.fm prepends the currently-playing track to page 1 regardless of the requested
+    // from/to window, and it carries no date. Dropping it keeps it out of the wrong year/window.
+    if (nowPlaying) {
+      return null
     }
 
     if (artist.isNullOrBlank() || title.isNullOrBlank()) {
@@ -476,6 +484,29 @@ class LastFmService(
     }
 
     return Song(artist = artist, title = title, playedAtEpochSecond = playedAtEpochSecond)
+  }
+
+  private fun parseRecentTrackNowPlaying(parser: com.fasterxml.jackson.core.JsonParser): Boolean {
+    if (parser.currentToken != JsonToken.START_OBJECT) {
+      parser.skipChildren()
+      return false
+    }
+
+    var nowPlaying = false
+    while (parser.nextToken() != JsonToken.END_OBJECT) {
+      if (parser.currentToken != JsonToken.FIELD_NAME) {
+        continue
+      }
+
+      val fieldName = parser.currentName()
+      parser.nextToken()
+      when (fieldName) {
+        "nowplaying" -> nowPlaying = parser.valueAsString.equals("true", ignoreCase = true)
+        else -> parser.skipChildren()
+      }
+    }
+
+    return nowPlaying
   }
 
   private fun parseRecentTrackArtist(parser: com.fasterxml.jackson.core.JsonParser): String? {

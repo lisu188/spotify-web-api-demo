@@ -59,6 +59,18 @@ class LastFmAuthenticationControllerTest {
   }
 
   @Test
+  fun handleCallbackWithSessionButMissingKeyRedirectsToError() {
+    // Session object present but without a usable key: this is not a successful authentication.
+    every { service.getSession("tok") } returns mapOf("session" to mapOf("name" to "login"))
+    val response = mockk<HttpServletResponse>(relaxed = true)
+
+    val result = controller.handleCallback("tok", "state", requestWithState(), response)
+
+    assertEquals("redirect:/error", result)
+    verify(exactly = 0) { service.setSession(any(), any()) }
+  }
+
+  @Test
   fun handleCallbackRejectsInvalidState() {
     val response = mockk<HttpServletResponse>(relaxed = true)
     val result = controller.handleCallback("tok", "wrong", requestWithState(), response)

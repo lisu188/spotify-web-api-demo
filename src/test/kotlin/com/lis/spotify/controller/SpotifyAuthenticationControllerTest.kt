@@ -142,6 +142,44 @@ class SpotifyAuthenticationControllerTest {
   }
 
   @Test
+  fun callbackRedirectsToErrorWhenUserLookupFails() {
+    val request = mockk<HttpServletRequest>()
+    every { request.getHeader(any()) } returns null
+    every { request.scheme } returns "http"
+    every { request.serverName } returns "localhost"
+    every { request.serverPort } returns 80
+    every { request.isSecure } returns false
+    every { request.cookies } returns arrayOf(Cookie("spotifyAuthState", "expected-state"))
+    val response = mockk<HttpServletResponse>(relaxed = true)
+
+    val builderAuthed = mockk<RestTemplateBuilder>()
+    every { builder.basicAuthentication(any(), any()) } returns builderAuthed
+    every { builderAuthed.build() } returns restTemplate
+    every { builder.build() } returns restTemplate
+
+    val token = AuthToken("a", "b", "c", 0, "r", null)
+    every {
+      restTemplate.postForObject<AuthToken>(Spotify.TOKEN_URL, any(), AuthToken::class.java)
+    } returns token
+    every { spotifyService.getHeaders(token) } returns HttpHeaders()
+    // The /v1/me lookup fails, so no session can be established.
+    every {
+      restTemplate.exchange<User>(
+        any<String>(),
+        HttpMethod.GET,
+        any<HttpEntity<*>>(),
+        any<ParameterizedTypeReference<User>>(),
+      )
+    } throws RuntimeException()
+
+    val result = controller.callback(request, "code", "expected-state", response)
+
+    assertEquals("redirect:/error", result)
+    verify(exactly = 0) { spotifyService.setAuthToken(any()) }
+    verify(exactly = 0) { response.addCookie(match { it.name == "clientId" }) }
+  }
+
+  @Test
   fun callbackRejectsInvalidState() {
     val request = mockk<HttpServletRequest>()
     every { request.getHeader(any()) } returns null

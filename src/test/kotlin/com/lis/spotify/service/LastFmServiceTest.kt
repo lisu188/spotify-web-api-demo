@@ -59,6 +59,28 @@ class LastFmServiceTest {
   }
 
   @Test
+  fun yearlyChartlistExcludesNowPlayingTrack() {
+    val rest = mockk<RestTemplate>()
+    val service = service()
+    service.rest = rest
+    // Last.fm prepends the currently-playing track (nowplaying=true, no date) on page 1 regardless
+    // of the requested window; it must not leak into the queried year.
+    val payload =
+      """
+      {"recenttracks":{"@attr":{"totalPages":"1"},"track":[
+        {"artist":{"#text":"Now Artist"},"name":"Now Playing","@attr":{"nowplaying":"true"}},
+        {"artist":{"#text":"A"},"name":"T","date":{"uts":"1700000000"}}
+      ]}}
+      """
+        .trimIndent()
+    every { rest.getForObject(any<URI>(), String::class.java) } returns payload
+
+    val songs = service.yearlyChartlist("cid", 2020, "login")
+
+    assertEquals(listOf(Song("A", "T", playedAtEpochSecond = 1_700_000_000)), songs)
+  }
+
+  @Test
   fun pagingReturnsAllSongs() {
     val rest = mockk<RestTemplate>()
     val service = service()
