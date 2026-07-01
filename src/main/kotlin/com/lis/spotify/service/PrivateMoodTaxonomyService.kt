@@ -14,6 +14,7 @@ package com.lis.spotify.service
 
 import com.lis.spotify.domain.Song
 import com.lis.spotify.domain.Track
+import com.lis.spotify.logging.asSafeClientIdForLogs
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.ZoneId
@@ -86,11 +87,11 @@ class PrivateMoodTaxonomyService(
 
     logger.debug(
       "updatePrivateMoodTaxonomyPlaylists {} {} {}",
-      clientId,
+      clientId.asSafeClientIdForLogs(),
       normalizedLastFmLogin,
       normalizedPlaylistSize,
     )
-    logger.info("updatePrivateMoodTaxonomyPlaylists: {}", clientId)
+    logger.info("updatePrivateMoodTaxonomyPlaylists: {}", clientId.asSafeClientIdForLogs())
 
     val years = (firstSupportedYear..getYear()).toList().sortedDescending()
     val yearSemaphore = Semaphore(yearlyParallelism.coerceAtLeast(1))
@@ -286,7 +287,7 @@ class PrivateMoodTaxonomyService(
       )
     logger.info(
       "Private mood taxonomy refreshed for {} -> {}",
-      clientId,
+      clientId.asSafeClientIdForLogs(),
       result.playlists.associate { it.label to it.trackCount },
     )
     return result
@@ -297,7 +298,7 @@ class PrivateMoodTaxonomyService(
       logger.warn(
         "Missing Spotify scopes {} for private mood taxonomy clientId={}",
         PRIVATE_MOOD_REQUIRED_SCOPES,
-        clientId,
+        clientId.asSafeClientIdForLogs(),
       )
       throw AuthenticationRequiredException("SPOTIFY")
     }

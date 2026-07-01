@@ -13,6 +13,7 @@
 package com.lis.spotify.service
 
 import com.lis.spotify.domain.Song
+import com.lis.spotify.logging.asSafeClientIdForLogs
 import java.util.Calendar
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -53,8 +54,8 @@ class SpotifyTopPlaylistsService(
   private val logger = LoggerFactory.getLogger(SpotifyTopPlaylistsService::class.java)
 
   fun updateTopPlaylists(clientId: String): List<String> {
-    logger.debug("updateTopPlaylists {}", clientId)
-    logger.info("updateTopPlaylists: {}", clientId)
+    logger.debug("updateTopPlaylists {}", clientId.asSafeClientIdForLogs())
+    logger.info("updateTopPlaylists: {}", clientId.asSafeClientIdForLogs())
 
     return runBlocking(Dispatchers.IO) {
       val shortTerm =
@@ -107,8 +108,8 @@ class SpotifyTopPlaylistsService(
       }
 
       val result = ids.toList()
-      logger.debug("updateTopPlaylists {} -> {}", clientId, result)
-      logger.info("Updated top playlists for {} -> {}", clientId, result)
+      logger.debug("updateTopPlaylists {} -> {}", clientId.asSafeClientIdForLogs(), result)
+      logger.info("Updated top playlists for {} -> {}", clientId.asSafeClientIdForLogs(), result)
       result
     }
   }
@@ -119,8 +120,8 @@ class SpotifyTopPlaylistsService(
     lastFmSessionKey: String? = null,
     progress: (Int, String) -> Unit = { _, _ -> },
   ) {
-    logger.debug("updateYearlyPlaylists {} {}", clientId, lastFmLogin)
-    logger.info("updateYearlyPlaylists: {}", clientId)
+    logger.debug("updateYearlyPlaylists {} {}", clientId.asSafeClientIdForLogs(), lastFmLogin)
+    logger.info("updateYearlyPlaylists: {}", clientId.asSafeClientIdForLogs())
     runBlocking(Dispatchers.IO) {
       val years = (firstSupportedYear..getYear()).toList().sortedDescending()
       val total = years.size.coerceAtLeast(1)
@@ -173,7 +174,7 @@ class SpotifyTopPlaylistsService(
         .awaitAll()
     }
     progress(100, "Yearly playlists refreshed")
-    logger.info("updateYearlyPlaylists {} completed", clientId)
+    logger.info("updateYearlyPlaylists {} completed", clientId.asSafeClientIdForLogs())
   }
 
   fun updateForgottenObsessionsPlaylist(
@@ -185,8 +186,12 @@ class SpotifyTopPlaylistsService(
     val normalizedLastFmLogin = lastFmLogin.trim()
     require(normalizedLastFmLogin.isNotBlank()) { "lastFmLogin must not be blank" }
 
-    logger.debug("updateForgottenObsessionsPlaylist {} {}", clientId, normalizedLastFmLogin)
-    logger.info("updateForgottenObsessionsPlaylist: {}", clientId)
+    logger.debug(
+      "updateForgottenObsessionsPlaylist {} {}",
+      clientId.asSafeClientIdForLogs(),
+      normalizedLastFmLogin,
+    )
+    logger.info("updateForgottenObsessionsPlaylist: {}", clientId.asSafeClientIdForLogs())
 
     val years = (firstSupportedYear..getYear()).toList().sortedDescending()
     val totalSteps = (years.size + 2).coerceAtLeast(1)
@@ -242,7 +247,7 @@ class SpotifyTopPlaylistsService(
       )
     if (candidates.isEmpty()) {
       progress(100, "No forgotten obsessions found yet")
-      logger.info("No forgotten obsessions found for {}", clientId)
+      logger.info("No forgotten obsessions found for {}", clientId.asSafeClientIdForLogs())
       return ForgottenObsessionsPlaylistResult(
         playlistId = null,
         playlistTrackCount = 0,
@@ -302,7 +307,10 @@ class SpotifyTopPlaylistsService(
 
     if (trackIds.isEmpty()) {
       progress(100, "No Spotify matches found for forgotten obsessions")
-      logger.info("Forgotten obsessions candidates found but no Spotify matches for {}", clientId)
+      logger.info(
+        "Forgotten obsessions candidates found but no Spotify matches for {}",
+        clientId.asSafeClientIdForLogs(),
+      )
       return ForgottenObsessionsPlaylistResult(
         playlistId = null,
         playlistTrackCount = 0,

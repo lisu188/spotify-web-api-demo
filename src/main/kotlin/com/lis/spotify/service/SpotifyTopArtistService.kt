@@ -14,6 +14,7 @@ package com.lis.spotify.service
 
 import com.lis.spotify.domain.Artist
 import com.lis.spotify.domain.Artists
+import com.lis.spotify.logging.asSafeClientIdForLogs
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
@@ -29,35 +30,52 @@ class SpotifyTopArtistService(var spotifyRestService: SpotifyRestService) {
   }
 
   private fun getTopArtists(term: String, clientId: String): Artists {
-    logger.debug("getTopArtists {} {}", term, clientId)
+    logger.debug("getTopArtists {} {}", term, clientId.asSafeClientIdForLogs())
     val artists =
       spotifyRestService.doGet<Artists>(
         URL,
         params = mapOf("limit" to 10, "time_range" to term),
         clientId = clientId,
       )
-    logger.debug("getTopArtists {} {} -> {} items", term, clientId, artists.items.size)
+    logger.debug(
+      "getTopArtists {} {} -> {} items",
+      term,
+      clientId.asSafeClientIdForLogs(),
+      artists.items.size,
+    )
     return artists
   }
 
   fun getTopArtistsLongTerm(clientId: String): List<Artist> {
-    logger.debug("getTopArtistsLongTerm {}", clientId)
+    logger.debug("getTopArtistsLongTerm {}", clientId.asSafeClientIdForLogs())
     val items = getTopArtists(LONG_TERM, clientId).items
-    logger.debug("getTopArtistsLongTerm {} -> {} items", clientId, items.size)
+    logger.debug(
+      "getTopArtistsLongTerm {} -> {} items",
+      clientId.asSafeClientIdForLogs(),
+      items.size,
+    )
     return items
   }
 
   fun getTopArtistsMidTerm(clientId: String): List<Artist> {
-    logger.debug("getTopArtistsMidTerm {}", clientId)
+    logger.debug("getTopArtistsMidTerm {}", clientId.asSafeClientIdForLogs())
     val items = getTopArtists(MID_TERM, clientId).items
-    logger.debug("getTopArtistsMidTerm {} -> {} items", clientId, items.size)
+    logger.debug(
+      "getTopArtistsMidTerm {} -> {} items",
+      clientId.asSafeClientIdForLogs(),
+      items.size,
+    )
     return items
   }
 
   fun getTopArtistsShortTerm(clientId: String): List<Artist> {
-    logger.debug("getTopArtistsShortTerm {}", clientId)
+    logger.debug("getTopArtistsShortTerm {}", clientId.asSafeClientIdForLogs())
     val items = getTopArtists(SHORT_TERM, clientId).items
-    logger.debug("getTopArtistsShortTerm {} -> {} items", clientId, items.size)
+    logger.debug(
+      "getTopArtistsShortTerm {} -> {} items",
+      clientId.asSafeClientIdForLogs(),
+      items.size,
+    )
     return items
   }
 }

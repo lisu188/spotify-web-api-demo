@@ -2,6 +2,7 @@ package com.lis.spotify.service
 
 import com.lis.spotify.domain.JobState
 import com.lis.spotify.domain.JobStatus
+import com.lis.spotify.logging.asSafeClientIdForLogs
 import com.lis.spotify.persistence.JobStatusStore
 import com.lis.spotify.persistence.StoredJobStatus
 import java.net.URLEncoder
@@ -39,7 +40,7 @@ class JobService(
       logger.warn(
         "Rejecting job status read for jobId={} by non-owner clientId={}",
         jobId,
-        clientId,
+        clientId.asSafeClientIdForLogs(),
       )
       return null
     }
@@ -53,7 +54,7 @@ class JobService(
   ): String {
     logger.info(
       "Scheduling yearly playlist update for clientId={} lastFmLogin={}",
-      clientId,
+      clientId.asSafeClientIdForLogs(),
       lastFmLogin,
     )
     return scheduleJob(
@@ -76,7 +77,7 @@ class JobService(
   ): String {
     logger.info(
       "Scheduling forgotten obsessions playlist update for clientId={} lastFmLogin={}",
-      clientId,
+      clientId.asSafeClientIdForLogs(),
       lastFmLogin,
     )
     return scheduleJob(
@@ -114,7 +115,7 @@ class JobService(
   ): String {
     logger.info(
       "Scheduling private mood taxonomy playlist update for clientId={} lastFmLogin={} playlistSize={}",
-      clientId,
+      clientId.asSafeClientIdForLogs(),
       lastFmLogin,
       playlistSize,
     )

@@ -1,5 +1,6 @@
 package com.lis.spotify.controller
 
+import com.lis.spotify.logging.asSafeClientIdForLogs
 import com.lis.spotify.service.LastFmAuthenticationService
 import com.lis.spotify.service.SpotifyAuthenticationService
 import org.slf4j.Logger
@@ -27,7 +28,7 @@ class MainController(
   ): String {
     logger.debug(
       "Entering main() with clientId='{}', lastFmLogin='{}' and lastFmTokenPresent={}",
-      clientId,
+      clientId.asSafeClientIdForLogs(),
       lastFmLogin,
       lastFmToken.isNotBlank(),
     )
@@ -43,7 +44,7 @@ class MainController(
       if (lastFmAuthorized) {
         logger.info(
           "Both Spotify and Last.fm are authenticated; refreshing token for clientId='{}'.",
-          clientId,
+          clientId.asSafeClientIdForLogs(),
         )
       } else {
         logger.info(

@@ -12,6 +12,7 @@
 
 package com.lis.spotify.service
 
+import com.lis.spotify.logging.asSafeClientIdForLogs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -34,11 +35,18 @@ class SpotifyBandPlaylistService(
         .distinctBy { it.lowercase() }
         .take(MAX_BAND_COUNT)
     if (cleaned.isEmpty()) {
-      logger.warn("createBandPlaylist called with no band names for {}", clientId)
+      logger.warn(
+        "createBandPlaylist called with no band names for {}",
+        clientId.asSafeClientIdForLogs(),
+      )
       return null
     }
 
-    logger.info("Creating band playlist for {} bands (clientId={})", cleaned.size, clientId)
+    logger.info(
+      "Creating band playlist for {} bands (clientId={})",
+      cleaned.size,
+      clientId.asSafeClientIdForLogs(),
+    )
 
     val trackIds =
       runBlocking(Dispatchers.IO) {
@@ -48,7 +56,11 @@ class SpotifyBandPlaylistService(
               async(Dispatchers.IO) {
                 val artist = spotifyArtistService.searchArtist(band, clientId)
                 if (artist == null) {
-                  logger.warn("No Spotify artist match for '{}' (clientId={})", band, clientId)
+                  logger.warn(
+                    "No Spotify artist match for '{}' (clientId={})",
+                    band,
+                    clientId.asSafeClientIdForLogs(),
+                  )
                   emptyList()
                 } else {
                   spotifyArtistService.getArtistTopTracks(artist.id, clientId).map { it.id }
@@ -60,7 +72,11 @@ class SpotifyBandPlaylistService(
       }
 
     if (trackIds.isEmpty()) {
-      logger.warn("No tracks found for bands {} (clientId={})", cleaned, clientId)
+      logger.warn(
+        "No tracks found for bands {} (clientId={})",
+        cleaned,
+        clientId.asSafeClientIdForLogs(),
+      )
       return null
     }
 

@@ -12,6 +12,7 @@
 
 package com.lis.spotify.controller
 
+import com.lis.spotify.logging.asSafeClientIdForLogs
 import com.lis.spotify.service.LastFmService
 import com.lis.spotify.service.SpotifyAuthenticationService
 import com.lis.spotify.service.SpotifyTopPlaylistsService
@@ -33,10 +34,10 @@ class SpotifyTopPlaylistsController(
     @CookieValue("clientId", defaultValue = "") clientId: String
   ): List<String> {
     requireAuthorizedSession(clientId)
-    logger.info("Updating top playlists for {}", clientId)
-    logger.debug("updateTopPlaylists for {}", clientId)
+    logger.info("Updating top playlists for {}", clientId.asSafeClientIdForLogs())
+    logger.debug("updateTopPlaylists for {}", clientId.asSafeClientIdForLogs())
     val result = spotifyTopPlaylistsService.updateTopPlaylists(clientId)
-    logger.info("UpdateTopPlaylists result for {} -> {}", clientId, result)
+    logger.info("UpdateTopPlaylists result for {} -> {}", clientId.asSafeClientIdForLogs(), result)
     return result
   }
 
