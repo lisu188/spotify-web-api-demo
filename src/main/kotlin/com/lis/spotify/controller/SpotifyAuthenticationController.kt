@@ -3,6 +3,7 @@ package com.lis.spotify.controller
 import com.lis.spotify.AppEnvironment.Spotify
 import com.lis.spotify.domain.AuthToken
 import com.lis.spotify.domain.User
+import com.lis.spotify.logging.asSafeClientIdForLogs
 import com.lis.spotify.service.SpotifyAuthenticationService
 import com.lis.spotify.service.withDefaultTimeouts
 import jakarta.servlet.http.Cookie
@@ -158,8 +159,11 @@ class SpotifyAuthenticationController(
     response: HttpServletResponse,
     @CookieValue("clientId", defaultValue = "") clientId: String,
   ): String {
-    logger.debug("authorize with clientId {}", clientId)
-    logger.info("Authorize endpoint called. Current clientId from cookie: {}", clientId)
+    logger.debug("authorize with clientId {}", clientId.asSafeClientIdForLogs())
+    logger.info(
+      "Authorize endpoint called. Current clientId from cookie: {}",
+      clientId.asSafeClientIdForLogs(),
+    )
     val state = createState()
     response.addCookie(
       createCookie(SPOTIFY_AUTH_STATE_COOKIE, state, request, AUTH_STATE_COOKIE_MAX_AGE_SECONDS)

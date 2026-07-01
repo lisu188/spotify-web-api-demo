@@ -16,6 +16,7 @@ import com.lis.spotify.domain.Artist
 import com.lis.spotify.domain.ArtistSearchResult
 import com.lis.spotify.domain.ArtistTopTracks
 import com.lis.spotify.domain.Track
+import com.lis.spotify.logging.asSafeClientIdForLogs
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
@@ -24,7 +25,7 @@ class SpotifyArtistService(private val spotifyRestService: SpotifyRestService) {
   private val logger = LoggerFactory.getLogger(SpotifyArtistService::class.java)
 
   fun searchArtist(name: String, clientId: String): Artist? {
-    logger.debug("searchArtist {} {}", name, clientId)
+    logger.debug("searchArtist {} {}", name, clientId.asSafeClientIdForLogs())
     val result =
       spotifyRestService.doGet<ArtistSearchResult>(
         SEARCH_URL,
@@ -32,19 +33,24 @@ class SpotifyArtistService(private val spotifyRestService: SpotifyRestService) {
         clientId = clientId,
       )
     val artist = result.artists.items.firstOrNull()
-    logger.debug("searchArtist {} {} -> {}", name, clientId, artist)
+    logger.debug("searchArtist {} {} -> {}", name, clientId.asSafeClientIdForLogs(), artist)
     return artist
   }
 
   fun getArtistTopTracks(artistId: String, clientId: String): List<Track> {
-    logger.debug("getArtistTopTracks {} {}", artistId, clientId)
+    logger.debug("getArtistTopTracks {} {}", artistId, clientId.asSafeClientIdForLogs())
     val result =
       spotifyRestService.doGet<ArtistTopTracks>(
         TOP_TRACKS_URL,
         params = mapOf("id" to artistId, "market" to MARKET),
         clientId = clientId,
       )
-    logger.debug("getArtistTopTracks {} {} -> {}", artistId, clientId, result.tracks.size)
+    logger.debug(
+      "getArtistTopTracks {} {} -> {}",
+      artistId,
+      clientId.asSafeClientIdForLogs(),
+      result.tracks.size,
+    )
     return result.tracks
   }
 

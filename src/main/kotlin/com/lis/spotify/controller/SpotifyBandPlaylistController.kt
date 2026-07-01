@@ -13,6 +13,7 @@
 package com.lis.spotify.controller
 
 import com.lis.spotify.domain.BandPlaylistRequest
+import com.lis.spotify.logging.asSafeClientIdForLogs
 import com.lis.spotify.service.SpotifyAuthenticationService
 import com.lis.spotify.service.SpotifyBandPlaylistService
 import org.slf4j.LoggerFactory
@@ -45,7 +46,10 @@ class SpotifyBandPlaylistController(
     }
     val bands = request.bands.map { it.trim() }.filter { it.isNotEmpty() }
     if (bands.isEmpty()) {
-      logger.warn("Band playlist request had no valid bands for clientId={}", clientId)
+      logger.warn(
+        "Band playlist request had no valid bands for clientId={}",
+        clientId.asSafeClientIdForLogs(),
+      )
       return ResponseEntity.badRequest().build()
     }
 
@@ -59,7 +63,11 @@ class SpotifyBandPlaylistController(
       return ResponseEntity.badRequest().build()
     }
 
-    logger.info("Band playlist request for {} bands (clientId={})", bands.size, clientId)
+    logger.info(
+      "Band playlist request for {} bands (clientId={})",
+      bands.size,
+      clientId.asSafeClientIdForLogs(),
+    )
     val playlistId = spotifyBandPlaylistService.createBandPlaylist(clientId, bands)
     return if (playlistId == null) {
       ResponseEntity.status(HttpStatus.NOT_FOUND).build()
