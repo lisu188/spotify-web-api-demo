@@ -10,6 +10,7 @@ import com.lis.spotify.service.ForgottenObsessionsPlaylistResult
 import com.lis.spotify.service.LastFmAuthenticationService
 import com.lis.spotify.service.PrivateMoodPlaylistResult
 import com.lis.spotify.service.PrivateMoodTaxonomyResult
+import com.lis.spotify.service.PrivateMoodTaxonomyService
 import com.lis.spotify.service.SpotifyAuthenticationService
 import com.lis.spotify.service.SpotifyTopPlaylistsService
 import io.mockk.clearMocks
@@ -43,6 +44,7 @@ class JobsControllerIT
 constructor(
   private val rest: TestRestTemplate,
   private val playlistService: SpotifyTopPlaylistsService,
+  private val privateMoodTaxonomyService: PrivateMoodTaxonomyService,
   private val lastFmAuthenticationService: LastFmAuthenticationService,
   private val spotifyAuthenticationService: SpotifyAuthenticationService,
 ) {
@@ -83,12 +85,18 @@ constructor(
     spotifyAuthenticationService.setAuthToken(
       AuthToken("access", "Bearer", "scope", 3600, "refresh", TEST_SESSION_ID)
     )
-    clearMocks(playlistService, lastFmAuthenticationService)
+    clearMocks(playlistService, privateMoodTaxonomyService, lastFmAuthenticationService)
     every { playlistService.updateYearlyPlaylists(any(), any(), any(), any()) } returns Unit
     every { playlistService.updateForgottenObsessionsPlaylist(any(), any(), any(), any()) } returns
       ForgottenObsessionsPlaylistResult("playlist-1", 12, 12, 18)
     every {
-      playlistService.updatePrivateMoodTaxonomyPlaylists(any(), any(), any(), any(), any())
+      privateMoodTaxonomyService.updatePrivateMoodTaxonomyPlaylists(
+        any(),
+        any(),
+        any(),
+        any(),
+        any(),
+      )
     } returns
       PrivateMoodTaxonomyResult(
         listOf(
@@ -237,6 +245,14 @@ constructor(
       every { svc.updateYearlyPlaylists(any(), any(), any(), any()) } returns Unit
       every { svc.updateForgottenObsessionsPlaylist(any(), any(), any(), any()) } returns
         ForgottenObsessionsPlaylistResult("playlist-1", 12, 12, 18)
+      every { svc.updateTopPlaylists(any()) } returns emptyList()
+      return svc
+    }
+
+    @Bean
+    @Primary
+    fun privateMoodTaxonomyService(): PrivateMoodTaxonomyService {
+      val svc = mockk<PrivateMoodTaxonomyService>(relaxed = true)
       every { svc.updatePrivateMoodTaxonomyPlaylists(any(), any(), any(), any(), any()) } returns
         PrivateMoodTaxonomyResult(
           listOf(
@@ -254,7 +270,6 @@ constructor(
             PrivateMoodPlaylistResult("Frontier", "Private Mood - Frontier", "frontier-id", 15, 24),
           )
         )
-      every { svc.updateTopPlaylists(any()) } returns emptyList()
       return svc
     }
 

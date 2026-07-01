@@ -62,7 +62,7 @@ class LyricsService(
   private val lyricsCache: Cache<Pair<String, String>, LyricsLookupResult> =
     CacheBuilder.newBuilder().expireAfterWrite(12, TimeUnit.HOURS).build()
   private val moodProfileCache:
-    Cache<Pair<String, String>, SpotifyTopPlaylistsService.PrivateMoodLyricsProfile> =
+    Cache<Pair<String, String>, PrivateMoodTaxonomyService.PrivateMoodLyricsProfile> =
     CacheBuilder.newBuilder().expireAfterWrite(7, TimeUnit.DAYS).build()
 
   fun fetchLyrics(song: Song): String? {
@@ -171,15 +171,15 @@ class LyricsService(
 
   internal fun buildPrivateMoodLyricsProfiles(
     songs: Collection<Song>,
-    heuristicAnalyzer: (String) -> SpotifyTopPlaylistsService.PrivateMoodLyricsProfile,
-  ): Map<Pair<String, String>, SpotifyTopPlaylistsService.PrivateMoodLyricsProfile> {
+    heuristicAnalyzer: (String) -> PrivateMoodTaxonomyService.PrivateMoodLyricsProfile,
+  ): Map<Pair<String, String>, PrivateMoodTaxonomyService.PrivateMoodLyricsProfile> {
     val uniqueSongs = songs.distinctBy { it.normalizedKey() }
     if (uniqueSongs.isEmpty()) {
       return emptyMap()
     }
 
     val profiles =
-      LinkedHashMap<Pair<String, String>, SpotifyTopPlaylistsService.PrivateMoodLyricsProfile>()
+      LinkedHashMap<Pair<String, String>, PrivateMoodTaxonomyService.PrivateMoodLyricsProfile>()
     val songsNeedingAnalysis = mutableListOf<Song>()
 
     uniqueSongs.forEach { song ->
@@ -240,9 +240,9 @@ class LyricsService(
           }
           lyricsByKey[key] != null -> {
             openAiOnlySkippedCount += 1
-            SpotifyTopPlaylistsService.PrivateMoodLyricsProfile.empty()
+            PrivateMoodTaxonomyService.PrivateMoodLyricsProfile.empty()
           }
-          else -> SpotifyTopPlaylistsService.PrivateMoodLyricsProfile.empty()
+          else -> PrivateMoodTaxonomyService.PrivateMoodLyricsProfile.empty()
         }
       moodProfileCache.put(key, profile)
       profiles[key] = profile
@@ -293,14 +293,14 @@ class LyricsService(
 
   private fun classifyPrivateMoodLyricsWithOpenAi(
     lyricsByKey: Map<Pair<String, String>, String>
-  ): Map<Pair<String, String>, SpotifyTopPlaylistsService.PrivateMoodLyricsProfile> {
+  ): Map<Pair<String, String>, PrivateMoodTaxonomyService.PrivateMoodLyricsProfile> {
     val entries =
       lyricsByKey.entries.mapIndexed { index, (key, lyrics) ->
         OpenAiMoodRequestSong(id = "song-$index", key = key, lyrics = lyrics)
       }
     val batches = entries.chunked(openAiBatchSize)
     val profiles =
-      LinkedHashMap<Pair<String, String>, SpotifyTopPlaylistsService.PrivateMoodLyricsProfile>()
+      LinkedHashMap<Pair<String, String>, PrivateMoodTaxonomyService.PrivateMoodLyricsProfile>()
 
     logger.info(
       "Submitting OpenAI lyric mood scoring for {} songs across {} batches using model {}",
@@ -362,7 +362,7 @@ class LyricsService(
     entries: List<OpenAiMoodRequestSong>,
     batchIndex: Int,
     batchCount: Int,
-  ): Map<Pair<String, String>, SpotifyTopPlaylistsService.PrivateMoodLyricsProfile> {
+  ): Map<Pair<String, String>, PrivateMoodTaxonomyService.PrivateMoodLyricsProfile> {
     return executeWithRetry(
       maxAttempts = openAiRequestMaxAttempts,
       shouldRetry = ::shouldRetryOpenAiRequest,
@@ -384,7 +384,7 @@ class LyricsService(
 
   private fun classifyOpenAiBatch(
     entries: List<OpenAiMoodRequestSong>
-  ): Map<Pair<String, String>, SpotifyTopPlaylistsService.PrivateMoodLyricsProfile> {
+  ): Map<Pair<String, String>, PrivateMoodTaxonomyService.PrivateMoodLyricsProfile> {
     if (entries.isEmpty()) {
       return emptyMap()
     }
@@ -470,7 +470,7 @@ class LyricsService(
   private fun parseOpenAiMoodProfiles(
     entries: List<OpenAiMoodRequestSong>,
     responseText: String,
-  ): Map<Pair<String, String>, SpotifyTopPlaylistsService.PrivateMoodLyricsProfile> {
+  ): Map<Pair<String, String>, PrivateMoodTaxonomyService.PrivateMoodLyricsProfile> {
     val parsed = mapper.readValue(responseText, Map::class.java)
     val assessments = parsed["assessments"] as? List<*>
     if (assessments.isNullOrEmpty()) {
@@ -496,7 +496,7 @@ class LyricsService(
                 return@mapNotNull null
               }
           key to
-            SpotifyTopPlaylistsService.PrivateMoodLyricsProfile(
+            PrivateMoodTaxonomyService.PrivateMoodLyricsProfile(
               happyScore = assessment.numberValue("happyScore"),
               sadScore = assessment.numberValue("sadScore"),
               surgeScore = assessment.numberValue("surgeScore"),

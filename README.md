@@ -1,5 +1,5 @@
 # spotify-web-api-demo
-https://spotify-web-api-demo.herokuapp.com/
+https://spotify-web-api-demo-1040938023586.us-central1.run.app/
 
 This demo shows how to access the Spotify Web API using Kotlin and Spring Boot.
 
@@ -37,12 +37,12 @@ Verify the container is responding:
 curl http://localhost:8080
 ```
 
-This project targets Java 17 and uses the Gradle toolchain to provision it when
+This project targets Java 21 and uses the Gradle toolchain to provision it when
 needed.
 
 If Gradle fails to configure when running with newer Java versions, set
-`JAVA_HOME` to a Java 17 install or update `org.gradle.java.home` in
-`gradle.properties` to point at a Java 17 runtime.
+`JAVA_HOME` to a Java 21 install or update `org.gradle.java.home` in
+`gradle.properties` to point at a Java 21 runtime.
 
 The Java version is centralized in `gradle.properties` (`javaVersion`) and the
 Docker image build uses the same version via the `JAVA_VERSION` build arg. Keep
