@@ -20,9 +20,17 @@ class InMemoryJobStatusStore : JobStatusStore {
   }
 
   override fun deleteExpired(now: Instant): Int {
-    val expiredIds = jobs.filterValues { !it.expiresAt.isAfter(now) }.keys
-    expiredIds.forEach { jobs.remove(it) }
-    return expiredIds.size
+    var removed = 0
+    for (entry in jobs.entries) {
+      if (!entry.value.expiresAt.isAfter(now)) {
+        // Remove only if the value is still the same expired snapshot; a concurrent save() that
+        // refreshed this job to a later expiry must not be deleted.
+        if (jobs.remove(entry.key, entry.value)) {
+          removed++
+        }
+      }
+    }
+    return removed
   }
 
   fun clear() {

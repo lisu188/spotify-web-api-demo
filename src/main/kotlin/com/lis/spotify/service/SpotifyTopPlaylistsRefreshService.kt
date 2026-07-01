@@ -5,6 +5,7 @@ import com.lis.spotify.persistence.StoredRefreshState
 import java.time.Clock
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.context.event.ApplicationReadyEvent
@@ -26,6 +27,7 @@ class SpotifyTopPlaylistsRefreshService(
 ) {
   private val clock: Clock = Clock.systemUTC()
   private val refreshTokenCacheClientId = "configured-top-playlists-refresh-${UUID.randomUUID()}"
+  private val refreshInProgress = AtomicBoolean(false)
 
   @EventListener(ApplicationReadyEvent::class)
   fun triggerRefreshOnStartup() {
@@ -46,6 +48,23 @@ class SpotifyTopPlaylistsRefreshService(
   }
 
   fun refreshConfiguredPlaylists(trigger: String): List<String>? {
+    // Startup, scheduled, and HTTP triggers can fire concurrently; a single-flight guard prevents
+    // overlapping runs from double-mutating the shared refresh state and the same Spotify account.
+    if (!refreshInProgress.compareAndSet(false, true)) {
+      logger.warn(
+        "Skipping configured top playlist refresh for trigger={} because a refresh is already in progress",
+        trigger,
+      )
+      return null
+    }
+    return try {
+      doRefreshConfiguredPlaylists(trigger)
+    } finally {
+      refreshInProgress.set(false)
+    }
+  }
+
+  private fun doRefreshConfiguredPlaylists(trigger: String): List<String>? {
     val startedAt = Instant.now(clock)
     val previousState = currentRefreshState()
     saveRefreshState(

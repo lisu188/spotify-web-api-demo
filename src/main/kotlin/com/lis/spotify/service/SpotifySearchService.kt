@@ -155,7 +155,14 @@ class SpotifySearchService(
         }
     }
 
-    val storedEntry = spotifySearchCacheStore.findByKey(cacheKey) ?: return null
+    val storedEntry =
+      try {
+        spotifySearchCacheStore.findByKey(cacheKey)
+      } catch (ex: Exception) {
+        // The persistent cache is best-effort; a store failure must not abort the search batch.
+        logger.warn("Failed to read persistent Spotify search cache {}, ignoring", cacheKey, ex)
+        null
+      } ?: return null
     if (!storedEntry.isFresh(now)) {
       return null
     }
@@ -179,7 +186,12 @@ class SpotifySearchService(
         updatedAt = now,
         expiresAt = now.plus(cacheTtl),
       )
-    spotifySearchCacheStore.save(entry)
+    try {
+      spotifySearchCacheStore.save(entry)
+    } catch (ex: Exception) {
+      // The persistent cache is best-effort; a store failure must not abort the search batch.
+      logger.warn("Failed to persist Spotify search cache {}, keeping in-memory only", cacheKey, ex)
+    }
     searchCache.put(cacheKey, entry)
   }
 

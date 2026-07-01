@@ -75,10 +75,11 @@ class SpotifyAuthenticationServiceTest {
   }
 
   @Test
-  fun refreshTokenStoresNewToken() {
+  fun refreshTokenStoresRotatedRefreshToken() {
     val builderAuthed = mockk<RestTemplateBuilder>()
     every { builder.basicAuthentication(any(), any()) } returns builderAuthed
     every { builderAuthed.build() } returns restTemplate
+    // Spotify rotated the refresh token; the response carries a new one that must be stored.
     val newToken = AuthToken("access", "Bearer", "", 0, "new", "cid")
     every { restTemplate.postForObject(any<URI>(), any(), AuthToken::class.java) } returns newToken
     service.setAuthToken(AuthToken("old", "", "", 0, "refresh", "cid"))
@@ -86,8 +87,24 @@ class SpotifyAuthenticationServiceTest {
     assertTrue(refreshed)
     val stored = service.getAuthToken("cid")
     assertEquals("access", stored?.access_token)
-    assertEquals("refresh", stored?.refresh_token)
+    assertEquals("new", stored?.refresh_token)
     assertEquals("cid", stored?.clientId)
+  }
+
+  @Test
+  fun refreshTokenPreservesExistingRefreshTokenWhenResponseOmitsIt() {
+    val builderAuthed = mockk<RestTemplateBuilder>()
+    every { builder.basicAuthentication(any(), any()) } returns builderAuthed
+    every { builderAuthed.build() } returns restTemplate
+    // Response without a rotated refresh token: the existing one must be preserved.
+    val newToken = AuthToken("access2", "Bearer", "", 0, null, "cid")
+    every { restTemplate.postForObject(any<URI>(), any(), AuthToken::class.java) } returns newToken
+    service.setAuthToken(AuthToken("old", "", "", 0, "refresh", "cid"))
+    val refreshed = service.refreshToken("cid")
+    assertTrue(refreshed)
+    val stored = service.getAuthToken("cid")
+    assertEquals("access2", stored?.access_token)
+    assertEquals("refresh", stored?.refresh_token)
   }
 
   @Test

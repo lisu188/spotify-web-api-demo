@@ -263,7 +263,7 @@ class SpotifyTopPlaylistsService(
       totalMatchingBatches,
     )
     val trackIds = mutableListOf<String>()
-    var spotifyMatchCount = 0
+    val matchedTrackIds = mutableSetOf<String>()
     var candidateOffset = 0
     var batchIndex = 0
     while (
@@ -272,7 +272,7 @@ class SpotifyTopPlaylistsService(
       val batch = candidates.drop(candidateOffset).take(FORGOTTEN_OBSESSIONS_SEARCH_BATCH_SIZE)
       val matchedBatch =
         runBlocking(Dispatchers.IO) { spotifySearchService.searchTrackIds(batch, clientId) }
-      spotifyMatchCount += matchedBatch.size
+      matchedTrackIds += matchedBatch
       val remainingCapacity = FORGOTTEN_OBSESSIONS_TARGET_TRACK_COUNT - trackIds.size
       trackIds += matchedBatch.filterNot { it in trackIds }.take(remainingCapacity)
       candidateOffset += batch.size
@@ -296,7 +296,7 @@ class SpotifyTopPlaylistsService(
         batchIndex,
         totalMatchingBatches,
         trackIds.size,
-        spotifyMatchCount,
+        matchedTrackIds.size,
       )
     }
 
@@ -325,12 +325,12 @@ class SpotifyTopPlaylistsService(
       "Forgotten obsessions playlist {} refreshed with {} playlist tracks from {} Spotify matches",
       playlistId,
       trackIds.size,
-      spotifyMatchCount,
+      matchedTrackIds.size,
     )
     return ForgottenObsessionsPlaylistResult(
       playlistId = playlistId,
       playlistTrackCount = trackIds.size,
-      spotifyMatchCount = spotifyMatchCount,
+      spotifyMatchCount = matchedTrackIds.size,
       candidateCount = candidates.size,
     )
   }
