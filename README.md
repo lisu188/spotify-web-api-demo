@@ -1,5 +1,5 @@
 # spotify-web-api-demo
-https://spotify-web-api-demo.herokuapp.com/
+https://spotify-web-api-demo-1040938023586.us-central1.run.app/
 
 This demo shows how to access the Spotify Web API using Kotlin and Spring Boot.
 
