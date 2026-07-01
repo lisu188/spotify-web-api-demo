@@ -173,7 +173,7 @@ class LyricsServiceTest {
         listOf(Song("Artist A", "Song A"), Song("Artist B", "Song B"))
       ) { lyrics ->
         if (lyrics.contains("lonely", ignoreCase = true)) {
-          SpotifyTopPlaylistsService.PrivateMoodLyricsProfile(
+          PrivateMoodTaxonomyService.PrivateMoodLyricsProfile(
             happyScore = 0.5,
             sadScore = 8.0,
             surgeScore = 0.0,
@@ -184,7 +184,7 @@ class LyricsServiceTest {
             tokenCount = 5,
           )
         } else {
-          SpotifyTopPlaylistsService.PrivateMoodLyricsProfile.empty()
+          PrivateMoodTaxonomyService.PrivateMoodLyricsProfile.empty()
         }
       }
 
@@ -223,7 +223,7 @@ class LyricsServiceTest {
 
     val profiles =
       service.buildPrivateMoodLyricsProfiles(listOf(Song("Artist A", "Song A"))) {
-        SpotifyTopPlaylistsService.PrivateMoodLyricsProfile(
+        PrivateMoodTaxonomyService.PrivateMoodLyricsProfile(
           happyScore = 7.0,
           sadScore = 0.0,
           surgeScore = 2.0,
@@ -285,7 +285,7 @@ class LyricsServiceTest {
 
     val profiles =
       service.buildPrivateMoodLyricsProfiles(listOf(Song("Artist A", "Song A"))) {
-        SpotifyTopPlaylistsService.PrivateMoodLyricsProfile.empty()
+        PrivateMoodTaxonomyService.PrivateMoodLyricsProfile.empty()
       }
 
     assertEquals(1, profiles.size)
@@ -319,7 +319,7 @@ class LyricsServiceTest {
 
     val profiles =
       service.buildPrivateMoodLyricsProfiles(listOf(Song("Artist A", "Song A"))) {
-        SpotifyTopPlaylistsService.PrivateMoodLyricsProfile(
+        PrivateMoodTaxonomyService.PrivateMoodLyricsProfile(
           happyScore = 7.0,
           sadScore = 0.0,
           surgeScore = 2.0,
@@ -367,7 +367,7 @@ class LyricsServiceTest {
 
     val profiles =
       service.buildPrivateMoodLyricsProfiles(listOf(Song("Artist A", "Song A"))) {
-        SpotifyTopPlaylistsService.PrivateMoodLyricsProfile(
+        PrivateMoodTaxonomyService.PrivateMoodLyricsProfile(
           happyScore = 7.0,
           sadScore = 0.0,
           surgeScore = 2.0,
@@ -416,7 +416,7 @@ class LyricsServiceTest {
       service.buildPrivateMoodLyricsProfiles(
         listOf(Song("Artist A", "Song A"), Song("Artist B", "Song B"))
       ) {
-        SpotifyTopPlaylistsService.PrivateMoodLyricsProfile.empty()
+        PrivateMoodTaxonomyService.PrivateMoodLyricsProfile.empty()
       }
 
     assertTrue(profiles.isEmpty())

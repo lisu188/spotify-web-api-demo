@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service
 @Service
 class JobService(
   private val playlistService: SpotifyTopPlaylistsService,
+  private val privateMoodTaxonomyService: PrivateMoodTaxonomyService,
   private val jobStatusStore: JobStatusStore,
   private val scheduler: TaskScheduler,
 ) {
@@ -125,7 +126,7 @@ class JobService(
       failureMessage = "Private mood taxonomy refresh failed",
       work = { progress ->
         val result =
-          playlistService.updatePrivateMoodTaxonomyPlaylists(
+          privateMoodTaxonomyService.updatePrivateMoodTaxonomyPlaylists(
             clientId = clientId,
             lastFmLogin = lastFmLogin,
             playlistSize = playlistSize,

@@ -17,6 +17,7 @@ class JobServiceTest {
   @Test
   fun startJobRunsAsyncAndMarksJobCompleted() {
     val playlistService = mockk<SpotifyTopPlaylistsService>(relaxed = true)
+    val privateMoodTaxonomyService = mockk<PrivateMoodTaxonomyService>(relaxed = true)
     val jobStatusStore = InMemoryJobStatusStore()
     val scheduler = mockk<TaskScheduler>()
     val runnable = slot<Runnable>()
@@ -25,7 +26,7 @@ class JobServiceTest {
         runnable.captured.run()
         mockk(relaxed = true)
       }
-    val service = JobService(playlistService, jobStatusStore, scheduler)
+    val service = JobService(playlistService, privateMoodTaxonomyService, jobStatusStore, scheduler)
 
     val jobId = service.startYearlyJob("c", "l")
 
@@ -39,11 +40,12 @@ class JobServiceTest {
   @Test
   fun startJobRejectsSecondActiveJobForClient() {
     val playlistService = mockk<SpotifyTopPlaylistsService>(relaxed = true)
+    val privateMoodTaxonomyService = mockk<PrivateMoodTaxonomyService>(relaxed = true)
     val jobStatusStore = InMemoryJobStatusStore()
     val scheduler = mockk<TaskScheduler>()
     every { scheduler.schedule(any<Runnable>(), any<java.util.Date>()) } returns
       mockk(relaxed = true)
-    val service = JobService(playlistService, jobStatusStore, scheduler)
+    val service = JobService(playlistService, privateMoodTaxonomyService, jobStatusStore, scheduler)
 
     service.startYearlyJob("c", "login")
 
@@ -55,6 +57,7 @@ class JobServiceTest {
   @Test
   fun authFailureMarksJobFailed() {
     val playlistService = mockk<SpotifyTopPlaylistsService>()
+    val privateMoodTaxonomyService = mockk<PrivateMoodTaxonomyService>(relaxed = true)
     val jobStatusStore = InMemoryJobStatusStore()
     val scheduler = mockk<TaskScheduler>()
     val runnable = slot<Runnable>()
@@ -65,7 +68,7 @@ class JobServiceTest {
       }
     every { playlistService.updateYearlyPlaylists(any(), any(), null, any()) } throws
       AuthenticationRequiredException("LASTFM")
-    val service = JobService(playlistService, jobStatusStore, scheduler)
+    val service = JobService(playlistService, privateMoodTaxonomyService, jobStatusStore, scheduler)
 
     val jobId = service.startYearlyJob("c", "last fm")
 
@@ -79,6 +82,7 @@ class JobServiceTest {
   @Test
   fun spotifyAuthFailureRedirectsToSpotify() {
     val playlistService = mockk<SpotifyTopPlaylistsService>()
+    val privateMoodTaxonomyService = mockk<PrivateMoodTaxonomyService>(relaxed = true)
     val jobStatusStore = InMemoryJobStatusStore()
     val scheduler = mockk<TaskScheduler>()
     val runnable = slot<Runnable>()
@@ -89,7 +93,7 @@ class JobServiceTest {
       }
     every { playlistService.updateYearlyPlaylists(any(), any(), null, any()) } throws
       AuthenticationRequiredException("SPOTIFY")
-    val service = JobService(playlistService, jobStatusStore, scheduler)
+    val service = JobService(playlistService, privateMoodTaxonomyService, jobStatusStore, scheduler)
 
     val jobId = service.startYearlyJob("c", "login")
 
@@ -102,6 +106,7 @@ class JobServiceTest {
   @Test
   fun storedJobIncludesPersistenceMetadata() {
     val playlistService = mockk<SpotifyTopPlaylistsService>(relaxed = true)
+    val privateMoodTaxonomyService = mockk<PrivateMoodTaxonomyService>(relaxed = true)
     val jobStatusStore = InMemoryJobStatusStore()
     val scheduler = mockk<TaskScheduler>()
     val runnable = slot<Runnable>()
@@ -110,7 +115,7 @@ class JobServiceTest {
         runnable.captured.run()
         mockk(relaxed = true)
       }
-    val service = JobService(playlistService, jobStatusStore, scheduler)
+    val service = JobService(playlistService, privateMoodTaxonomyService, jobStatusStore, scheduler)
 
     val jobId = service.startYearlyJob("client-id", "lastfm-login")
     val stored = jobStatusStore.findById(jobId)
@@ -124,6 +129,7 @@ class JobServiceTest {
   @Test
   fun forgottenObsessionsJobStoresPlaylistIds() {
     val playlistService = mockk<SpotifyTopPlaylistsService>()
+    val privateMoodTaxonomyService = mockk<PrivateMoodTaxonomyService>(relaxed = true)
     val jobStatusStore = InMemoryJobStatusStore()
     val scheduler = mockk<TaskScheduler>()
     val runnable = slot<Runnable>()
@@ -134,7 +140,7 @@ class JobServiceTest {
       }
     every { playlistService.updateForgottenObsessionsPlaylist(any(), any(), null, any()) } returns
       ForgottenObsessionsPlaylistResult("playlist-1", 12, 12, 18)
-    val service = JobService(playlistService, jobStatusStore, scheduler)
+    val service = JobService(playlistService, privateMoodTaxonomyService, jobStatusStore, scheduler)
 
     val jobId = service.startForgottenObsessionsJob("c", "login")
 
@@ -147,6 +153,7 @@ class JobServiceTest {
   @Test
   fun forgottenObsessionsJobPreservesPlaylistIdOnPartialFailure() {
     val playlistService = mockk<SpotifyTopPlaylistsService>()
+    val privateMoodTaxonomyService = mockk<PrivateMoodTaxonomyService>(relaxed = true)
     val jobStatusStore = InMemoryJobStatusStore()
     val scheduler = mockk<TaskScheduler>()
     val runnable = slot<Runnable>()
@@ -157,7 +164,7 @@ class JobServiceTest {
       }
     every { playlistService.updateForgottenObsessionsPlaylist(any(), any(), null, any()) } throws
       PlaylistUpdateException(listOf("playlist-1"), IllegalStateException("boom"))
-    val service = JobService(playlistService, jobStatusStore, scheduler)
+    val service = JobService(playlistService, privateMoodTaxonomyService, jobStatusStore, scheduler)
 
     val jobId = service.startForgottenObsessionsJob("c", "login")
 
@@ -169,6 +176,7 @@ class JobServiceTest {
   @Test
   fun privateMoodTaxonomyJobStoresPlaylistIds() {
     val playlistService = mockk<SpotifyTopPlaylistsService>()
+    val privateMoodTaxonomyService = mockk<PrivateMoodTaxonomyService>(relaxed = true)
     val jobStatusStore = InMemoryJobStatusStore()
     val scheduler = mockk<TaskScheduler>()
     val runnable = slot<Runnable>()
@@ -178,7 +186,13 @@ class JobServiceTest {
         mockk(relaxed = true)
       }
     every {
-      playlistService.updatePrivateMoodTaxonomyPlaylists(any(), any(), any(), null, any())
+      privateMoodTaxonomyService.updatePrivateMoodTaxonomyPlaylists(
+        any(),
+        any(),
+        any(),
+        null,
+        any(),
+      )
     } returns
       PrivateMoodTaxonomyResult(
         listOf(
@@ -190,7 +204,7 @@ class JobServiceTest {
           PrivateMoodPlaylistResult("Frontier", "Private Mood - Frontier", "frontier-id", 15, 24),
         )
       )
-    val service = JobService(playlistService, jobStatusStore, scheduler)
+    val service = JobService(playlistService, privateMoodTaxonomyService, jobStatusStore, scheduler)
 
     val jobId = service.startPrivateMoodTaxonomyJob("c", "login")
 
@@ -209,6 +223,7 @@ class JobServiceTest {
   @Test
   fun privateMoodTaxonomyJobPreservesPlaylistIdsOnFailure() {
     val playlistService = mockk<SpotifyTopPlaylistsService>()
+    val privateMoodTaxonomyService = mockk<PrivateMoodTaxonomyService>(relaxed = true)
     val jobStatusStore = InMemoryJobStatusStore()
     val scheduler = mockk<TaskScheduler>()
     val runnable = slot<Runnable>()
@@ -218,9 +233,15 @@ class JobServiceTest {
         mockk(relaxed = true)
       }
     every {
-      playlistService.updatePrivateMoodTaxonomyPlaylists(any(), any(), any(), null, any())
+      privateMoodTaxonomyService.updatePrivateMoodTaxonomyPlaylists(
+        any(),
+        any(),
+        any(),
+        null,
+        any(),
+      )
     } throws PlaylistUpdateException(listOf("anchor-id", "surge-id"), IllegalStateException("boom"))
-    val service = JobService(playlistService, jobStatusStore, scheduler)
+    val service = JobService(playlistService, privateMoodTaxonomyService, jobStatusStore, scheduler)
 
     val jobId = service.startPrivateMoodTaxonomyJob("c", "login")
 
