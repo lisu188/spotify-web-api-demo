@@ -138,10 +138,13 @@ class SpotifyAuthenticationController(
         spotifyAuthenticationService.setAuthToken(authToken)
         response.addCookie(createCookie("clientId", sessionId, request))
         logger.info("Successfully set auth token for Spotify user: {}", spotifyUserId)
+        "redirect:/"
       } else {
+        // No session was established (e.g. the /v1/me lookup failed), so surface an error instead
+        // of redirecting to the app as if the user were authenticated.
         logger.warn("Could not retrieve client ID. Auth token not stored.")
+        "redirect:/error"
       }
-      "redirect:/"
     } catch (ex: Exception) {
       logger.error("Error occurred while handling Spotify callback.", ex)
       "redirect:/error"
