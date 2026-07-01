@@ -35,6 +35,14 @@ class SpotifyBandPlaylistController(
     @RequestBody request: BandPlaylistRequest,
   ): ResponseEntity<String> {
     requireAuthorizedSession(clientId)
+    if (request.bands.size > MAX_BAND_REQUEST_ENTRIES) {
+      logger.warn(
+        "Rejecting band playlist request with {} raw entries; maximum is {}",
+        request.bands.size,
+        MAX_BAND_REQUEST_ENTRIES,
+      )
+      return ResponseEntity.badRequest().build()
+    }
     val bands = request.bands.map { it.trim() }.filter { it.isNotEmpty() }
     if (bands.isEmpty()) {
       logger.warn("Band playlist request had no valid bands for clientId={}", clientId)
@@ -68,6 +76,9 @@ class SpotifyBandPlaylistController(
   }
 
   companion object {
+    // Generous bound on raw request entries (far above the MAX_BAND_COUNT distinct limit) so a
+    // malicious client cannot force unbounded trimming/dedup work before the size check.
+    private const val MAX_BAND_REQUEST_ENTRIES = 200
     private val logger = LoggerFactory.getLogger(SpotifyBandPlaylistController::class.java)
   }
 }

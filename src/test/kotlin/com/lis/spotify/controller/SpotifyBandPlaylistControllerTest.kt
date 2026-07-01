@@ -61,6 +61,15 @@ class SpotifyBandPlaylistControllerTest {
   }
 
   @Test
+  fun createBandPlaylistRejectsOversizedRawRequest() {
+    // A huge raw list must be rejected on size before any per-element trimming/dedup work.
+    val response =
+      controller.createBandPlaylist("cid", BandPlaylistRequest((1..201).map { "Band" }))
+
+    assertEquals(HttpStatus.BAD_REQUEST, response.statusCode)
+  }
+
+  @Test
   fun createBandPlaylistReturnsBadRequestForTooManyBands() {
     val response =
       controller.createBandPlaylist(

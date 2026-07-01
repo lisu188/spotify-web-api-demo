@@ -127,8 +127,12 @@ class LastFmAuthenticationController(private val lastFmAuthService: LastFmAuthen
         response.addCookie(createCookie(LAST_FM_LOGIN_COOKIE, login, request, httpOnly = false))
         lastFmAuthService.setSession(login, key)
         logger.info("Successfully authenticated Last.fm user {}", login)
+        "redirect:/"
+      } else {
+        // No usable session key/login was resolved, so do not present this as a success.
+        logger.warn("Last.fm callback returned no usable session key or login")
+        "redirect:/error"
       }
-      "redirect:/"
     } else {
       "redirect:/error"
     }
