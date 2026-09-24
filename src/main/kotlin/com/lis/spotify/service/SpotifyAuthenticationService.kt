@@ -27,6 +27,7 @@
 
 package com.lis.spotify.service
 
+import com.google.common.util.concurrent.Striped
 import com.lis.spotify.AppEnvironment.Spotify
 import com.lis.spotify.domain.AuthToken
 import com.lis.spotify.logging.asSafeClientIdForLogs
@@ -36,6 +37,7 @@ import java.security.SecureRandom
 import java.time.Clock
 import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.concurrent.withLock
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.boot.web.client.RestTemplateBuilder
@@ -56,9 +58,13 @@ class SpotifyAuthenticationService(
   private val logger: Logger = LoggerFactory.getLogger(SpotifyAuthenticationService::class.java)
   private val clock: Clock = Clock.systemUTC()
   private val tokenCache = ConcurrentHashMap<String, AuthToken>()
+  private val sessionLocks = Striped.lazyWeakLock(64)
 
   fun getHeaders(token: AuthToken): HttpHeaders {
-    logger.debug("Creating headers with Bearer token for clientId={}", token.clientId)
+    logger.debug(
+      "Creating headers with Bearer token for clientId={}",
+      token.clientId?.asSafeClientIdForLogs(),
+    )
     return HttpHeaders().apply {
       this[HttpHeaders.AUTHORIZATION] = "Bearer ${token.access_token}"
       this[HttpHeaders.ACCEPT] = "application/json"
@@ -87,7 +93,7 @@ class SpotifyAuthenticationService(
   }
 
   fun isSessionId(clientId: String): Boolean {
-    return clientId.startsWith(SESSION_ID_PREFIX) && clientId.length > SESSION_ID_PREFIX.length
+    return clientId.matches(Regex("session_[A-Za-z0-9_-]+"))
   }
 
   fun isAuthorizedSession(clientId: String): Boolean {
@@ -127,7 +133,10 @@ class SpotifyAuthenticationService(
     )
   }
 
-  fun getAuthToken(clientId: String): AuthToken? {
+  fun getAuthToken(clientId: String): AuthToken? =
+    sessionLocks.get(clientId).withLock { getAuthTokenLocked(clientId) }
+
+  private fun getAuthTokenLocked(clientId: String): AuthToken? {
     logger.debug(
       "Attempting to retrieve AuthToken from cache for clientId={}",
       clientId.asSafeClientIdForLogs(),
@@ -146,7 +155,10 @@ class SpotifyAuthenticationService(
     return token
   }
 
-  fun refreshToken(clientId: String): Boolean {
+  fun refreshToken(clientId: String): Boolean =
+    sessionLocks.get(clientId).withLock { refreshTokenLocked(clientId) }
+
+  private fun refreshTokenLocked(clientId: String): Boolean {
     logger.info("Attempting to refresh token for clientId={}", clientId.asSafeClientIdForLogs())
     val currentToken = getAuthToken(clientId)
     val refreshTokenValue = currentToken?.refresh_token.orEmpty()
@@ -211,6 +223,14 @@ class SpotifyAuthenticationService(
     val authorized = clientId.isNotEmpty() && getAuthToken(clientId) != null
     logger.debug("isAuthorized {} -> {}", clientId.asSafeClientIdForLogs(), authorized)
     return authorized
+  }
+
+  fun revokeSession(clientId: String) {
+    if (!isSessionId(clientId)) return
+    sessionLocks.get(clientId).withLock {
+      spotifyTokenStore.deleteByClientId(clientId)
+      tokenCache.remove(clientId)
+    }
   }
 
   internal fun clearCache() {

@@ -4,3 +4,10 @@ build/
 .gradle/
 /out/
 .kotlin/
+
+node_modules/
+.env
+.env.*
+!.env.example
+test-results/
+playwright-report/

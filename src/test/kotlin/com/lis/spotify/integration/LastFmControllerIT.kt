@@ -10,6 +10,8 @@ import com.github.tomakehurst.wiremock.client.WireMock.reset as wireMockReset
 import com.github.tomakehurst.wiremock.client.WireMock.stubFor
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
+import com.lis.spotify.domain.AuthToken
+import com.lis.spotify.service.SpotifyAuthenticationService
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertAll
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -20,6 +22,8 @@ import org.springframework.boot.http.client.ClientHttpRequestFactorySettings
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT
 import org.springframework.boot.test.web.client.TestRestTemplate
+import org.springframework.http.HttpEntity
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.test.annotation.DirtiesContext
 import org.springframework.test.context.DynamicPropertyRegistry
@@ -27,7 +31,9 @@ import org.springframework.test.context.DynamicPropertySource
 
 @SpringBootTest(webEnvironment = RANDOM_PORT)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-class LastFmControllerIT @Autowired constructor(private val rest: TestRestTemplate) {
+class LastFmControllerIT
+@Autowired
+constructor(private val rest: TestRestTemplate, private val spotify: SpotifyAuthenticationService) {
   companion object {
     val wm = WireMockServer(WireMockConfiguration.options().dynamicPort())
     val baseUrl: String
@@ -69,6 +75,7 @@ class LastFmControllerIT @Autowired constructor(private val rest: TestRestTempla
   @BeforeEach
   fun resetStubs() {
     wireMockReset()
+    spotify.setAuthToken(AuthToken("access", "Bearer", "scope", 3600, "refresh", "session_verify"))
   }
 
   @Test
@@ -79,7 +86,17 @@ class LastFmControllerIT @Autowired constructor(private val rest: TestRestTempla
         .withQueryParam("user", equalTo("login"))
         .willReturn(okJson("""{"user":{"name":"login"}}"""))
     )
-    val resp = rest.postForEntity("/verifyLastFmId/login", null, Boolean::class.java)
+    val resp =
+      rest.postForEntity(
+        "/verifyLastFmId/login",
+        HttpEntity<String>(
+          HttpHeaders().apply {
+            set("X-Requested-With", "XMLHttpRequest")
+            set(HttpHeaders.COOKIE, "clientId=session_verify")
+          }
+        ),
+        Boolean::class.java,
+      )
     assertAll({ assertEquals(HttpStatus.OK, resp.statusCode) }, { assertEquals(true, resp.body) })
   }
 
@@ -93,7 +110,17 @@ class LastFmControllerIT @Autowired constructor(private val rest: TestRestTempla
           aResponse().withStatus(404).withBody("""{"error":6,"message":"User not found"}""")
         )
     )
-    val resp = rest.postForEntity("/verifyLastFmId/login", null, Boolean::class.java)
+    val resp =
+      rest.postForEntity(
+        "/verifyLastFmId/login",
+        HttpEntity<String>(
+          HttpHeaders().apply {
+            set("X-Requested-With", "XMLHttpRequest")
+            set(HttpHeaders.COOKIE, "clientId=session_verify")
+          }
+        ),
+        Boolean::class.java,
+      )
     assertAll({ assertEquals(HttpStatus.OK, resp.statusCode) }, { assertEquals(false, resp.body) })
   }
 
@@ -109,7 +136,17 @@ class LastFmControllerIT @Autowired constructor(private val rest: TestRestTempla
       rest.withRequestFactorySettings {
         it.withRedirects(ClientHttpRequestFactorySettings.Redirects.DONT_FOLLOW)
       }
-    val resp = noRedirect.postForEntity("/verifyLastFmId/login", null, String::class.java)
+    val resp =
+      noRedirect.postForEntity(
+        "/verifyLastFmId/login",
+        HttpEntity<String>(
+          HttpHeaders().apply {
+            set("X-Requested-With", "XMLHttpRequest")
+            set(HttpHeaders.COOKIE, "clientId=session_verify")
+          }
+        ),
+        String::class.java,
+      )
     assertAll(
       { assertEquals(HttpStatus.UNAUTHORIZED, resp.statusCode) },
       { assertEquals("/auth/lastfm", resp.headers.location.toString()) },

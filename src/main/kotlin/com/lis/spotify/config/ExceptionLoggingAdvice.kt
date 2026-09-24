@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.ControllerAdvice
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import org.springframework.web.server.ResponseStatusException
+import org.springframework.web.servlet.NoHandlerFoundException
+import org.springframework.web.servlet.resource.NoResourceFoundException
 
 @ControllerAdvice
 class ExceptionLoggingAdvice {
@@ -58,6 +60,11 @@ class ExceptionLoggingAdvice {
     val detail = (ex as? ErrorResponse)?.body?.detail ?: "Bad request"
     logger.warn("Request rejected with status {} {}", status, detail)
     return ResponseEntity.status(status).body(detail)
+  }
+
+  @ExceptionHandler(NoResourceFoundException::class, NoHandlerFoundException::class)
+  fun handleNotFound(ex: Exception): ResponseEntity<String> {
+    return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Not found")
   }
 
   @ExceptionHandler(Exception::class)

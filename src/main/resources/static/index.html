@@ -13,69 +13,127 @@
 <!doctype html>
 <html lang="en">
 <head>
-    <!-- Required meta tags -->
     <meta charset="utf-8">
-    <meta content="width=device-width, initial-scale=1, shrink-to-fit=no" name="viewport">
-
-    <!-- Bootstrap CSS -->
-    <link crossorigin="anonymous" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
-          integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" rel="stylesheet">
-
-    <link href="/favicon.svg" rel="icon" type="image/svg+xml">
-    <link href="./index.css" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#10120f">
+    <meta name="description" content="Turn your Spotify favorites and Last.fm listening history into playlists you can keep coming back to.">
+    <title>Replay — Your personal playlist studio</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="index.css">
+    <script src="index.js" defer></script>
 </head>
 <body>
+<a class="skip-link" href="#studio">Skip to playlist studio</a>
+<div class="page-shell">
+    <header class="site-header">
+        <a class="brand" href="./index.html" aria-label="Replay home">
+            <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M25 12a10 10 0 1 0 1 10M25 5v8h-8"/><path d="m13 11 8 5-8 5Z"/></svg>
+            replay<span class="brand-dot">.</span>
+        </a>
+        <nav aria-label="Main navigation">
+            <a href="#studio" class="nav-active">Playlist studio</a>
+            <a href="#how-it-works">How it works <span aria-hidden="true">↗</span></a>
+        </nav>
+        <span class="header-note"><span class="small-disc" aria-hidden="true"></span> A little more you.</span>
+    </header>
 
-<div id="spotifyTop">
-    <button class="btn btn-primary btn-lg" id="top" type="button">SPOTIFY
-    </button>
+    <main>
+        <section class="hero" aria-labelledby="hero-title">
+            <div class="hero-copy">
+                <p class="eyebrow"><span class="signal" aria-hidden="true"></span> YOUR PERSONAL PLAYLIST STUDIO</p>
+                <h1 id="hero-title">Your listening.<br><span>On repeat.</span></h1>
+                <p class="hero-description">The songs you keep coming back to, all in one place.<br class="desktop-break"> Turn your listening history into your next favorite playlist.</p>
+                <a href="#studio" class="text-link">Find your next replay <span aria-hidden="true">↓</span></a>
+            </div>
+            <div class="record-scene" aria-hidden="true">
+                <div class="scene-label">A SOUNDTRACK ONLY YOU COULD MAKE</div>
+                <div class="record"><div class="record-label"><span>replay.</span><small>SIDE A · YOUR FAVORITES</small><i></i></div></div>
+                <div class="record-sleeve">
+                    <div class="sleeve-top"><span>THE<br>HEAVY<br>ROTATION</span><span>01<br>↗</span></div>
+                    <div class="sleeve-art"><i></i><i></i><i></i><i></i></div>
+                    <div class="sleeve-bottom"><span>CURATED BY YOUR LISTENING</span><span>RP / 001</span></div>
+                </div>
+                <div class="scene-caption"><span class="waveform"><i></i><i></i><i></i><i></i><i></i></span> Good taste. Yours, actually.</div>
+            </div>
+        </section>
+
+        <section id="studio" class="studio" aria-labelledby="studio-heading">
+            <div class="section-heading"><h2 id="studio-heading">Make it a playlist</h2><span>YOUR MUSIC, FIVE WAYS</span></div>
+            <div id="connection" class="connection" data-state="loading" aria-busy="true">
+                <div class="connection-copy" role="status" aria-live="polite"><strong id="connectionTitle">Checking your Spotify connection…</strong><p id="connectionMessage">Your playlist studio will be ready in a moment.</p></div>
+                <div class="connection-actions">
+                    <a id="connectSpotify" class="button button-primary" href="/auth/spotify" hidden>Connect Spotify <span aria-hidden="true">↗</span></a>
+                    <button id="retrySession" class="subtle-link" type="button" hidden>Check again</button>
+                    <button id="disconnectSpotify" class="subtle-link" type="button" hidden>Disconnect</button>
+                </div>
+            </div>
+            <p id="authStatus" class="status" role="status" aria-live="polite" hidden></p>
+            <div class="studio-grid">
+                <section class="panel spotify-panel" aria-labelledby="spotify-heading">
+                    <div class="panel-heading"><div class="service-label"><span class="signal" aria-hidden="true"></span><span>Spotify favorites</span></div><span class="panel-number">01 / IN ROTATION</span></div>
+                    <h3 id="spotify-heading">Your favorites, rediscovered.</h3>
+                    <p class="panel-description">Recent obsessions, lasting favorites, and a little of everything. Bring your most-played tracks together.</p>
+                    <div class="playlist-preview" aria-label="The four playlists you will create">
+                        <div class="preview-item"><div class="mini-cover cover-short"><span>ON<br>REPEAT</span><i></i></div><h4>Short Term</h4><p>Recent favorites</p></div>
+                        <div class="preview-item"><div class="mini-cover cover-mid"><span>STILL<br>INTO IT</span><i></i></div><h4>Mid Term</h4><p>Staying power</p></div>
+                        <div class="preview-item"><div class="mini-cover cover-long"><span>THE<br>KEEPERS</span><i></i></div><h4>Long Term</h4><p>Lasting favorites</p></div>
+                        <div class="preview-item"><div class="mini-cover cover-mixed"><span>ALL<br>TOGETHER</span><i></i></div><h4>Mixed Term</h4><p>A little of each</p></div>
+                    </div>
+                    <button id="top" class="button button-primary" type="button" disabled>Build my favorites <span aria-hidden="true">↗</span></button>
+                    <p class="fine-print">Creates or updates up to four public Spotify playlists.</p>
+                    <p id="spotifyStatus" class="status" role="status" aria-live="polite" hidden></p>
+                </section>
+                <section id="bandSection" class="panel band-panel" aria-labelledby="band-heading">
+                    <div class="panel-heading"><div class="service-label"><span class="small-disc" aria-hidden="true"></span><span>Band mix</span></div><span class="panel-number">02 / BETTER TOGETHER</span></div>
+                    <h3 id="band-heading">A lineup of your own.</h3>
+                    <p class="panel-description">Pick a few artists you love. We'll gather their tracks into one mix made for you.</p>
+                    <form id="bandForm">
+                        <label for="bandNames">Artists or bands</label>
+                        <input id="bandNames" name="bandNames" placeholder="e.g. Radiohead, Portishead" type="text" maxlength="2000" aria-describedby="bandHint" disabled>
+                        <p id="bandHint" class="input-hint">Enter 2–20 different names, separated by commas.</p>
+                        <button id="bandPlaylist" class="button button-secondary" type="submit" disabled>Build my band mix <span aria-hidden="true">↗</span></button>
+                    </form>
+                    <p class="fine-print">Creates or updates a public Spotify playlist.</p>
+                    <p id="bandStatus" class="status" role="status" aria-live="polite" hidden></p>
+                </section>
+            </div>
+            <section id="lastFmSection" class="panel lastfm-panel" aria-labelledby="lastfm-heading">
+                <div class="panel-heading"><div class="service-label"><svg class="lastfm-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 16c-1 2-3 3-5 1s-2-7 1-9 5 0 6 3l2 5c1 3 7 3 7-1 0-3-6-2-6-5 0-3 5-4 6-1"/></svg><span>Last.fm rewind</span></div><span class="panel-number">03—05 / FROM YOUR HISTORY</span></div>
+                <div class="lastfm-intro"><div><h3 id="lastfm-heading">Every listen tells a story.</h3><p class="panel-description">Turn your scrobbles into yearly soundtracks, rediscover old favorites, or find the moods in your music.</p></div>
+                    <div class="profile-field"><label for="lastFmId">Your Last.fm username</label><div class="input-wrap"><span aria-hidden="true">@</span><input id="lastFmId" name="lastFmId" placeholder="e.g. musiclover" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="64" aria-describedby="usernameHint" disabled></div><p id="usernameHint" class="input-hint" aria-live="polite">Use a profile with a public listening history.</p><button id="retryProfile" class="subtle-link" type="button" hidden>Check profile again</button></div>
+                </div>
+                <div class="lastfm-tools">
+                    <div class="lastfm-tool"><span class="tool-number">03 / THROUGH THE YEARS</span><h4>Your yearly soundtracks</h4><p>A playlist for each year of listening, plus your all-time favorites.</p><button id="lastfm" class="button button-secondary" type="button" disabled>Build yearly playlists <span aria-hidden="true">↗</span></button><small>Public playlists</small></div>
+                    <div class="lastfm-tool"><span class="tool-number">04 / A SECOND CHANCE</span><h4>Forgotten obsessions</h4><p>The tracks you once loved, waiting to find their way back into rotation.</p><button id="forgottenObsessions" class="button button-secondary" type="button" disabled>Find old favorites <span aria-hidden="true">↗</span></button><small>Public playlist</small></div>
+                    <div class="lastfm-tool"><span class="tool-number">05 / A FEELING FOR EVERYTHING</span><h4>Your private moods</h4><p>Six sides of your taste: Anchor, Happy, Sad, Surge, Night Drift, and Frontier.</p><button id="privateMoodTaxonomy" class="button button-secondary" type="button" disabled>Build mood playlists <span aria-hidden="true">↗</span></button><small>Private playlists · 50 tracks each at most</small></div>
+                </div>
+                <p class="fine-print">You'll connect Last.fm when needed. Larger listening histories can take several minutes.</p>
+                <p id="lastfmStatus" class="status" role="status" aria-live="polite" hidden></p>
+                <div id="lastfmProgress" class="progress-wrap" hidden><div class="progress-caption"><span id="progressLabel">Reading your listening history…</span><span id="progressValue">0%</span></div><div id="lastfmProgressBar" class="progress-track" role="progressbar" aria-label="Playlist progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div></div>
+                <button id="retryJob" class="subtle-link retry-job" type="button" hidden>Check progress again</button>
+            </section>
+        </section>
+        <section id="resultsSection" class="results-section" aria-labelledby="results-heading" hidden>
+            <div class="section-heading"><div><p class="eyebrow">READY FOR ANOTHER LISTEN</p><h2 id="results-heading" tabindex="-1">Your next heavy rotation.</h2></div></div>
+            <div id="spotifyTop" class="results-grid" aria-label="Spotify favorites playlists"></div>
+            <div id="bandPlaylists" class="results-grid" aria-label="Band mix playlist"></div>
+            <div id="yearlyPlaylists" class="results-grid" aria-label="Yearly playlists"></div>
+            <div id="forgottenObsessionsPlaylists" class="results-grid" aria-label="Forgotten obsessions playlist"></div>
+            <div id="privateMoodPlaylists" class="results-grid" aria-label="Private mood playlists"></div>
+        </section>
+
+        <section id="how-it-works" class="how-it-works" aria-labelledby="how-heading">
+            <div class="how-title"><p class="eyebrow">LESS SEARCHING. MORE LISTENING.</p><h2 id="how-heading">Good music comes <br>back around.</h2></div>
+            <ol class="steps">
+                <li><span class="step-number">01</span><div><h3>Pick your source</h3><p>Start with Spotify favorites, your favorite artists, or Last.fm.</p></div></li>
+                <li><span class="step-number">02</span><div><h3>Let your listening lead</h3><p>We gather your tracks and build playlists in Spotify.</p></div></li>
+                <li><span class="step-number">03</span><div><h3>Press play. Repeat.</h3><p>Come back and rebuild whenever your taste moves on.</p></div></li>
+            </ol>
+        </section>
+    </main>
+
+    <footer><a class="brand footer-brand" href="./index.html">replay<span class="brand-dot">.</span></a><p>Built around the music you love.</p><span>Powered by Spotify &amp; Last.fm</span></footer>
 </div>
-<div id="lastFmSection">
-    <input class="form-control" id="lastFmId" placeholder="Enter last.fm login..." type="text"/>
-    <div class="row mt-2">
-        <div class="col-lg-4">
-            <button class="btn btn-secondary btn-lg" disabled id="lastfm" type="button">YEARLY LAST.FM</button>
-        </div>
-        <div class="col-lg-4 mt-2 mt-lg-0">
-            <button class="btn btn-secondary btn-lg" disabled id="forgottenObsessions" type="button">FORGOTTEN OBSESSIONS</button>
-        </div>
-        <div class="col-lg-4 mt-2 mt-lg-0">
-            <button class="btn btn-secondary btn-lg" disabled id="privateMoodTaxonomy" type="button">PRIVATE MOOD TAXONOMY</button>
-        </div>
-    </div>
-    <div class="text-muted small mt-1" id="lastfmStatus">Enter your Last.fm login to enable Last.fm tools.</div>
-    <div class="progress mt-2 d-none" id="lastfmProgress">
-        <div aria-valuemax="100" aria-valuemin="0" aria-valuenow="0"
-             class="progress-bar progress-bar-striped progress-bar-animated" id="lastfmProgressBar"
-             role="progressbar" style="width: 0%;">0%
-        </div>
-    </div>
-    <div class="mt-3 playlist-results" id="forgottenObsessionsPlaylists"></div>
-    <div class="mt-3 playlist-results" id="privateMoodPlaylists"></div>
-</div>
-
-<div class="mt-4" id="bandSection">
-    <button class="btn btn-success btn-lg" disabled id="bandPlaylist" type="button">BAND MIX</button>
-    <input class="form-control" id="bandNames" placeholder="Enter band names separated by commas..." type="text"/>
-    <div class="text-muted small mt-1 d-none" id="bandStatus"></div>
-    <div class="mt-3 playlist-results" id="bandPlaylists"></div>
-</div>
-
-
-<!-- Optional JavaScript -->
-<!-- jQuery first, then Popper.js, then Bootstrap JS -->
-<script crossorigin="anonymous"
-        integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
-        src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
-<script crossorigin="anonymous"
-        integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1"
-        src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
-<script crossorigin="anonymous"
-        integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM"
-        src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
-
-<script src="index.js"></script>
-
-
+<noscript><div class="noscript">Enable JavaScript to build your playlists.</div></noscript>
 </body>
 </html>

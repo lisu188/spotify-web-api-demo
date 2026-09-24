@@ -1,62 +1,11 @@
 package com.lis.spotify.controller
 
-import com.lis.spotify.logging.asSafeClientIdForLogs
-import com.lis.spotify.service.LastFmAuthenticationService
-import com.lis.spotify.service.SpotifyAuthenticationService
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Controller
-import org.springframework.web.bind.annotation.CookieValue
 import org.springframework.web.bind.annotation.GetMapping
 
 @Controller
-class MainController(
-  private val spotifyAuthenticationService: SpotifyAuthenticationService,
-  private val lastFmAuthenticationService: LastFmAuthenticationService,
-) {
+class MainController {
+  @GetMapping("/favicon.ico") fun favicon(): String = "forward:/favicon.svg"
 
-  @GetMapping("/favicon.ico")
-  fun favicon(): String {
-    return "forward:/favicon.svg"
-  }
-
-  @GetMapping("/")
-  fun main(
-    @CookieValue("clientId", defaultValue = "") clientId: String,
-    @CookieValue("lastFmLogin", defaultValue = "") lastFmLogin: String,
-    @CookieValue("lastFmToken", defaultValue = "") lastFmToken: String,
-  ): String {
-    logger.debug(
-      "Entering main() with clientId='{}', lastFmLogin='{}' and lastFmTokenPresent={}",
-      clientId.asSafeClientIdForLogs(),
-      lastFmLogin,
-      lastFmToken.isNotBlank(),
-    )
-
-    val spotifyAuthorized =
-      clientId.isNotEmpty() && spotifyAuthenticationService.isAuthorizedSession(clientId)
-    val lastFmAuthorized = lastFmAuthenticationService.isAuthorized(lastFmLogin, lastFmToken)
-
-    return if (!spotifyAuthorized) {
-      logger.warn("Spotify token missing or invalid; redirecting to /auth/spotify.")
-      "redirect:/auth/spotify"
-    } else {
-      if (lastFmAuthorized) {
-        logger.info(
-          "Both Spotify and Last.fm are authenticated; refreshing token for clientId='{}'.",
-          clientId.asSafeClientIdForLogs(),
-        )
-      } else {
-        logger.info(
-          "Spotify is authenticated, but Last.fm is not; continuing without Last.fm features."
-        )
-      }
-      spotifyAuthenticationService.refreshToken(clientId)
-      "forward:/index.html"
-    }
-  }
-
-  companion object {
-    private val logger: Logger = LoggerFactory.getLogger(MainController::class.java)
-  }
+  @GetMapping("/") fun main(): String = "forward:/index.html"
 }

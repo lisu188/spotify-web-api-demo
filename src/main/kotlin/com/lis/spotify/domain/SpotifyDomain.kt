@@ -12,7 +12,33 @@
 
 package com.lis.spotify.domain
 
-class PlaylistTrack(var track: Track)
+import com.fasterxml.jackson.core.JsonParser
+import com.fasterxml.jackson.databind.DeserializationContext
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import com.fasterxml.jackson.databind.deser.std.StdDeserializer
+
+@JsonDeserialize(using = PlaylistTrackDeserializer::class)
+class PlaylistTrack(var track: Track? = null)
+
+/** Playlist pages may contain removed tracks, local files, or non-track items. */
+class PlaylistTrackDeserializer : StdDeserializer<PlaylistTrack>(PlaylistTrack::class.java) {
+  override fun deserialize(parser: JsonParser, context: DeserializationContext): PlaylistTrack {
+    val row = parser.codec.readTree<JsonNode>(parser)
+    val item = row.get("item") ?: row.get("track")
+    if (
+      item == null ||
+        !item.isObject ||
+        item.path("type").asText("track") != "track" ||
+        row.path("is_local").asBoolean(false) ||
+        item.path("is_local").asBoolean(false) ||
+        item.path("id").asText("").isBlank()
+    ) {
+      return PlaylistTrack()
+    }
+    return PlaylistTrack(parser.codec.treeToValue(item, Track::class.java))
+  }
+}
 
 class PlaylistTracks(var items: List<PlaylistTrack>, var next: String?)
 

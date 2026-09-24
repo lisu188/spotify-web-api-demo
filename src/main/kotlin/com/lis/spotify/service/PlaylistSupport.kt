@@ -37,7 +37,6 @@ internal fun Song.normalizedKey(): Pair<String, String> {
  * memoized in the caller-supplied [existingPlaylists] cache.
  */
 internal class PlaylistProvisioner(private val spotifyPlaylistService: SpotifyPlaylistService) {
-  private val creationLocks = ConcurrentHashMap<String, Any>()
 
   fun getOrCreate(
     playlistName: String,
@@ -45,7 +44,7 @@ internal class PlaylistProvisioner(private val spotifyPlaylistService: SpotifyPl
     existingPlaylists: ConcurrentHashMap<String, Playlist>,
     public: Boolean = true,
   ): Playlist {
-    val lock = creationLocks.computeIfAbsent("$clientId|$playlistName") { Any() }
+    val lock = PlaylistCreationLocks.forPlaylist(clientId, playlistName)
     synchronized(lock) {
       val existing = existingPlaylists[playlistName]
       if (existing != null) {
@@ -65,5 +64,14 @@ internal class PlaylistProvisioner(private val spotifyPlaylistService: SpotifyPl
       val previous = existingPlaylists.putIfAbsent(playlistName, created)
       return previous ?: created
     }
+  }
+}
+
+/** Shared by every creation path; bounded stripes avoid retaining a lock per user and playlist. */
+internal object PlaylistCreationLocks {
+  private val locks = Array(64) { Any() }
+
+  fun forPlaylist(clientId: String, playlistName: String): Any {
+    return locks[Math.floorMod(31 * clientId.hashCode() + playlistName.hashCode(), locks.size)]
   }
 }

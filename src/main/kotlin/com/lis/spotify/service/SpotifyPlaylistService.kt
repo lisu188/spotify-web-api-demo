@@ -13,6 +13,7 @@
 package com.lis.spotify.service
 
 import com.lis.spotify.domain.Playlist
+import com.lis.spotify.domain.PlaylistTrack
 import com.lis.spotify.domain.PlaylistTracks
 import com.lis.spotify.domain.Playlists
 import com.lis.spotify.domain.Track
@@ -24,6 +25,16 @@ import org.springframework.stereotype.Service
 class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
 
   private fun isUri(id: String) = id.startsWith("spotify:track:")
+
+  private fun trackUri(value: String): String {
+    require(
+      value.removePrefix("spotify:track:").isNotBlank() &&
+        (!value.startsWith("spotify:") || isUri(value))
+    ) {
+      "Invalid track URI: $value"
+    }
+    return if (isUri(value)) value else "spotify:track:$value"
+  }
 
   fun getCurrentUserPlaylists(clientId: String): MutableList<Playlist> {
     logger.debug("getCurrentUserPlaylists {}", clientId.asSafeClientIdForLogs())
@@ -49,15 +60,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
     logger.debug("getPlaylistTracks {} {}", id, clientId.asSafeClientIdForLogs())
     logger.info("getPlaylistTracks: {} {}", id, clientId.asSafeClientIdForLogs())
 
-    val trackList: MutableList<Track> = ArrayList()
-    var url: String = PLAYLIST_TRACKS_URL
-    do {
-      val tracks: PlaylistTracks =
-        spotifyRestService.doGet<PlaylistTracks>(url, mapOf("id" to id), clientId = clientId)
-      tracks.items.let { it.forEach { trackList.add(it.track) } }
-
-      url = tracks.next.orEmpty()
-    } while (!tracks.next.isNullOrEmpty())
+    val trackList = getPlaylistItems(id, clientId).mapNotNull { it.track }
     logger.debug(
       "getPlaylistTracks {} {} -> {} tracks",
       id,
@@ -67,6 +70,18 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
     return trackList
   }
 
+  internal fun getPlaylistItems(id: String, clientId: String): List<PlaylistTrack> {
+    val items = mutableListOf<PlaylistTrack>()
+    var url = PLAYLIST_TRACKS_URL
+    do {
+      val page =
+        spotifyRestService.doGet<PlaylistTracks>(url, mapOf("id" to id), clientId = clientId)
+      items.addAll(page.items)
+      url = page.next.orEmpty()
+    } while (url.isNotEmpty())
+    return items
+  }
+
   fun getPlaylistTrackIds(id: String, clientId: String): List<String>? {
     logger.debug("getPlaylistTrackIds {} {}", id, clientId.asSafeClientIdForLogs())
     return getPlaylistTracks(id, clientId = clientId)?.map { it.id }
@@ -74,7 +89,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
 
   fun deleteTracksFromPlaylist(playlistId: String, tracks: List<String>, clientId: String) {
     require(tracks.isNotEmpty()) { "Track list must not be empty" }
-    tracks.forEach { require(!it.startsWith("spotify:") || isUri(it)) { "Invalid track URI: $it" } }
+    tracks.forEach { trackUri(it) }
 
     logger.debug(
       "deleteTracksFromPlaylist {} {} {}",
@@ -90,8 +105,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
     )
 
     tracks.chunked(100).map { chunk ->
-      val payload =
-        mapOf("tracks" to chunk.map { mapOf("uri" to if (isUri(it)) it else "spotify:track:$it") })
+      val payload = mapOf("items" to chunk.map { mapOf("uri" to trackUri(it)) })
       logger.debug("delete payload {}", payload)
       spotifyRestService.doDelete<Any>(
         PLAYLIST_TRACKS_URL,
@@ -109,6 +123,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
   }
 
   fun addTracksToPlaylist(playlistId: String, tracks: List<String>, clientId: String) {
+    val uris = tracks.map(::trackUri)
     logger.debug(
       "addTracksToPlaylist {} {} {}",
       playlistId,
@@ -122,10 +137,10 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
       tracks,
     )
 
-    tracks.chunked(100).map {
+    uris.chunked(100).map {
       spotifyRestService.doPost<Any>(
         PLAYLIST_TRACKS_URL,
-        body = mapOf("uris" to it.map { "spotify:track:$it" }),
+        body = mapOf("uris" to it),
         params = mapOf("id" to playlistId),
         clientId = clientId,
       )
@@ -143,6 +158,8 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
   }
 
   fun replacePlaylistTracks(id: String, trackList: List<String>, clientId: String) {
+    require(trackList.size <= 100) { "Spotify can atomically replace at most 100 playlist items" }
+    val uris = trackList.map(::trackUri)
     logger.debug(
       "replacePlaylistTracks {} {} {}",
       id,
@@ -158,7 +175,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
 
     spotifyRestService.doPut<Any>(
       PLAYLIST_TRACKS_URL,
-      body = mapOf("uris" to trackList.map { "spotify:track:$it" }),
+      body = mapOf("uris" to uris),
       params = mapOf("id" to id),
       clientId = clientId,
     )
@@ -171,16 +188,18 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
   }
 
   fun deduplicatePlaylist(id: String, clientId: String) {
-    val tracks = getPlaylistTrackIds(id, clientId).orEmpty()
+    val items = getPlaylistItems(id, clientId)
+    val tracks = items.mapNotNull { it.track?.id }
     val distinct = tracks.distinct()
-    if (tracks.size != distinct.size) {
-      if (distinct.size <= 100) {
-        replacePlaylistTracks(id, distinct, clientId)
-      } else {
-        replacePlaylistTracks(id, distinct.take(100), clientId)
-        addTracksToPlaylist(id, distinct.drop(100), clientId)
-      }
+    if (tracks.size == distinct.size) return
+
+    // Replacing then appending loses the tail if an append fails. Only a single atomic
+    // replacement is safe, and it must never discard episodes, local, or unavailable items.
+    check(distinct.size <= 100 && items.size == tracks.size) {
+      "Automatic deduplication needs a playlist with at most 100 unique Spotify tracks " +
+        "and no local, unavailable, or non-track items. The playlist was left unchanged."
     }
+    replacePlaylistTracks(id, distinct, clientId)
   }
 
   fun modifyPlaylist(
@@ -193,16 +212,18 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
 
     val old = getPlaylistTrackIds(id, clientId).orEmpty()
     val oldSet = old.toSet()
-    val newSet = trackList.toSet()
+    val newSet = trackList.map { trackUri(it).removePrefix("spotify:track:") }.toSet()
 
     val tracksToRemove = (oldSet - newSet).toList()
-    if (tracksToRemove.isNotEmpty()) {
-      deleteTracksFromPlaylist(id, tracksToRemove, clientId)
-    }
-
     val tracksToAdd = (newSet - oldSet).toList()
+
+    // Preserve every existing track until all additions have succeeded. A retry then
+    // reconciles against the current playlist, including any successfully added chunks.
     if (tracksToAdd.isNotEmpty()) {
       addTracksToPlaylist(id, tracksToAdd, clientId)
+    }
+    if (tracksToRemove.isNotEmpty()) {
+      deleteTracksFromPlaylist(id, tracksToRemove, clientId)
     }
 
     val result = mapOf("added" to tracksToAdd, "removed" to tracksToRemove)
@@ -245,12 +266,10 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
       public,
     )
 
-    val findAny =
-      getCurrentUserPlaylists(clientId).stream().filter { it.name == playlistName }.findAny()
-    if (findAny.isPresent) {
-      return findAny.get()
+    return synchronized(PlaylistCreationLocks.forPlaylist(clientId, playlistName)) {
+      getCurrentUserPlaylists(clientId).firstOrNull { it.name == playlistName }
+        ?: createPlaylist(playlistName, clientId, public)
     }
-    return createPlaylist(playlistName, clientId, public)
   }
 
   fun hasRequiredScopes(clientId: String, requiredScopes: Set<String>): Boolean {
@@ -267,7 +286,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
 
   companion object {
     private val logger = LoggerFactory.getLogger(SpotifyPlaylistService::class.java)
-    private const val PLAYLIST_TRACKS_URL = "https://api.spotify.com/v1/playlists/{id}/tracks"
+    private const val PLAYLIST_TRACKS_URL = "https://api.spotify.com/v1/playlists/{id}/items"
     private const val USER_PLAYLISTS_URL = "https://api.spotify.com/v1/me/playlists"
   }
 }

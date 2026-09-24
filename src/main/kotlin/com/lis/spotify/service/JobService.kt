@@ -16,6 +16,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.TaskScheduler
+import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 
 @Service
@@ -31,9 +32,17 @@ class JobService(
   private val activeClients = ConcurrentHashMap.newKeySet<String>()
   private val clientStartTimes = ConcurrentHashMap<String, ArrayDeque<Instant>>()
 
+  @Scheduled(fixedDelayString = "\${jobs.cleanup-interval-ms:300000}")
+  fun cleanupExpiredJobs() {
+    try {
+      jobStatusStore.deleteExpired(Instant.now(clock))
+    } catch (exception: Exception) {
+      logger.warn("Expired job cleanup failed; it will be retried on the next sweep", exception)
+    }
+  }
+
   fun getJobStatus(jobId: String, clientId: String? = null): JobStatus? {
     val now = Instant.now(clock)
-    jobStatusStore.deleteExpired(now)
     val storedStatus =
       jobStatusStore.findById(jobId)?.takeIf { it.expiresAt.isAfter(now) } ?: return null
     if (clientId != null && storedStatus.clientId != clientId) {
@@ -178,7 +187,6 @@ class JobService(
     val id = UUID.randomUUID().toString()
     val expiresAt = createdAt.plus(JOB_TTL)
     try {
-      jobStatusStore.deleteExpired(createdAt)
       updateJob(
         jobId = id,
         state = JobState.QUEUED,
