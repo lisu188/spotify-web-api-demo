@@ -18,6 +18,7 @@ import com.lis.spotify.domain.Track
 import java.util.concurrent.ConcurrentHashMap
 
 internal const val SECONDS_PER_DAY = 86_400L
+internal val NO_MUTATION_CHECK: () -> Unit = {}
 
 internal fun Track.toSong(): Song {
   return Song(artist = artists.firstOrNull()?.name.orEmpty(), title = name)
@@ -43,6 +44,7 @@ internal class PlaylistProvisioner(private val spotifyPlaylistService: SpotifyPl
     clientId: String,
     existingPlaylists: ConcurrentHashMap<String, Playlist>,
     public: Boolean = true,
+    beforeCreate: () -> Unit = NO_MUTATION_CHECK,
   ): Playlist {
     val lock = PlaylistCreationLocks.forPlaylist(clientId, playlistName)
     synchronized(lock) {
@@ -60,7 +62,9 @@ internal class PlaylistProvisioner(private val spotifyPlaylistService: SpotifyPl
         return remoteExisting
       }
 
-      val created = spotifyPlaylistService.createPlaylist(playlistName, clientId, public)
+      beforeCreate()
+      val created =
+        spotifyPlaylistService.createPlaylist(playlistName, clientId, public, beforeCreate)
       val previous = existingPlaylists.putIfAbsent(playlistName, created)
       return previous ?: created
     }

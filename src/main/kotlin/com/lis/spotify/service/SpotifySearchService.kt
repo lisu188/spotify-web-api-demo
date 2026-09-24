@@ -18,7 +18,6 @@ import com.google.common.cache.CacheBuilder
 import com.lis.spotify.domain.SearchResult
 import com.lis.spotify.domain.Song
 import com.lis.spotify.domain.Track
-import com.lis.spotify.logging.asSafeClientIdForLogs
 import com.lis.spotify.persistence.SpotifySearchCacheStore
 import com.lis.spotify.persistence.StoredSpotifySearchCacheEntry
 import java.nio.charset.StandardCharsets
@@ -27,15 +26,21 @@ import java.text.Normalizer
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
-import kotlin.system.measureTimeMillis
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -47,13 +52,13 @@ class SpotifySearchService(
   val spotifyRestService: SpotifyRestService,
   private val spotifySearchCacheStore: SpotifySearchCacheStore,
   private val clock: Clock,
-  @Value("\${spotify.search.max-parallelism:64}")
+  @Value("\${spotify.search.max-parallelism:8}")
   configuredMaxParallelism: Int = DEFAULT_SEARCH_MAX_PARALLELISM,
   @Value("\${spotify.search.cache-ttl:PT168H}") configuredCacheTtl: Duration = DEFAULT_CACHE_TTL,
 ) {
   companion object {
     val SEARCH_URL = "https://api.spotify.com/v1/search?q={q}&type={type}&limit=10"
-    internal const val DEFAULT_SEARCH_MAX_PARALLELISM = 64
+    internal const val DEFAULT_SEARCH_MAX_PARALLELISM = 8
     internal val DEFAULT_CACHE_TTL: Duration = Duration.ofDays(7)
     internal const val SPOTIFY_SEARCH_ATTEMPTS = 3
     internal const val SPOTIFY_SEARCH_RETRY_DELAY_MS = 250L
@@ -66,7 +71,12 @@ class SpotifySearchService(
         .toRegex()
   }
 
-  internal var maxParallelism = configuredMaxParallelism.coerceAtLeast(1)
+  internal val maxParallelism = configuredMaxParallelism.coerceAtLeast(1)
+  private val requestPermits = Semaphore(maxParallelism)
+  private val pendingSearches = ConcurrentHashMap<String, CompletableDeferred<SearchResult?>>()
+  private val cacheHits = AtomicLong()
+  private val combinedLookups = AtomicLong()
+  private val lookupAttempts = AtomicLong()
   internal var cacheTtl = configuredCacheTtl
   internal var sleeper: SpotifySearchSleeper = SpotifySearchSleeper { millis ->
     Thread.sleep(millis)
@@ -77,73 +87,119 @@ class SpotifySearchService(
   private val searchCache: Cache<String, StoredSpotifySearchCacheEntry> =
     CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.HOURS).build()
 
-  fun doSearch(song: Song, clientId: String): SearchResult? {
-    logger.debug("doSearch single {} {}", song, clientId.asSafeClientIdForLogs())
+  fun doSearch(song: Song, clientId: String): SearchResult? =
+    runBlocking(Dispatchers.IO) { search(song, clientId) }
+
+  private suspend fun search(song: Song, clientId: String): SearchResult? {
+    currentCoroutineContext().ensureActive()
     val query = buildQuery(song)
     val cacheKey = cacheKey(clientId, query)
     val now = clock.instant()
-    val cached = findFreshCacheEntry(cacheKey, now)
-    if (cached != null) {
-      logger.debug("doSearch persistent cache hit {}", cacheKey)
-      val cachedResult = readCachedResult(cacheKey, cached)
-      if (cachedResult != null) {
-        return cachedResult
+    findMemoryCacheResult(cacheKey, now)?.let {
+      cacheHits.incrementAndGet()
+      return it
+    }
+
+    val pending = CompletableDeferred<SearchResult?>()
+    val existing = pendingSearches.putIfAbsent(cacheKey, pending)
+    if (existing != null) {
+      combinedLookups.incrementAndGet()
+      try {
+        return existing.await()
+      } catch (ex: CancellationException) {
+        // A cancelled owner must not cancel an independent caller of the same lookup.
+        currentCoroutineContext().ensureActive()
+        return search(song, clientId)
       }
     }
 
-    val result = fetchSearchResult(query, clientId, cacheKey) ?: return null
-    saveCacheEntry(cacheKey, clientId, query, result, now)
-    logger.debug("doSearch single result stored for {}", cacheKey)
-    return result
+    try {
+      // Recheck after becoming the owner: another owner may have just published its result.
+      val cached = runInterruptible(Dispatchers.IO) { findFreshCacheEntry(cacheKey, now) }
+      val cachedResult = cached?.let { readCachedResult(cacheKey, it) }
+      if (cachedResult != null) {
+        cacheHits.incrementAndGet()
+        pending.complete(cachedResult)
+        return cachedResult
+      }
+      val result = fetchSearchResult(query, clientId, cacheKey)
+      if (result != null) {
+        val entry = createCacheEntry(cacheKey, clientId, query, result, clock.instant())
+        searchCache.put(cacheKey, entry)
+        // Followers can proceed immediately, even if the optional persistent store is slow.
+        pending.complete(result)
+        runInterruptible(Dispatchers.IO) { persistCacheEntry(entry) }
+      } else {
+        pending.complete(null)
+      }
+      return result
+    } catch (ex: Throwable) {
+      // Remove before waking followers so cancellation recovery cannot rejoin a stale owner.
+      pendingSearches.remove(cacheKey, pending)
+      pending.completeExceptionally(ex)
+      throw ex
+    } finally {
+      pendingSearches.remove(cacheKey, pending)
+    }
   }
 
-  fun doSearch(values: List<Song>, clientId: String, progress: () -> Unit = {}): List<String> {
-    logger.debug("doSearch batch {} {}", clientId.asSafeClientIdForLogs(), values.size)
-    logger.info("doSearch: {} {}", clientId.asSafeClientIdForLogs(), values.size)
-    lateinit var retVal: List<String>
-    val time = measureTimeMillis {
-      retVal = runBlocking(Dispatchers.IO) { searchTrackIds(values, clientId, progress) }
-    }
-    logger.debug("doSearch batch result {} items", retVal.size)
-    logger.info("doSearch: {} {} took: {}", clientId.asSafeClientIdForLogs(), values.size, time)
-    return retVal
-  }
+  fun doSearch(values: List<Song>, clientId: String, progress: () -> Unit = {}): List<String> =
+    runBlocking(Dispatchers.IO) { searchTrackIds(values, clientId, progress) }
 
   internal suspend fun searchTrackIds(
     values: List<Song>,
     clientId: String,
     progress: () -> Unit = {},
   ): List<String> {
-    val semaphore = Semaphore(maxParallelism.coerceAtLeast(1))
-    return coroutineScope {
-      values
-        .map { song ->
-          async(Dispatchers.IO) {
-            semaphore.withPermit {
-              val result = doSearch(song, clientId)
-              progress()
-              selectClosestTrackId(song, result)
+    val startedAt = System.nanoTime()
+    return try {
+      coroutineScope {
+        val nextIndex = AtomicInteger()
+        val results = arrayOfNulls<String>(values.size)
+        List(minOf(maxParallelism, values.size)) {
+            async(Dispatchers.IO) {
+              while (true) {
+                currentCoroutineContext().ensureActive()
+                val index = nextIndex.getAndIncrement()
+                if (index >= values.size) break
+                val song = values[index]
+                val result = search(song, clientId)
+                currentCoroutineContext().ensureActive()
+                results[index] = selectClosestTrackId(song, result)
+                progress()
+              }
             }
           }
-        }
-        .awaitAll()
-        .filterNotNull()
-        .distinct()
+          .awaitAll()
+        results.filterNotNull().distinct()
+      }
+    } finally {
+      val metrics = metrics()
+      val requests = spotifyRestService.requestMetrics()
+      logger.info(
+        "Spotify search batch candidates={} durationMs={} instanceCacheHits={} instanceCombinedLookups={} instanceLookupAttempts={} upstreamRequests={} rateLimitWaits={} rateLimitWaitMs={}",
+        values.size,
+        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt),
+        metrics.cacheHits,
+        metrics.combinedLookups,
+        metrics.lookupAttempts,
+        requests.requestCount,
+        requests.cooldownWaitCount,
+        requests.cooldownWaitMillis,
+      )
     }
   }
 
-  internal fun searchTrackIdsSequentially(
-    values: List<Song>,
-    clientId: String,
-    progress: () -> Unit = {},
-  ): List<String> {
-    return values
-      .mapNotNull { song ->
-        val result = doSearch(song, clientId)
-        progress()
-        selectClosestTrackId(song, result)
-      }
-      .distinct()
+  internal fun metrics(): SpotifySearchMetrics =
+    SpotifySearchMetrics(cacheHits.get(), combinedLookups.get(), lookupAttempts.get())
+
+  private fun findMemoryCacheResult(cacheKey: String, now: Instant): SearchResult? {
+    val entry = searchCache.getIfPresent(cacheKey) ?: return null
+    if (!entry.isFresh(now)) {
+      searchCache.invalidate(cacheKey)
+      return null
+    }
+    return readCachedResult(cacheKey, entry)
   }
 
   private fun findFreshCacheEntry(cacheKey: String, now: Instant): StoredSpotifySearchCacheEntry? {
@@ -159,6 +215,10 @@ class SpotifySearchService(
     val storedEntry =
       try {
         spotifySearchCacheStore.findByKey(cacheKey)
+      } catch (ex: CancellationException) {
+        throw ex
+      } catch (ex: InterruptedException) {
+        throw ex
       } catch (ex: Exception) {
         // The persistent cache is best-effort; a store failure must not abort the search batch.
         logger.warn("Failed to read persistent Spotify search cache {}, ignoring", cacheKey, ex)
@@ -171,39 +231,50 @@ class SpotifySearchService(
     return storedEntry
   }
 
-  private fun saveCacheEntry(
+  private fun createCacheEntry(
     cacheKey: String,
     clientId: String,
     query: String,
     result: SearchResult,
     now: Instant,
-  ) {
-    val entry =
-      StoredSpotifySearchCacheEntry(
-        cacheKey = cacheKey,
-        clientId = clientId,
-        query = query,
-        payloadJson = mapper.writeValueAsString(result),
-        updatedAt = now,
-        expiresAt = now.plus(cacheTtl),
-      )
+  ): StoredSpotifySearchCacheEntry =
+    StoredSpotifySearchCacheEntry(
+      cacheKey = cacheKey,
+      clientId = clientId,
+      query = query,
+      payloadJson = mapper.writeValueAsString(result),
+      updatedAt = now,
+      expiresAt = now.plus(cacheTtl),
+    )
+
+  private fun persistCacheEntry(entry: StoredSpotifySearchCacheEntry) {
     try {
       spotifySearchCacheStore.save(entry)
+    } catch (ex: CancellationException) {
+      throw ex
+    } catch (ex: InterruptedException) {
+      throw ex
     } catch (ex: Exception) {
-      // The persistent cache is best-effort; a store failure must not abort the search batch.
-      logger.warn("Failed to persist Spotify search cache {}, keeping in-memory only", cacheKey, ex)
+      // Publishing to memory first lets followers continue while persistence is unavailable.
+      logger.warn("Failed to persist Spotify search cache, keeping in-memory only", ex)
     }
-    searchCache.put(cacheKey, entry)
   }
 
-  private fun fetchSearchResult(query: String, clientId: String, cacheKey: String): SearchResult? {
+  private suspend fun fetchSearchResult(
+    query: String,
+    clientId: String,
+    cacheKey: String,
+  ): SearchResult? {
     var attempt = 1
     while (true) {
+      currentCoroutineContext().ensureActive()
       try {
-        return spotifyRestService.doGet<SearchResult>(
+        lookupAttempts.incrementAndGet()
+        return spotifyRestService.doGetSuspending<SearchResult>(
           SEARCH_URL,
           params = mapOf("q" to query, "type" to "track"),
           clientId = clientId,
+          semaphore = requestPermits,
         )
       } catch (ex: HttpStatusCodeException) {
         val statusCode = ex.statusCode.value()
@@ -217,7 +288,7 @@ class SpotifySearchService(
             cacheKey,
             delayMs,
           )
-          sleeper.sleep(delayMs)
+          runInterruptible(Dispatchers.IO) { sleeper.sleep(delayMs) }
           attempt++
           continue
         }
@@ -228,7 +299,6 @@ class SpotifySearchService(
             attempt,
             SPOTIFY_SEARCH_ATTEMPTS,
             cacheKey,
-            ex,
           )
           return null
         }
@@ -242,9 +312,8 @@ class SpotifySearchService(
             SPOTIFY_SEARCH_ATTEMPTS,
             cacheKey,
             delayMs,
-            ex,
           )
-          sleeper.sleep(delayMs)
+          runInterruptible(Dispatchers.IO) { sleeper.sleep(delayMs) }
           attempt++
           continue
         }
@@ -253,7 +322,6 @@ class SpotifySearchService(
           attempt,
           SPOTIFY_SEARCH_ATTEMPTS,
           cacheKey,
-          ex,
         )
         return null
       }
@@ -370,6 +438,12 @@ class SpotifySearchService(
 
   private fun retryDelayMs(attempt: Int): Long = SPOTIFY_SEARCH_RETRY_DELAY_MS * attempt
 }
+
+internal data class SpotifySearchMetrics(
+  val cacheHits: Long,
+  val combinedLookups: Long,
+  val lookupAttempts: Long,
+)
 
 fun interface SpotifySearchSleeper {
   fun sleep(millis: Long)
