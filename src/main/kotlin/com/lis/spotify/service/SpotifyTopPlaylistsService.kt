@@ -20,6 +20,9 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -120,61 +123,94 @@ class SpotifyTopPlaylistsService(
     lastFmSessionKey: String? = null,
     progress: (Int, String) -> Unit = { _, _ -> },
   ) {
-    logger.debug("updateYearlyPlaylists {} {}", clientId.asSafeClientIdForLogs(), lastFmLogin)
-    logger.info("updateYearlyPlaylists: {}", clientId.asSafeClientIdForLogs())
-    runBlocking(Dispatchers.IO) {
-      val years = (firstSupportedYear..getYear()).toList().sortedDescending()
-      val total = years.size.coerceAtLeast(1)
-      val completedYears = AtomicInteger(0)
-      val progressLock = Any()
-      val yearSemaphore = Semaphore(yearlyParallelism.coerceAtLeast(1))
-      val existingPlaylists by
-        lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-          ConcurrentHashMap(
-            spotifyPlaylistService.getCurrentUserPlaylists(clientId).associateBy { it.name }
-          )
-        }
-      progress(0, "Starting yearly playlist refresh")
+    val startedAt = System.nanoTime()
+    var succeeded = false
+    try {
+      runBlocking(Dispatchers.IO) {
+        updateYearlyPlaylistsSuspending(clientId, lastFmLogin, lastFmSessionKey, progress)
+      }
+      succeeded = true
+    } finally {
+      logger.info(
+        "Yearly playlist generation finished: success={} durationMs={}",
+        succeeded,
+        (System.nanoTime() - startedAt) / 1_000_000,
+      )
+    }
+  }
 
-      years
-        .map { year ->
-          async(Dispatchers.IO) {
-            yearSemaphore.withPermit {
-              logger.info("Processing year {}", year)
-              val trackList =
-                spotifySearchService.searchTrackIdsSequentially(
-                  lastFmService
-                    .yearlyChartlist(
-                      clientId,
-                      year,
-                      lastFmLogin,
-                      yearlyLimit,
-                      sessionKey = lastFmSessionKey,
-                    )
-                    .take(yearlyLimit),
+  internal suspend fun updateYearlyPlaylistsSuspending(
+    clientId: String,
+    lastFmLogin: String,
+    lastFmSessionKey: String? = null,
+    progress: (Int, String) -> Unit = { _, _ -> },
+  ) = coroutineScope {
+    val years = (firstSupportedYear..getYear()).toList().sortedDescending()
+    val total = years.size.coerceAtLeast(1)
+    val nextYear = AtomicInteger()
+    val completedYears = AtomicInteger()
+    val progressLock = Any()
+    val existingPlaylists by
+      lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        ConcurrentHashMap(
+          spotifyPlaylistService.getCurrentUserPlaylists(clientId).associateBy { it.name }
+        )
+      }
+    progress(0, "Starting yearly playlist refresh")
+
+    List(minOf(yearlyParallelism.coerceAtLeast(1), years.size)) {
+        async(Dispatchers.IO) {
+          val context = currentCoroutineContext()
+          while (true) {
+            context.ensureActive()
+            val index = nextYear.getAndIncrement()
+            if (index >= years.size) break
+            val year = years[index]
+            val songs =
+              lastFmService
+                .yearlyChartlist(
                   clientId,
+                  year,
+                  lastFmLogin,
+                  yearlyLimit,
+                  sessionKey = lastFmSessionKey,
                 )
+                .take(yearlyLimit)
+            context.ensureActive()
+            val trackList = spotifySearchService.searchTrackIds(songs, clientId)
 
-              if (trackList.isNotEmpty()) {
-                val playlistId =
-                  playlistProvisioner.getOrCreate("LAST.FM $year", clientId, existingPlaylists).id
-                spotifyPlaylistService.modifyPlaylist(playlistId, trackList, clientId)
-                spotifyPlaylistService.deduplicatePlaylist(playlistId, clientId)
+            if (trackList.isNotEmpty()) {
+              context.ensureActive()
+              val playlists = existingPlaylists
+              context.ensureActive()
+              val playlistId =
+                playlistProvisioner
+                  .getOrCreate(
+                    "LAST.FM $year",
+                    clientId,
+                    playlists,
+                    beforeCreate = { context.ensureActive() },
+                  )
+                  .id
+              context.ensureActive()
+              spotifyPlaylistService.modifyPlaylist(playlistId, trackList, clientId) {
+                context.ensureActive()
               }
-              val completedPercent: Int
-              synchronized(progressLock) {
-                val completed = completedYears.incrementAndGet()
-                completedPercent = (completed * 100) / total
-                progress(completedPercent, "Finished $year ($completed/$total)")
+              context.ensureActive()
+              spotifyPlaylistService.deduplicatePlaylist(playlistId, clientId) {
+                context.ensureActive()
               }
-              logger.info("Year {} completed: {}%", year, completedPercent)
+            }
+            context.ensureActive()
+            synchronized(progressLock) {
+              val completed = completedYears.incrementAndGet()
+              progress((completed * 100) / total, "Finished $year ($completed/$total)")
             }
           }
         }
-        .awaitAll()
-    }
+      }
+      .awaitAll()
     progress(100, "Yearly playlists refreshed")
-    logger.info("updateYearlyPlaylists {} completed", clientId.asSafeClientIdForLogs())
   }
 
   fun updateForgottenObsessionsPlaylist(

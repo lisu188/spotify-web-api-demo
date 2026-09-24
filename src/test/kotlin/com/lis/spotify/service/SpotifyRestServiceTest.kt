@@ -3,6 +3,7 @@ package com.lis.spotify.service
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import java.util.function.Supplier
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -13,7 +14,7 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
-import org.springframework.http.client.HttpComponentsClientHttpRequestFactory
+import org.springframework.http.client.ClientHttpRequestFactory
 import org.springframework.retry.backoff.Sleeper
 import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestTemplate
@@ -30,8 +31,7 @@ class SpotifyRestServiceTest {
     val restTemplate = mockk<RestTemplate>()
     val builder = timeoutBuilder()
     val auth = mockk<SpotifyAuthenticationService>()
-    every { builder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java) } returns
-      builder
+    every { builder.requestFactory(any<Supplier<ClientHttpRequestFactory>>()) } returns builder
     every { builder.build() } returns restTemplate
     every { auth.getHeaders(any<String>()) } returns HttpHeaders()
     every {
@@ -54,8 +54,7 @@ class SpotifyRestServiceTest {
     val restTemplate = mockk<RestTemplate>()
     val builder = timeoutBuilder()
     val auth = mockk<SpotifyAuthenticationService>()
-    every { builder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java) } returns
-      builder
+    every { builder.requestFactory(any<Supplier<ClientHttpRequestFactory>>()) } returns builder
     every { builder.build() } returns restTemplate
     every { auth.getHeaders(any<String>()) } returns HttpHeaders()
     every {
@@ -89,8 +88,7 @@ class SpotifyRestServiceTest {
     val restTemplate = mockk<RestTemplate>()
     val builder = timeoutBuilder()
     val auth = mockk<SpotifyAuthenticationService>()
-    every { builder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java) } returns
-      builder
+    every { builder.requestFactory(any<Supplier<ClientHttpRequestFactory>>()) } returns builder
     every { builder.build() } returns restTemplate
     every { auth.getHeaders(any<String>()) } returns HttpHeaders()
     every {
@@ -113,8 +111,7 @@ class SpotifyRestServiceTest {
     val restTemplate = mockk<RestTemplate>()
     val builder = timeoutBuilder()
     val auth = mockk<SpotifyAuthenticationService>()
-    every { builder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java) } returns
-      builder
+    every { builder.requestFactory(any<Supplier<ClientHttpRequestFactory>>()) } returns builder
     every { builder.build() } returns restTemplate
     every { auth.getHeaders(any<String>()) } returns HttpHeaders()
     val ex =
@@ -146,8 +143,7 @@ class SpotifyRestServiceTest {
     val builder = timeoutBuilder()
     val auth = mockk<SpotifyAuthenticationService>()
     val sleeper = mockk<Sleeper>(relaxUnitFun = true)
-    every { builder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java) } returns
-      builder
+    every { builder.requestFactory(any<Supplier<ClientHttpRequestFactory>>()) } returns builder
     every { builder.build() } returns restTemplate
     every { auth.getHeaders(any<String>()) } returns HttpHeaders()
     val ex =
@@ -168,7 +164,14 @@ class SpotifyRestServiceTest {
       )
     } throws ex andThen ResponseEntity("ok", HttpStatus.OK)
 
+    val virtualMillis = java.util.concurrent.atomic.AtomicLong()
+    every { sleeper.sleep(any()) } answers
+      {
+        virtualMillis.addAndGet(firstArg())
+        Unit
+      }
     val service = SpotifyRestService(builder, auth, sleeper)
+    service.cooldown = SpotifyRateLimitCoordinator(sleeper, virtualMillis::get)
     val result = service.doGet<String>("http://test", clientId = "cid")
     assertEquals("ok", result)
     verify(exactly = 1) { sleeper.sleep(2000L) }
@@ -179,8 +182,7 @@ class SpotifyRestServiceTest {
     val restTemplate = mockk<RestTemplate>()
     val builder = timeoutBuilder()
     val auth = mockk<SpotifyAuthenticationService>()
-    every { builder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java) } returns
-      builder
+    every { builder.requestFactory(any<Supplier<ClientHttpRequestFactory>>()) } returns builder
     every { builder.build() } returns restTemplate
     every { auth.getHeaders(any<String>()) } returns HttpHeaders()
     every { auth.refreshToken("cid") } returns false
@@ -214,8 +216,7 @@ class SpotifyRestServiceTest {
     val restTemplate = mockk<RestTemplate>()
     val builder = timeoutBuilder()
     val auth = mockk<SpotifyAuthenticationService>()
-    every { builder.requestFactory(HttpComponentsClientHttpRequestFactory::class.java) } returns
-      builder
+    every { builder.requestFactory(any<Supplier<ClientHttpRequestFactory>>()) } returns builder
     every { builder.build() } returns restTemplate
     every { auth.getHeaders(any<String>()) } returns HttpHeaders()
     every { auth.refreshToken("cid") } returns true

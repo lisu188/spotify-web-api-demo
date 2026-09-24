@@ -87,7 +87,12 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
     return getPlaylistTracks(id, clientId = clientId)?.map { it.id }
   }
 
-  fun deleteTracksFromPlaylist(playlistId: String, tracks: List<String>, clientId: String) {
+  fun deleteTracksFromPlaylist(
+    playlistId: String,
+    tracks: List<String>,
+    clientId: String,
+    beforeMutation: () -> Unit = NO_MUTATION_CHECK,
+  ) {
     require(tracks.isNotEmpty()) { "Track list must not be empty" }
     tracks.forEach { trackUri(it) }
 
@@ -112,6 +117,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
         body = payload,
         params = mapOf("id" to playlistId),
         clientId = clientId,
+        beforeAttempt = beforeMutation,
       )
     }
     logger.debug(
@@ -122,7 +128,12 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
     )
   }
 
-  fun addTracksToPlaylist(playlistId: String, tracks: List<String>, clientId: String) {
+  fun addTracksToPlaylist(
+    playlistId: String,
+    tracks: List<String>,
+    clientId: String,
+    beforeMutation: () -> Unit = NO_MUTATION_CHECK,
+  ) {
     val uris = tracks.map(::trackUri)
     logger.debug(
       "addTracksToPlaylist {} {} {}",
@@ -143,6 +154,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
         body = mapOf("uris" to it),
         params = mapOf("id" to playlistId),
         clientId = clientId,
+        beforeAttempt = beforeMutation,
       )
     }
     logger.debug(
@@ -157,7 +169,12 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
     return ArrayList(old.toSet() - new.toSet())
   }
 
-  fun replacePlaylistTracks(id: String, trackList: List<String>, clientId: String) {
+  fun replacePlaylistTracks(
+    id: String,
+    trackList: List<String>,
+    clientId: String,
+    beforeMutation: () -> Unit = NO_MUTATION_CHECK,
+  ) {
     require(trackList.size <= 100) { "Spotify can atomically replace at most 100 playlist items" }
     val uris = trackList.map(::trackUri)
     logger.debug(
@@ -178,6 +195,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
       body = mapOf("uris" to uris),
       params = mapOf("id" to id),
       clientId = clientId,
+      beforeAttempt = beforeMutation,
     )
     logger.debug(
       "replacePlaylistTracks {} {} -> replaced {}",
@@ -187,7 +205,11 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
     )
   }
 
-  fun deduplicatePlaylist(id: String, clientId: String) {
+  fun deduplicatePlaylist(
+    id: String,
+    clientId: String,
+    beforeMutation: () -> Unit = NO_MUTATION_CHECK,
+  ) {
     val items = getPlaylistItems(id, clientId)
     val tracks = items.mapNotNull { it.track?.id }
     val distinct = tracks.distinct()
@@ -199,13 +221,14 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
       "Automatic deduplication needs a playlist with at most 100 unique Spotify tracks " +
         "and no local, unavailable, or non-track items. The playlist was left unchanged."
     }
-    replacePlaylistTracks(id, distinct, clientId)
+    replacePlaylistTracks(id, distinct, clientId, beforeMutation)
   }
 
   fun modifyPlaylist(
     id: String,
     trackList: List<String>,
     clientId: String,
+    beforeMutation: () -> Unit = NO_MUTATION_CHECK,
   ): Map<String, List<String>> {
     logger.debug("modifyPlaylist {} {} {}", id, clientId.asSafeClientIdForLogs(), trackList.size)
     logger.info("modifyPlaylist: {} {} {}", id, clientId.asSafeClientIdForLogs(), trackList.size)
@@ -220,10 +243,10 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
     // Preserve every existing track until all additions have succeeded. A retry then
     // reconciles against the current playlist, including any successfully added chunks.
     if (tracksToAdd.isNotEmpty()) {
-      addTracksToPlaylist(id, tracksToAdd, clientId)
+      addTracksToPlaylist(id, tracksToAdd, clientId, beforeMutation)
     }
     if (tracksToRemove.isNotEmpty()) {
-      deleteTracksFromPlaylist(id, tracksToRemove, clientId)
+      deleteTracksFromPlaylist(id, tracksToRemove, clientId, beforeMutation)
     }
 
     val result = mapOf("added" to tracksToAdd, "removed" to tracksToRemove)
@@ -237,7 +260,12 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
     return result
   }
 
-  fun createPlaylist(name: String, clientId: String, public: Boolean = true): Playlist {
+  fun createPlaylist(
+    name: String,
+    clientId: String,
+    public: Boolean = true,
+    beforeMutation: () -> Unit = NO_MUTATION_CHECK,
+  ): Playlist {
     logger.debug("createPlaylist {} {} public={}", name, clientId.asSafeClientIdForLogs(), public)
     logger.info("createPlaylist: {} {} public={}", name, clientId.asSafeClientIdForLogs(), public)
 
@@ -245,6 +273,7 @@ class SpotifyPlaylistService(var spotifyRestService: SpotifyRestService) {
       USER_PLAYLISTS_URL,
       body = mapOf("name" to name, "public" to public),
       clientId = clientId,
+      beforeAttempt = beforeMutation,
     )
   }
 
