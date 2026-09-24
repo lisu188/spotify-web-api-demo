@@ -1,5 +1,6 @@
 package com.lis.spotify.controller
 
+import com.lis.spotify.config.WebSecurity
 import com.lis.spotify.service.LastFmAuthenticationService
 import jakarta.servlet.http.Cookie
 import jakarta.servlet.http.HttpServletRequest
@@ -23,8 +24,7 @@ import org.springframework.web.servlet.view.RedirectView
 class LastFmAuthenticationController(private val lastFmAuthService: LastFmAuthenticationService) {
 
   private fun isSecureRequest(request: HttpServletRequest): Boolean {
-    val proto = request.getHeader("X-Forwarded-Proto") ?: request.scheme
-    return proto.equals("https", ignoreCase = true) || request.isSecure
+    return WebSecurity.secureCookies(request)
   }
 
   private fun createCookie(
@@ -91,7 +91,7 @@ class LastFmAuthenticationController(private val lastFmAuthService: LastFmAuthen
 
   @GetMapping("/auth/lastfm/callback")
   fun handleCallback(
-    @RequestParam token: String?,
+    @RequestParam(required = false) token: String?,
     @RequestParam(required = false) state: String?,
     request: HttpServletRequest,
     response: HttpServletResponse,
@@ -102,19 +102,23 @@ class LastFmAuthenticationController(private val lastFmAuthService: LastFmAuthen
       !state.isNullOrBlank(),
     )
     val expectedState = getCookieValue(request, LAST_FM_AUTH_STATE_COOKIE)
-    if (expectedState.isNullOrBlank() || state.isNullOrBlank() || state != expectedState) {
+    if (
+      expectedState.isNullOrBlank() ||
+        state.isNullOrBlank() ||
+        !WebSecurity.secretsEqual(expectedState, state)
+    ) {
       logger.warn(
         "Rejecting Last.fm callback because OAuth state validation failed. expectedPresent={} actualPresent={}",
         !expectedState.isNullOrBlank(),
         !state.isNullOrBlank(),
       )
       response.addCookie(clearCookie(LAST_FM_AUTH_STATE_COOKIE, request))
-      return "redirect:/error"
+      return "redirect:/?auth=lastfm-invalid-state"
     }
     response.addCookie(clearCookie(LAST_FM_AUTH_STATE_COOKIE, request))
     if (token.isNullOrEmpty()) {
       logger.warn("Token is missing in Last.fm callback")
-      return "redirect:/error"
+      return "redirect:/?auth=lastfm-failed"
     }
     val sessionData = lastFmAuthService.getSession(token)
     logger.debug("Session data received: {}", sessionData != null)
@@ -131,10 +135,10 @@ class LastFmAuthenticationController(private val lastFmAuthService: LastFmAuthen
       } else {
         // No usable session key/login was resolved, so do not present this as a success.
         logger.warn("Last.fm callback returned no usable session key or login")
-        "redirect:/error"
+        "redirect:/?auth=lastfm-failed"
       }
     } else {
-      "redirect:/error"
+      "redirect:/?auth=lastfm-failed"
     }
   }
 

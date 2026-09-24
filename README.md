@@ -1,7 +1,12 @@
-# spotify-web-api-demo
-https://spotify-web-api-demo-1040938023586.us-central1.run.app/
+# Replay - Spotify playlist studio
 
-This demo shows how to access the Spotify Web API using Kotlin and Spring Boot.
+[Open the cloud application](https://spotify-web-api-demo-1040938023586.us-central1.run.app/).
+
+Connect Spotify to create playlists from your favorites, Last.fm history, or a
+mix of artists. The studio includes Spotify favorites, yearly Last.fm playlists,
+Forgotten Obsessions, six private mood playlists, and Band Mix. The public home
+page explains each tool before sign-in; account status, retries, and background
+job progress are shown in the studio.
 
 ## Running locally
 
@@ -23,7 +28,7 @@ Run the container (replace the environment variables as needed):
 
 ```shell
 docker run --rm -p 8080:8080 \
-  -e BASE_URL="http://localhost:8080" \
+  -e BASE_URL="http://127.0.0.1:8080" \
   -e SPOTIFY_CLIENT_ID="your-id" \
   -e SPOTIFY_CLIENT_SECRET="your-secret" \
   -e LASTFM_API_KEY="your-key" \
@@ -34,7 +39,7 @@ docker run --rm -p 8080:8080 \
 Verify the container is responding:
 
 ```shell
-curl http://localhost:8080
+curl http://127.0.0.1:8080
 ```
 
 This project targets Java 21 and uses the Gradle toolchain to provision it when
@@ -239,10 +244,88 @@ The underlying API accepts an optional playlist size when starting the job:
 ```shell
 curl -X POST http://localhost:8080/jobs/private-mood-taxonomy \
   -H 'Content-Type: application/json' \
+  -H 'X-Requested-With: XMLHttpRequest' \
   -H 'Cookie: clientId=your-client-id' \
   -d '{"lastFmLogin":"your-lastfm-login","playlistSize":50}'
 ```
 
 Use **BAND MIX** on the main page to generate a playlist from multiple band
 names. Enter at least two bands separated by commas, then click **BAND MIX** to
-create a playlist containing top tracks from each band.
+create a playlist containing Spotify catalog matches from each band.
+## Cloud deployment and verification
+
+`cloudbuild.yaml` builds the Java 21 container and deploys it to the existing
+Cloud Run service. Environment and secret updates are additive so unrelated
+runtime settings remain intact. Public access is configured on the service;
+the deploy does not change its IAM policy. The container listens on `PORT`
+(default `8080`) and runs as a non-root user with a bounded JVM heap.
+
+The deployment uses `/actuator/health/readiness` as its startup probe and
+`/actuator/health/liveness` for subsequent checks. Only health is publicly
+exposed through Actuator; environment values, dumps, and configuration endpoints
+are unavailable. Health probes describe process availability, not a successful
+Spotify or Last.fm operation.
+
+To deploy an already reviewed and tested commit from the repository root:
+
+```shell
+./gradlew ktfmtCheck build
+COMMIT_SHA=$(git rev-parse HEAD)
+gcloud builds submit --project semiotic-mender-415520 \
+  --config cloudbuild.yaml --substitutions COMMIT_SHA="$COMMIT_SHA" .
+```
+
+The existing service is configured for one instance. Background jobs use that
+instance's executor and persisted status. They are not a durable task queue:
+instance termination can interrupt a long history scan, and request-based CPU
+allocation can pause background work while no requests arrive. Keep the studio
+open while a job runs. Multi-instance or unattended processing needs a durable
+worker/queue design before increasing the instance count.
+
+Job expiry cleanup runs periodically rather than on every status poll. Firestore
+cleanup rechecks expiry inside a transaction so a concurrently refreshed job is
+preserved. Enable Firestore TTL on `expiresAt` for `jobs`, `spotifySearchCache`,
+and `lastFmRecentTracksCache` as the retention backstop.
+
+## Browser request and Spotify API compatibility
+
+Cookie-authenticated write requests must include
+`X-Requested-With: XMLHttpRequest`. Cross-origin writes are rejected; the
+scheduler's separate `X-Refresh-Token` authentication remains available.
+`GET /api/session` returns connection/configuration booleans without credentials.
+`POST /api/logout` revokes the current Spotify session and clears browser account
+cookies. HTTPS deployments issue Secure, HttpOnly, SameSite cookies.
+
+Playlist requests use Spotify's `/playlists/{id}/items` API and accept both the
+current `item` field and legacy `track` responses. Null, local, and episode
+entries are excluded from music matching. Search requests respect the current
+10-result page limit. Band Mix uses artist-filtered catalog search because
+artist top tracks are no longer available to development-mode apps. See the
+[Spotify February 2026 migration guide](https://developer.spotify.com/documentation/web-api/tutorials/february-2026-migration-guide).
+
+Regression tests use mocked upstream services and an in-memory state store.
+They never modify real Spotify playlists. A full live run still requires the
+user to connect Spotify, authorize Last.fm when prompted, and start a playlist
+operation.
+
+## Browser checks
+
+Requires Node.js and pnpm. The browser suite runs all five workflows against
+mock responses and checks connection failures, expired sessions, job failures,
+keyboard controls, and narrow screens:
+
+```shell
+pnpm install --frozen-lockfile
+pnpm exec playwright install chromium
+pnpm test
+```
+
+Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use an installed Chrome/Chromium.
+The suite writes desktop and mobile screenshots under `build/`.
+
+Playlist updates add missing tracks before removing stale tracks, so an add
+failure preserves the original contents and a later retry can reconcile them.
+Automatic deduplication uses a single replacement and refuses to rewrite mixed
+media or more than 100 unique tracks; those playlists remain unchanged rather
+than risking a truncated result. Creation locks prevent concurrent submissions
+from creating duplicate named playlists within the current single instance.

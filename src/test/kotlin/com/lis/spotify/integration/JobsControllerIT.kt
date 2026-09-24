@@ -114,7 +114,7 @@ constructor(
 
   @Test
   fun jobStartRejectsUnauthorizedClient() {
-    val headers = HttpHeaders()
+    val headers = HttpHeaders().apply { set("X-Requested-With", "XMLHttpRequest") }
     headers.add(HttpHeaders.COOKIE, "clientId=unknown")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
 
@@ -125,7 +125,7 @@ constructor(
 
   @Test
   fun jobLifecycle() {
-    val headers = HttpHeaders()
+    val headers = HttpHeaders().apply { set("X-Requested-With", "XMLHttpRequest") }
     headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID; lastFmToken=lastfm-token")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
     val resp = rest.postForEntity("/jobs", req, Map::class.java)
@@ -143,7 +143,7 @@ constructor(
   fun jobAuthFailurePreservesLastFmRedirect() {
     every { playlistService.updateYearlyPlaylists(any(), any(), any(), any()) } throws
       AuthenticationRequiredException("LASTFM")
-    val headers = HttpHeaders()
+    val headers = HttpHeaders().apply { set("X-Requested-With", "XMLHttpRequest") }
     headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID; lastFmToken=lastfm-token")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
 
@@ -159,7 +159,7 @@ constructor(
 
   @Test
   fun forgottenObsessionsJobReturnsPlaylistIds() {
-    val headers = HttpHeaders()
+    val headers = HttpHeaders().apply { set("X-Requested-With", "XMLHttpRequest") }
     headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID; lastFmToken=lastfm-token")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
 
@@ -174,7 +174,7 @@ constructor(
 
   @Test
   fun forgottenObsessionsJobRejectsBlankLogin() {
-    val headers = HttpHeaders()
+    val headers = HttpHeaders().apply { set("X-Requested-With", "XMLHttpRequest") }
     headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID; lastFmToken=lastfm-token")
     val req = HttpEntity(mapOf("lastFmLogin" to "   "), headers)
 
@@ -185,7 +185,7 @@ constructor(
 
   @Test
   fun privateMoodTaxonomyJobReturnsPlaylistIds() {
-    val headers = HttpHeaders()
+    val headers = HttpHeaders().apply { set("X-Requested-With", "XMLHttpRequest") }
     headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID; lastFmToken=lastfm-token")
     val req = HttpEntity(mapOf("lastFmLogin" to "login"), headers)
 
@@ -203,7 +203,7 @@ constructor(
 
   @Test
   fun privateMoodTaxonomyJobRejectsBlankLogin() {
-    val headers = HttpHeaders()
+    val headers = HttpHeaders().apply { set("X-Requested-With", "XMLHttpRequest") }
     headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID; lastFmToken=lastfm-token")
     val req = HttpEntity(mapOf("lastFmLogin" to "   "), headers)
 
@@ -215,7 +215,7 @@ constructor(
   @Test
   fun privateMoodTaxonomyJobRejectsUnauthorizedLastFmLogin() {
     every { lastFmAuthenticationService.isAuthorized("victim", "attacker-token") } returns false
-    val headers = HttpHeaders()
+    val headers = HttpHeaders().apply { set("X-Requested-With", "XMLHttpRequest") }
     headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID; lastFmToken=attacker-token")
     val req = HttpEntity(mapOf("lastFmLogin" to "victim"), headers)
 
@@ -227,7 +227,7 @@ constructor(
 
   @Suppress("UNCHECKED_CAST")
   private fun getJobStatus(jobId: String): ResponseEntity<Map<String, Any>> {
-    val headers = HttpHeaders()
+    val headers = HttpHeaders().apply { set("X-Requested-With", "XMLHttpRequest") }
     headers.add(HttpHeaders.COOKIE, "clientId=$TEST_SESSION_ID")
     return rest.exchange(
       "/jobs/$jobId",

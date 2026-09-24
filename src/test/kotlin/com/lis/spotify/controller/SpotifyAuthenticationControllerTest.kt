@@ -174,7 +174,7 @@ class SpotifyAuthenticationControllerTest {
 
     val result = controller.callback(request, "code", "expected-state", response)
 
-    assertEquals("redirect:/error", result)
+    assertEquals("redirect:/?auth=failed", result)
     verify(exactly = 0) { spotifyService.setAuthToken(any()) }
     verify(exactly = 0) { response.addCookie(match { it.name == "clientId" }) }
   }
@@ -190,12 +190,41 @@ class SpotifyAuthenticationControllerTest {
 
     val result = controller.callback(request, "code", "wrong-state", response)
 
-    assertEquals("redirect:/error", result)
+    assertEquals("redirect:/?auth=invalid-state", result)
     verify {
       response.addCookie(
         match { it.name == "spotifyAuthState" && it.maxAge == 0 && it.path == "/" && !it.secure }
       )
     }
+  }
+
+  @Test
+  fun deniedAuthorizationReturnsToPublicAppWithoutExchangingTokens() {
+    val request = org.springframework.mock.web.MockHttpServletRequest()
+    request.setCookies(Cookie("spotifyAuthState", "expected"))
+    val response = org.springframework.mock.web.MockHttpServletResponse()
+    assertEquals(
+      "redirect:/?auth=denied",
+      controller.callback(request, null, "expected", response, "access_denied"),
+    )
+    verify(exactly = 0) { spotifyService.setAuthToken(any()) }
+    assertEquals(0, response.getCookie("spotifyAuthState")?.maxAge)
+  }
+
+  @Test
+  fun missingAuthorizationCodeReturnsRecoverableFailure() {
+    val request = org.springframework.mock.web.MockHttpServletRequest()
+    request.setCookies(Cookie("spotifyAuthState", "expected"))
+    assertEquals(
+      "redirect:/?auth=failed",
+      controller.callback(
+        request,
+        null,
+        "expected",
+        org.springframework.mock.web.MockHttpServletResponse(),
+      ),
+    )
+    verify(exactly = 0) { spotifyService.setAuthToken(any()) }
   }
 
   private fun timeoutBuilder(): RestTemplateBuilder {

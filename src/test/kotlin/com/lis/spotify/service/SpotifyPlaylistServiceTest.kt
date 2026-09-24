@@ -12,6 +12,7 @@ import io.mockk.mockk
 import io.mockk.spyk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 
 class SpotifyPlaylistServiceTest {
@@ -133,7 +134,7 @@ class SpotifyPlaylistServiceTest {
   @Test
   fun deduplicatePlaylistRemovesDuplicates() {
     val spied = spyk(service)
-    every { spied.getPlaylistTrackIds("pl", "cid") } returns listOf("1", "1", "2")
+    every { spied.getPlaylistItems("pl", "cid") } returns playlistItems(listOf("1", "1", "2"))
     every { spied.replacePlaylistTracks("pl", listOf("1", "2"), "cid") } returns Unit
 
     spied.deduplicatePlaylist("pl", "cid")
@@ -144,7 +145,7 @@ class SpotifyPlaylistServiceTest {
   @Test
   fun deduplicatePlaylistNoDuplicates() {
     val spied = spyk(service)
-    every { spied.getPlaylistTrackIds("pl", "cid") } returns listOf("1", "2")
+    every { spied.getPlaylistItems("pl", "cid") } returns playlistItems(listOf("1", "2"))
 
     spied.deduplicatePlaylist("pl", "cid")
 
@@ -152,18 +153,17 @@ class SpotifyPlaylistServiceTest {
   }
 
   @Test
-  fun deduplicatePlaylistLarge() {
+  fun deduplicatePlaylistLargePreservesAllTracks() {
     val spied = spyk(service)
     val tracks = (1..105).map { it.toString() } + listOf("1", "2")
-    every { spied.getPlaylistTrackIds("pl", "cid") } returns tracks
+    every { spied.getPlaylistItems("pl", "cid") } returns playlistItems(tracks)
     every { spied.replacePlaylistTracks(any(), any(), any()) } returns Unit
     every { spied.addTracksToPlaylist(any(), any(), any()) } returns Unit
 
-    spied.deduplicatePlaylist("pl", "cid")
+    assertThrows(IllegalStateException::class.java) { spied.deduplicatePlaylist("pl", "cid") }
 
-    val distinct = tracks.distinct()
-    verify(exactly = 1) { spied.replacePlaylistTracks("pl", distinct.take(100), "cid") }
-    verify(exactly = 1) { spied.addTracksToPlaylist("pl", distinct.drop(100), "cid") }
+    verify(exactly = 0) { spied.replacePlaylistTracks(any(), any(), any()) }
+    verify(exactly = 0) { spied.addTracksToPlaylist(any(), any(), any()) }
   }
 
   @Test
@@ -185,4 +185,19 @@ class SpotifyPlaylistServiceTest {
 
     assertEquals(true, result)
   }
+
+  @Test
+  fun largePlaylistWithoutDuplicatesNeedsNoWrite() {
+    val spied = spyk(service)
+    every { spied.getPlaylistItems("pl", "cid") } returns
+      playlistItems((1..150).map { it.toString() })
+
+    spied.deduplicatePlaylist("pl", "cid")
+
+    verify(exactly = 0) { spied.replacePlaylistTracks(any(), any(), any()) }
+    verify(exactly = 0) { spied.addTracksToPlaylist(any(), any(), any()) }
+  }
+
+  private fun playlistItems(ids: List<String>) =
+    ids.map { PlaylistTrack(Track(it, "Song", emptyList(), Album("album", "Album", emptyList()))) }
 }

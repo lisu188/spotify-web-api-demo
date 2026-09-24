@@ -187,7 +187,7 @@ class LastFmAuthenticationControllerIT @Autowired constructor(private val rest: 
 
     assertAll(
       { assertEquals(HttpStatus.FOUND, response.statusCode) },
-      { assertTrue(response.headers.location!!.toString().endsWith("/error")) },
+      { assertTrue(response.headers.location!!.toString().endsWith("/?auth=lastfm-invalid-state")) },
     )
   }
 }

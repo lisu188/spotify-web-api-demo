@@ -1,6 +1,7 @@
 package com.lis.spotify.service
 
 import com.lis.spotify.AppEnvironment.LastFm
+import com.lis.spotify.config.WebSecurity
 import com.lis.spotify.persistence.LastFmSessionStore
 import com.lis.spotify.persistence.StoredLastFmSession
 import java.math.BigInteger
@@ -62,7 +63,7 @@ class LastFmAuthenticationService(
     if (sessionKey.isEmpty()) {
       return false
     }
-    if (sessionCache.values.any { it == sessionKey }) {
+    if (sessionCache.values.any { WebSecurity.secretsEqual(it, sessionKey) }) {
       return true
     }
     val storedSession = lastFmSessionStore.findBySessionKey(sessionKey) ?: return false
@@ -74,7 +75,7 @@ class LastFmAuthenticationService(
     if (login.isEmpty() || sessionKey.isEmpty()) {
       return false
     }
-    return getSessionKey(login) == sessionKey
+    return WebSecurity.secretsEqual(getSessionKey(login), sessionKey)
   }
 
   /**

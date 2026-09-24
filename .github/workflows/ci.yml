@@ -42,3 +42,27 @@ jobs:
             build/reports/tests/
             build/reports/jacoco/
           if-no-files-found: ignore
+
+  browser:
+    name: Browser workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Set up pnpm
+        run: npm install --global pnpm@11.25.0
+      - name: Install browser test dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Verify all studio workflows
+        run: pnpm test
+      - name: Upload browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-screenshots
+          path: build/ui-*.png
+          if-no-files-found: ignore

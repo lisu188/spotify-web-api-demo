@@ -47,7 +47,7 @@ class LastFmAuthenticationControllerTest {
   @Test
   fun handleCallbackMissingToken() {
     val result = controller.handleCallback(null, "state", requestWithState(), mockk(relaxed = true))
-    assertEquals("redirect:/error", result)
+    assertEquals("redirect:/?auth=lastfm-failed", result)
   }
 
   @Test
@@ -55,7 +55,7 @@ class LastFmAuthenticationControllerTest {
     every { service.getSession("tok") } returns null
     val result =
       controller.handleCallback("tok", "state", requestWithState(), mockk(relaxed = true))
-    assertEquals("redirect:/error", result)
+    assertEquals("redirect:/?auth=lastfm-failed", result)
   }
 
   @Test
@@ -66,7 +66,7 @@ class LastFmAuthenticationControllerTest {
 
     val result = controller.handleCallback("tok", "state", requestWithState(), response)
 
-    assertEquals("redirect:/error", result)
+    assertEquals("redirect:/?auth=lastfm-failed", result)
     verify(exactly = 0) { service.setSession(any(), any()) }
   }
 
@@ -75,7 +75,7 @@ class LastFmAuthenticationControllerTest {
     val response = mockk<HttpServletResponse>(relaxed = true)
     val result = controller.handleCallback("tok", "wrong", requestWithState(), response)
 
-    assertEquals("redirect:/error", result)
+    assertEquals("redirect:/?auth=lastfm-invalid-state", result)
     verify(exactly = 0) { service.getSession(any()) }
   }
 

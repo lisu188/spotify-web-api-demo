@@ -2,6 +2,7 @@ package com.lis.spotify.persistence
 
 import com.google.cloud.firestore.DocumentSnapshot
 import com.google.cloud.firestore.Firestore
+import com.lis.spotify.logging.asSafeClientIdForLogs
 import java.time.Instant
 import org.slf4j.LoggerFactory
 
@@ -35,8 +36,20 @@ abstract class FirestoreStoreSupport(protected val firestore: Firestore) {
         .limit(EXPIRED_DOCUMENT_DELETE_LIMIT)
         .get()
         .get()
-    snapshot.documents.forEach { it.reference.delete().get() }
-    return snapshot.size()
+    return snapshot.documents.count { candidate ->
+      firestore
+        .runTransaction { transaction ->
+          val current = transaction.get(candidate.reference).get()
+          val expiresAt = current.getInstant("expiresAt")
+          if (current.exists() && expiresAt != null && !expiresAt.isAfter(now)) {
+            transaction.delete(candidate.reference)
+            true
+          } else {
+            false
+          }
+        }
+        .get()
+    }
   }
 
   companion object {
@@ -66,11 +79,15 @@ class FirestoreJobStatusStore(firestore: Firestore) :
 
 class FirestoreSpotifyTokenStore(firestore: Firestore) :
   FirestoreStoreSupport(firestore), SpotifyTokenStore {
+  override fun deleteByClientId(clientId: String) {
+    firestore.collection(SPOTIFY_AUTH_TOKENS_COLLECTION).document(clientId).delete().get()
+  }
+
   private val logger = LoggerFactory.getLogger(FirestoreSpotifyTokenStore::class.java)
 
   override fun save(token: StoredSpotifyAuthToken): StoredSpotifyAuthToken {
     saveDocument(SPOTIFY_AUTH_TOKENS_COLLECTION, token.clientId, token.toFirestoreMap())
-    logger.debug("Saved Firestore Spotify token {}", token.clientId)
+    logger.debug("Saved Firestore Spotify token {}", token.clientId.asSafeClientIdForLogs())
     return token
   }
 

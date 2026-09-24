@@ -13,19 +13,33 @@
 package com.lis.spotify.controller
 
 import com.lis.spotify.service.LastFmService
+import com.lis.spotify.service.SpotifyAuthenticationService
 import org.slf4j.LoggerFactory
+import org.springframework.http.HttpStatus
+import org.springframework.web.bind.annotation.CookieValue
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.server.ResponseStatusException
 
 @RestController
-class LastFmController(val lastFmService: LastFmService) {
+class LastFmController(
+  val lastFmService: LastFmService,
+  private val spotifyAuthenticationService: SpotifyAuthenticationService,
+) {
   @PostMapping("/verifyLastFmId/{lastFmLogin}")
-  fun verifyLastFmId(@PathVariable("lastFmLogin") lastFmLogin: String): Boolean {
-    logger.info("Verifying Last.fm ID {}", lastFmLogin)
-    logger.debug("verifyLastFmId for {}", lastFmLogin)
+  fun verifyLastFmId(
+    @PathVariable("lastFmLogin") lastFmLogin: String,
+    @CookieValue("clientId", defaultValue = "") clientId: String,
+  ): Boolean {
+    if (!spotifyAuthenticationService.isAuthorizedSession(clientId))
+      throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Spotify authentication required")
+    if (!lastFmLogin.matches(Regex("[A-Za-z0-9_-]{1,64}")))
+      throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid Last.fm username")
+    logger.debug("Verifying Last.fm profile")
+
     val result = lastFmService.userExists(lastFmLogin)
-    logger.info("Verification result for {} -> {}", lastFmLogin, result)
+    logger.debug("Last.fm profile exists: {}", result)
     return result
   }
 

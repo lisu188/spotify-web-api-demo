@@ -52,7 +52,7 @@ class SpotifySearchService(
   @Value("\${spotify.search.cache-ttl:PT168H}") configuredCacheTtl: Duration = DEFAULT_CACHE_TTL,
 ) {
   companion object {
-    val SEARCH_URL = "https://api.spotify.com/v1/search?q={q}&type={type}"
+    val SEARCH_URL = "https://api.spotify.com/v1/search?q={q}&type={type}&limit=10"
     internal const val DEFAULT_SEARCH_MAX_PARALLELISM = 64
     internal val DEFAULT_CACHE_TTL: Duration = Duration.ofDays(7)
     internal const val SPOTIFY_SEARCH_ATTEMPTS = 3

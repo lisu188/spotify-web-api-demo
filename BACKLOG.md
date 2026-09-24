@@ -1,4 +1,20 @@
 # Improvement Backlog
+## Completion pass - 2026-09-24
+
+The cloud completion change addresses items 1, 2, 4, 5, 6, 8, 18, 19, 20, and
+31. Item 3 now uses additive-first updates and refuses non-atomic automatic
+deduplication. Item 7 has refresh/revocation locking within the current single
+instance; distributed token writes still need transactional coordination before
+scaling. Item 15 adds health probes, graceful HTTP shutdown, and JVM memory
+limits; durable background-job recovery remains open. Item 17 gains persistent
+logout revocation; absolute/idle session expiry remains open. Item 21 gains
+session checks and username validation; explicit endpoint rate limiting remains
+open. CI now verifies the real browser workflows (part of item 28).
+
+Spotify February 2026 API compatibility is also addressed: playlist items,
+nullable/non-music entries, search limits, and artist catalog search for Band Mix.
+The findings below remain a historical audit; items not listed here are still
+follow-up work, not completion claims.
 
 Prioritized backlog produced from a full codebase review (2026-07-08). Four review
 passes covered core services, the auth/web layer, persistence, frontend, and

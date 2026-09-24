@@ -1,5 +1,6 @@
 package com.lis.spotify.persistence
 
+import com.lis.spotify.logging.asSafeClientIdForLogs
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
@@ -44,12 +45,16 @@ class InMemorySpotifyTokenStore : SpotifyTokenStore {
 
   override fun save(token: StoredSpotifyAuthToken): StoredSpotifyAuthToken {
     tokens[token.clientId] = token
-    logger.debug("Saved in-memory Spotify token {}", token.clientId)
+    logger.debug("Saved in-memory Spotify token {}", token.clientId.asSafeClientIdForLogs())
     return token
   }
 
   override fun findByClientId(clientId: String): StoredSpotifyAuthToken? {
     return tokens[clientId]
+  }
+
+  override fun deleteByClientId(clientId: String) {
+    tokens.remove(clientId)
   }
 
   fun clear() {
@@ -72,7 +77,9 @@ class InMemoryLastFmSessionStore : LastFmSessionStore {
   }
 
   override fun findBySessionKey(sessionKey: String): StoredLastFmSession? {
-    return sessions.values.firstOrNull { it.sessionKey == sessionKey }
+    return sessions.values.firstOrNull {
+      com.lis.spotify.config.WebSecurity.secretsEqual(it.sessionKey, sessionKey)
+    }
   }
 
   fun clear() {

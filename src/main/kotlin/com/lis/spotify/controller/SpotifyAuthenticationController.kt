@@ -1,6 +1,7 @@
 package com.lis.spotify.controller
 
 import com.lis.spotify.AppEnvironment.Spotify
+import com.lis.spotify.config.WebSecurity
 import com.lis.spotify.domain.AuthToken
 import com.lis.spotify.domain.User
 import com.lis.spotify.logging.asSafeClientIdForLogs
@@ -56,8 +57,7 @@ class SpotifyAuthenticationController(
   }
 
   private fun isSecureRequest(request: HttpServletRequest): Boolean {
-    val proto = request.getHeader("X-Forwarded-Proto") ?: request.scheme
-    return proto.equals("https", ignoreCase = true) || request.isSecure
+    return WebSecurity.secureCookies(request)
   }
 
   private fun createCookie(
@@ -96,24 +96,32 @@ class SpotifyAuthenticationController(
   @GetMapping(Spotify.CALLBACK_PATH)
   fun callback(
     request: HttpServletRequest,
-    code: String,
+    @RequestParam(required = false) code: String?,
     @RequestParam(required = false) state: String?,
     response: HttpServletResponse,
+    @RequestParam(required = false) error: String? = null,
   ): String {
-    logger.debug("callback with codePresent={}", code.isNotBlank())
+    logger.debug("callback with codePresent={}", !code.isNullOrBlank())
     logger.info("Received callback from Spotify")
 
     val expectedState = getCookieValue(request, SPOTIFY_AUTH_STATE_COOKIE)
-    if (expectedState.isNullOrBlank() || state.isNullOrBlank() || state != expectedState) {
+    if (
+      expectedState.isNullOrBlank() ||
+        state.isNullOrBlank() ||
+        !WebSecurity.secretsEqual(expectedState, state)
+    ) {
       logger.warn(
         "Rejecting Spotify callback because OAuth state validation failed. expectedPresent={} actualPresent={}",
         !expectedState.isNullOrBlank(),
         !state.isNullOrBlank(),
       )
       response.addCookie(clearCookie(SPOTIFY_AUTH_STATE_COOKIE, request))
-      return "redirect:/error"
+      return "redirect:/?auth=invalid-state"
     }
     response.addCookie(clearCookie(SPOTIFY_AUTH_STATE_COOKIE, request))
+
+    if (!error.isNullOrBlank()) return "redirect:/?auth=denied"
+    if (code.isNullOrBlank()) return "redirect:/?auth=failed"
 
     val headers = HttpHeaders().apply { contentType = MediaType.APPLICATION_FORM_URLENCODED }
     val body =
@@ -144,11 +152,11 @@ class SpotifyAuthenticationController(
         // No session was established (e.g. the /v1/me lookup failed), so surface an error instead
         // of redirecting to the app as if the user were authenticated.
         logger.warn("Could not retrieve client ID. Auth token not stored.")
-        "redirect:/error"
+        "redirect:/?auth=failed"
       }
     } catch (ex: Exception) {
       logger.error("Error occurred while handling Spotify callback.", ex)
-      "redirect:/error"
+      "redirect:/?auth=failed"
     }
   }
 
@@ -164,6 +172,14 @@ class SpotifyAuthenticationController(
       "Authorize endpoint called. Current clientId from cookie: {}",
       clientId.asSafeClientIdForLogs(),
     )
+    val configured =
+      runCatching {
+          Spotify.CLIENT_ID.isNotBlank() &&
+            Spotify.CLIENT_SECRET.isNotBlank() &&
+            callbackUrl().isNotBlank()
+        }
+        .getOrDefault(false)
+    if (!configured) return "redirect:/?auth=configuration"
     val state = createState()
     response.addCookie(
       createCookie(SPOTIFY_AUTH_STATE_COOKIE, state, request, AUTH_STATE_COOKIE_MAX_AGE_SECONDS)

@@ -2,15 +2,23 @@ package com.lis.spotify.service
 
 import com.lis.spotify.domain.AuthToken
 import com.lis.spotify.persistence.InMemorySpotifyTokenStore
+import com.lis.spotify.persistence.SpotifyTokenStore
+import com.lis.spotify.persistence.StoredSpotifyAuthToken
 import io.mockk.every
 import io.mockk.mockk
 import java.net.URI
+import java.time.Instant
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.boot.web.client.RestTemplateBuilder
@@ -120,6 +128,54 @@ class SpotifyAuthenticationServiceTest {
     val refreshed = service.refreshToken("cid")
     assertFalse(refreshed)
     assertEquals(token, service.getAuthToken("cid"))
+  }
+
+  @Test
+  fun logoutCannotBeUndoneByAnInFlightTokenCacheLoad() {
+    val sessionId = "session_concurrentLogout"
+    store.save(
+      StoredSpotifyAuthToken.fromAuthToken(
+        AuthToken("access", "Bearer", "scope", 3600, "refresh", sessionId),
+        Instant.now(),
+      )
+    )
+    val readStarted = CountDownLatch(1)
+    val finishRead = CountDownLatch(1)
+    val logoutStarted = CountDownLatch(1)
+    val logoutCompleted = CountDownLatch(1)
+    val firstRead = AtomicBoolean(true)
+    val blockingStore =
+      object : SpotifyTokenStore by store {
+        override fun findByClientId(clientId: String): StoredSpotifyAuthToken? {
+          val snapshot = store.findByClientId(clientId)
+          if (firstRead.compareAndSet(true, false)) {
+            readStarted.countDown()
+            assertTrue(finishRead.await(5, TimeUnit.SECONDS))
+          }
+          return snapshot
+        }
+      }
+    val concurrentService = SpotifyAuthenticationService(builder, blockingStore)
+    Executors.newFixedThreadPool(2).use { executor ->
+      val reading = executor.submit<AuthToken?> { concurrentService.getAuthToken(sessionId) }
+      assertTrue(readStarted.await(5, TimeUnit.SECONDS))
+      val revoking =
+        executor.submit {
+          logoutStarted.countDown()
+          concurrentService.revokeSession(sessionId)
+          logoutCompleted.countDown()
+        }
+      try {
+        assertTrue(logoutStarted.await(5, TimeUnit.SECONDS))
+        assertFalse(logoutCompleted.await(100, TimeUnit.MILLISECONDS))
+      } finally {
+        finishRead.countDown()
+      }
+      reading.get(5, TimeUnit.SECONDS)
+      revoking.get(5, TimeUnit.SECONDS)
+    }
+    assertFalse(concurrentService.isAuthorizedSession(sessionId))
+    assertNull(store.findByClientId(sessionId))
   }
 
   @Test

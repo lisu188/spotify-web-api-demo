@@ -8,3 +8,9 @@ out/
 .DS_Store
 docker-compose.yml
 Dockerfile
+.git
+.gradle/
+.kotlin/
+node_modules/
+.env
+.env.*

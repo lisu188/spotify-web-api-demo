@@ -14,6 +14,8 @@ interface SpotifyTokenStore {
   fun save(token: StoredSpotifyAuthToken): StoredSpotifyAuthToken
 
   fun findByClientId(clientId: String): StoredSpotifyAuthToken?
+
+  fun deleteByClientId(clientId: String)
 }
 
 interface LastFmSessionStore {

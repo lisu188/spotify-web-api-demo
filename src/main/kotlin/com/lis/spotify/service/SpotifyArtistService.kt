@@ -14,7 +14,7 @@ package com.lis.spotify.service
 
 import com.lis.spotify.domain.Artist
 import com.lis.spotify.domain.ArtistSearchResult
-import com.lis.spotify.domain.ArtistTopTracks
+import com.lis.spotify.domain.SearchResult
 import com.lis.spotify.domain.Track
 import com.lis.spotify.logging.asSafeClientIdForLogs
 import org.slf4j.LoggerFactory
@@ -37,28 +37,44 @@ class SpotifyArtistService(private val spotifyRestService: SpotifyRestService) {
     return artist
   }
 
+  // Retain the service API for callers, but use catalog search: Development Mode no
+  // longer exposes the artist top-tracks endpoint or a popularity ranking.
   fun getArtistTopTracks(artistId: String, clientId: String): List<Track> {
-    logger.debug("getArtistTopTracks {} {}", artistId, clientId.asSafeClientIdForLogs())
-    val result =
-      spotifyRestService.doGet<ArtistTopTracks>(
-        TOP_TRACKS_URL,
-        params = mapOf("id" to artistId, "market" to MARKET),
+    val artist =
+      spotifyRestService.doGet<Artist>(
+        ARTIST_URL,
+        params = mapOf("id" to artistId),
         clientId = clientId,
       )
-    logger.debug(
-      "getArtistTopTracks {} {} -> {}",
-      artistId,
-      clientId.asSafeClientIdForLogs(),
-      result.tracks.size,
-    )
-    return result.tracks
+    val tracks = linkedMapOf<String, Track>()
+    for (page in 0 until MAX_SEARCH_PAGES) {
+      val result =
+        spotifyRestService.doGet<SearchResult>(
+          SEARCH_TRACKS_URL,
+          params =
+            mapOf(
+              "q" to "artist:\"${artist.name.replace("\"", "")}\"",
+              "limit" to SEARCH_LIMIT,
+              "offset" to page * SEARCH_LIMIT,
+            ),
+          clientId = clientId,
+        )
+      result.tracks.items
+        .filter { track -> track.artists.any { it.id == artistId } }
+        .forEach { tracks.putIfAbsent(it.id, it) }
+      if (tracks.size >= SEARCH_LIMIT || result.tracks.items.size < SEARCH_LIMIT) break
+    }
+    logger.debug("Artist catalog search {} -> {} matching tracks", artistId, tracks.size)
+    return tracks.values.take(SEARCH_LIMIT)
   }
 
   companion object {
     private const val SEARCH_URL =
       "https://api.spotify.com/v1/search?q={q}&type={type}&limit={limit}"
-    private const val TOP_TRACKS_URL =
-      "https://api.spotify.com/v1/artists/{id}/top-tracks?market={market}"
-    private const val MARKET = "from_token"
+    private const val ARTIST_URL = "https://api.spotify.com/v1/artists/{id}"
+    private const val SEARCH_TRACKS_URL =
+      "https://api.spotify.com/v1/search?q={q}&type=track&limit={limit}&offset={offset}"
+    private const val SEARCH_LIMIT = 10
+    private const val MAX_SEARCH_PAGES = 3
   }
 }

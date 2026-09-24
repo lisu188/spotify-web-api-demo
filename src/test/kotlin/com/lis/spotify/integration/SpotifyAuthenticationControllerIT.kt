@@ -198,7 +198,7 @@ constructor(
 
     assertAll(
       { assertEquals(HttpStatus.FOUND, response.statusCode) },
-      { assertTrue(response.headers.location!!.toString().endsWith("/error")) },
+      { assertTrue(response.headers.location!!.toString().endsWith("/?auth=invalid-state")) },
       { assertNull(spotifyAuthenticationService.getAuthToken("cid")) },
     )
   }

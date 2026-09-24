@@ -1,5 +1,6 @@
 package com.lis.spotify.service
 
+import com.lis.spotify.config.WebSecurity
 import com.lis.spotify.persistence.RefreshStateStore
 import com.lis.spotify.persistence.StoredRefreshState
 import java.time.Clock
@@ -44,7 +45,7 @@ class SpotifyTopPlaylistsRefreshService(
   }
 
   fun isTriggerAuthorized(providedToken: String?): Boolean {
-    return refreshTriggerToken.isNotBlank() && refreshTriggerToken == providedToken
+    return WebSecurity.secretsEqual(refreshTriggerToken, providedToken)
   }
 
   fun refreshConfiguredPlaylists(trigger: String): List<String>? {

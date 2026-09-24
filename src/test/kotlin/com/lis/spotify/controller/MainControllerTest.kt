@@ -1,17 +1,10 @@
 package com.lis.spotify.controller
 
-import com.lis.spotify.service.LastFmAuthenticationService
-import com.lis.spotify.service.SpotifyAuthenticationService
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
 class MainControllerTest {
-  private val spotifyService = mockk<SpotifyAuthenticationService>(relaxed = true)
-  private val lastfmService = mockk<LastFmAuthenticationService>(relaxed = true)
-  private val controller = MainController(spotifyService, lastfmService)
+  private val controller = MainController()
 
   @Test
   fun forwardsFaviconIcoToSvg() {
@@ -19,27 +12,7 @@ class MainControllerTest {
   }
 
   @Test
-  fun redirectsToIndexWhenAuthorized() {
-    every { spotifyService.isAuthorizedSession("abc") } returns true
-    every { lastfmService.isAuthorized("login", "token") } returns true
-    val result = controller.main("abc", "login", "token")
-    assertEquals("forward:/index.html", result)
-    verify { spotifyService.refreshToken("abc") }
-  }
-
-  @Test
-  fun redirectsToSpotifyWhenMissingToken() {
-    every { spotifyService.isAuthorizedSession("abc") } returns false
-    val result = controller.main("abc", "login", "token")
-    assertEquals("redirect:/auth/spotify", result)
-  }
-
-  @Test
-  fun rendersIndexWhenLastFmMissing() {
-    every { spotifyService.isAuthorizedSession("abc") } returns true
-    every { lastfmService.isAuthorized("login", "bad") } returns false
-    val result = controller.main("abc", "login", "bad")
-    assertEquals("forward:/index.html", result)
-    verify { spotifyService.refreshToken("abc") }
+  fun servesTheAppWithoutForcingAuthenticationOrRefreshingTokens() {
+    assertEquals("forward:/index.html", controller.main())
   }
 }
