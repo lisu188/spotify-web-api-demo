@@ -75,11 +75,11 @@
         connection('disconnected', 'Your Spotify connection expired', 'Connect Spotify again to continue. Your existing playlists stay in your library.');
     }
 
-    function lastFmAuthUrl(value) {
+    function sameOriginAuthUrl(value, path) {
         if (!value) return null;
         try {
             const url = new URL(value, window.location.origin);
-            return url.origin === window.location.origin && url.pathname === '/auth/lastfm' ? url.href : null;
+            return url.origin === window.location.origin && url.pathname === path ? url.href : null;
         } catch { return null; }
     }
 
@@ -95,7 +95,7 @@
                 headers: { Accept: 'application/json', ...(method === 'POST' ? { 'X-Requested-With': 'XMLHttpRequest' } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) },
                 ...(body ? { body: JSON.stringify(body) } : {})
             });
-            const authUrl = allowLastFmAuth && lastFmAuthUrl(response.headers.get('Location'));
+            const authUrl = allowLastFmAuth && sameOriginAuthUrl(response.headers.get('Location'), '/auth/lastfm');
             if (authUrl && !response.ok) throw Object.assign(new Error('Connect Last.fm to continue.'), { authUrl });
             if (response.status === 401 || response.status === 403 || response.redirected) {
                 expireSession();
@@ -297,7 +297,7 @@
     }
 
     function redirectToLastFm(url) {
-        const safeUrl = lastFmAuthUrl(url);
+        const safeUrl = sameOriginAuthUrl(url, '/auth/lastfm');
         if (!safeUrl) throw new Error('The Last.fm connection link could not be verified. Please reconnect from the studio.');
         status('lastfmStatus', 'Last.fm connection required. Redirecting to connect your account; choose your playlist again when you return.');
         window.setTimeout(() => window.location.assign(safeUrl), 500);
@@ -315,9 +315,17 @@
             status('lastfmStatus', typeof job.message === 'string' ? job.message : 'Building your playlists…', job.state === 'FAILED' ? 'error' : job.state === 'COMPLETED' ? 'success' : 'info');
             pollFailures = 0;
             if (job.redirectUrl) {
-                const url = job.redirectUrl;
-                finishJob();
-                redirectToLastFm(url);
+                const spotifyAuthUrl = sameOriginAuthUrl(job.redirectUrl, '/auth/spotify');
+                const lastFmAuthUrl = sameOriginAuthUrl(job.redirectUrl, '/auth/lastfm');
+                if (spotifyAuthUrl) {
+                    expireSession();
+                } else if (lastFmAuthUrl) {
+                    finishJob();
+                    redirectToLastFm(lastFmAuthUrl);
+                } else {
+                    finishJob();
+                    status('lastfmStatus', 'The authentication link could not be verified. Please try your playlist again to reconnect.', 'error');
+                }
             } else if (job.state === 'QUEUED' || job.state === 'RUNNING') {
                 pollTimer = setTimeout(pollJob, 1500);
             } else {

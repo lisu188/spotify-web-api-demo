@@ -309,6 +309,43 @@ test('Authentication failures remain visible and an external Last.fm redirect is
   assert.equal(await page.locator('#lastfm').isDisabled(), true);
 });
 
+test('A Spotify-auth redirect from a failed background job expires the session and exposes reconnection', async t => {
+  const page = await createPage(t);
+  let authRequests = 0;
+  await page.route('**/auth/spotify', route => { authRequests++; return route.fulfill({ contentType: 'text/html', body: '<h1>Spotify sign-in</h1>' }); });
+  await page.route('**/jobs', route => route.fulfill({ json: { jobId: 'spotify-expired-job' } }));
+  await page.route('**/jobs/spotify-expired-job', route => route.fulfill({ json: { state: 'FAILED', progressPercent: 40, message: 'Spotify authentication required', redirectUrl: '/auth/spotify' } }));
+  await ready(page);
+  await validUsername(page);
+  await page.locator('#lastfm').click();
+  await page.locator('#connectSpotify').waitFor({ state: 'visible' });
+  assert.match(await page.locator('#connectionTitle').textContent(), /expired/);
+  assert.match(await page.locator('#lastfmStatus').textContent(), /connection expired/);
+  assert.equal(await page.locator('#lastfmStatus').getAttribute('data-kind'), 'error');
+  assert.equal(await page.locator('#disconnectSpotify').isVisible(), false);
+  for (const id of ['top', 'lastfm', 'forgottenObsessions', 'privateMoodTaxonomy', 'bandPlaylist']) assert.equal(await page.locator('#' + id).isDisabled(), true);
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('replayJob')), null);
+  assert.equal(new URL(page.url()).pathname, '/');
+  assert.equal(authRequests, 0, 'Reconnection requires an explicit click');
+});
+
+for (const redirectUrl of ['https://untrusted.test/auth/spotify', 'https://untrusted.test/auth/lastfm', '/unsupported-auth']) {
+  test(`A background job rejects the unsupported authentication redirect ${redirectUrl}`, async t => {
+    const page = await createPage(t);
+    await page.route('**/jobs', route => route.fulfill({ json: { jobId: 'unsafe-redirect-job' } }));
+    await page.route('**/jobs/unsafe-redirect-job', route => route.fulfill({ json: { state: 'FAILED', progressPercent: 40, message: 'Authentication required', redirectUrl } }));
+    await ready(page);
+    await validUsername(page);
+    await page.locator('#lastfm').click();
+    await page.waitForFunction(() => document.getElementById('lastfmStatus').textContent.includes('link could not be verified'));
+    assert.equal(await page.locator('#lastfmStatus').getAttribute('data-kind'), 'error');
+    assert.equal(new URL(page.url()).origin, origin);
+    assert.equal(new URL(page.url()).pathname, '/');
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('replayJob')), null);
+    assert.equal(await page.locator('#lastfm').isEnabled(), true);
+  });
+}
+
 for (const stage of ['start', 'poll']) {
   test(`Last.fm authentication redirect from ${stage} preserves the recovery flow`, async t => {
     const page = await createPage(t);
