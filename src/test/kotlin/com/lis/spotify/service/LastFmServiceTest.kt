@@ -534,6 +534,47 @@ class LastFmServiceTest {
   }
 
   @Test
+  fun libraryExportFetchesAllPagesAndCachesResult() {
+    val rest = mockk<RestTemplate>()
+    val service = service(recentTracksParallelism = 2)
+    service.rest = rest
+    every { rest.getForObject(any<URI>(), Map::class.java) } answers
+      {
+        val currentPage = page(firstArg())
+        mapOf(
+          "artists" to
+            mapOf(
+              "@attr" to
+                mapOf(
+                  "page" to currentPage.toString(),
+                  "perPage" to "200",
+                  "totalPages" to "3",
+                  "total" to "3",
+                ),
+              "artist" to
+                listOf(
+                  mapOf(
+                    "name" to "Artist $currentPage",
+                    "playcount" to (currentPage * 10).toString(),
+                    "mbid" to "",
+                    "url" to "https://www.last.fm/music/Artist+$currentPage",
+                  )
+                ),
+            )
+        )
+      }
+
+    val first = service.libraryExport(" lisek188 ")
+    val second = service.libraryExport("lisek188")
+
+    assertEquals(listOf("Artist 1", "Artist 2", "Artist 3"), first.artists.map { it.name })
+    assertEquals(3L, first.totalArtists)
+    assertEquals(60L, first.totalScrobbles)
+    assertEquals(first, second)
+    verify(exactly = 3) { rest.getForObject(any<URI>(), Map::class.java) }
+  }
+
+  @Test
   fun trackSimilarParsesSongsAndUsesCache() {
     val rest = mockk<RestTemplate>()
     val service = service()
