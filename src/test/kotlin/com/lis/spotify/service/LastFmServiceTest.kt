@@ -459,6 +459,86 @@ class LastFmServiceTest {
   }
 
   @Test
+  fun libraryArtistsParsesPageAndBuildsExpectedRequest() {
+    val rest = mockk<RestTemplate>()
+    val service = service()
+    service.rest = rest
+    val uriSlot = io.mockk.slot<URI>()
+    every { rest.getForObject(capture(uriSlot), Map::class.java) } returns
+      mapOf(
+        "artists" to
+          mapOf(
+            "@attr" to
+              mapOf(
+                "page" to "2",
+                "perPage" to "100",
+                "totalPages" to "79",
+                "total" to "7803",
+              ),
+            "artist" to
+              listOf(
+                mapOf(
+                  "name" to "Linkin Park",
+                  "playcount" to "10900",
+                  "mbid" to "f59c5520-5f46-4d2c-b2c4-822eabf53419",
+                  "url" to "https://www.last.fm/music/Linkin+Park",
+                ),
+                mapOf(
+                  "name" to "Slayer",
+                  "playcount" to 6600,
+                  "mbid" to "",
+                  "url" to "https://www.last.fm/music/Slayer",
+                ),
+              ),
+          )
+      )
+
+    val result = service.libraryArtists(" lisek188 ", page = 2, limit = 100)
+
+    assertEquals(
+      LastFmLibraryPage(
+        artists =
+          listOf(
+            LastFmLibraryArtist(
+              name = "Linkin Park",
+              playcount = 10900,
+              mbid = "f59c5520-5f46-4d2c-b2c4-822eabf53419",
+              url = "https://www.last.fm/music/Linkin+Park",
+            ),
+            LastFmLibraryArtist(
+              name = "Slayer",
+              playcount = 6600,
+              mbid = null,
+              url = "https://www.last.fm/music/Slayer",
+            ),
+          ),
+        page = 2,
+        perPage = 100,
+        totalPages = 79,
+        total = 7803,
+      ),
+      result,
+    )
+    assertTrue(uriSlot.captured.query!!.contains("method=library.getArtists"))
+    assertTrue(uriSlot.captured.query!!.contains("user=lisek188"))
+    assertTrue(uriSlot.captured.query!!.contains("page=2"))
+    assertTrue(uriSlot.captured.query!!.contains("limit=100"))
+    assertTrue(uriSlot.captured.query!!.contains("api_key="))
+  }
+
+  @Test
+  fun libraryArtistsRejectsInvalidPaging() {
+    val service = service()
+
+    assertThrows(IllegalArgumentException::class.java) {
+      service.libraryArtists("lisek188", page = 0, limit = 100)
+    }
+    assertThrows(IllegalArgumentException::class.java) {
+      service.libraryArtists("lisek188", page = 1, limit = 201)
+    }
+  }
+
+  @Test
   fun trackSimilarParsesSongsAndUsesCache() {
     val rest = mockk<RestTemplate>()
     val service = service()
