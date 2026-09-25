@@ -11,6 +11,7 @@ import com.github.tomakehurst.wiremock.client.WireMock.stubFor
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
 import com.lis.spotify.domain.AuthToken
+import com.lis.spotify.service.LastFmLibraryExport
 import com.lis.spotify.service.LastFmLibraryPage
 import com.lis.spotify.service.SpotifyAuthenticationService
 import org.junit.jupiter.api.AfterAll
@@ -78,6 +79,58 @@ constructor(private val rest: TestRestTemplate, private val spotify: SpotifyAuth
   fun resetStubs() {
     wireMockReset()
     spotify.setAuthToken(AuthToken("access", "Bearer", "scope", 3600, "refresh", "session_verify"))
+  }
+
+  @Test
+  fun libraryExportReturnsAllPages() {
+    listOf(1, 2).forEach { page ->
+      stubFor(
+        get(urlPathEqualTo("/2.0/"))
+          .withQueryParam("method", equalTo("library.getArtists"))
+          .withQueryParam("api_key", equalTo("key"))
+          .withQueryParam("user", equalTo("login"))
+          .withQueryParam("page", equalTo(page.toString()))
+          .withQueryParam("limit", equalTo("200"))
+          .willReturn(
+            okJson(
+              """
+              {
+                "artists": {
+                  "@attr": {
+                    "page": "$page",
+                    "perPage": "200",
+                    "totalPages": "2",
+                    "total": "2"
+                  },
+                  "artist": [
+                    {
+                      "name": "Artist $page",
+                      "playcount": "${page * 10}",
+                      "mbid": "",
+                      "url": "https://www.last.fm/music/Artist+$page"
+                    }
+                  ]
+                }
+              }
+              """
+                .trimIndent()
+            )
+          )
+      )
+    }
+
+    val resp =
+      rest.getForEntity(
+        "/api/lastfm/users/login/library",
+        LastFmLibraryExport::class.java,
+      )
+
+    assertAll(
+      { assertEquals(HttpStatus.OK, resp.statusCode) },
+      { assertEquals(2L, resp.body?.totalArtists) },
+      { assertEquals(30L, resp.body?.totalScrobbles) },
+      { assertEquals(listOf("Artist 1", "Artist 2"), resp.body?.artists?.map { it.name }) },
+    )
   }
 
   @Test
