@@ -11,6 +11,7 @@ import com.github.tomakehurst.wiremock.client.WireMock.stubFor
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
 import com.lis.spotify.domain.AuthToken
+import com.lis.spotify.service.LastFmLibraryPage
 import com.lis.spotify.service.SpotifyAuthenticationService
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertAll
@@ -50,6 +51,7 @@ constructor(private val rest: TestRestTemplate, private val spotify: SpotifyAuth
       registry.add("SPOTIFY_CLIENT_SECRET") { "secret" }
       registry.add("LASTFM_API_KEY") { "key" }
       registry.add("LASTFM_API_SECRET") { "secret" }
+      registry.add("lastfm.library.allowed-users") { "login" }
       registry.add("LASTFM_API_URL") { "$base/2.0/" }
       registry.add("LASTFM_AUTHORIZE_URL") { "$base/auth" }
       registry.add("SPOTIFY_AUTH_URL") { "$base/s-auth" }
@@ -76,6 +78,64 @@ constructor(private val rest: TestRestTemplate, private val spotify: SpotifyAuth
   fun resetStubs() {
     wireMockReset()
     spotify.setAuthToken(AuthToken("access", "Bearer", "scope", 3600, "refresh", "session_verify"))
+  }
+
+  @Test
+  fun libraryArtistsReturnsAllowlistedPublicPage() {
+    stubFor(
+      get(urlPathEqualTo("/2.0/"))
+        .withQueryParam("method", equalTo("library.getArtists"))
+        .withQueryParam("api_key", equalTo("key"))
+        .withQueryParam("user", equalTo("login"))
+        .withQueryParam("page", equalTo("2"))
+        .withQueryParam("limit", equalTo("100"))
+        .willReturn(
+          okJson(
+            """
+            {
+              "artists": {
+                "@attr": {
+                  "page": "2",
+                  "perPage": "100",
+                  "totalPages": "79",
+                  "total": "7803"
+                },
+                "artist": [
+                  {
+                    "name": "Linkin Park",
+                    "playcount": "10900",
+                    "mbid": "",
+                    "url": "https://www.last.fm/music/Linkin+Park"
+                  }
+                ]
+              }
+            }
+            """
+              .trimIndent()
+          )
+        )
+    )
+
+    val resp =
+      rest.getForEntity(
+        "/api/lastfm/users/login/artists?page=2&limit=100",
+        LastFmLibraryPage::class.java,
+      )
+
+    assertAll(
+      { assertEquals(HttpStatus.OK, resp.statusCode) },
+      { assertEquals(7803L, resp.body?.total) },
+      { assertEquals(79, resp.body?.totalPages) },
+      { assertEquals("Linkin Park", resp.body?.artists?.single()?.name) },
+      { assertEquals(10900L, resp.body?.artists?.single()?.playcount) },
+    )
+  }
+
+  @Test
+  fun libraryArtistsReturnsNotFoundOutsideAllowlist() {
+    val resp = rest.getForEntity("/api/lastfm/users/other/artists", String::class.java)
+
+    assertEquals(HttpStatus.NOT_FOUND, resp.statusCode)
   }
 
   @Test
