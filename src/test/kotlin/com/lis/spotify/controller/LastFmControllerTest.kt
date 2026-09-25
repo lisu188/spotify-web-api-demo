@@ -19,6 +19,23 @@ class LastFmControllerTest {
   private val controller = LastFmController(service, spotify)
 
   @Test
+  fun libraryExportUsesServiceForAllowlistedUser() {
+    val export =
+      com.lis.spotify.service.LastFmLibraryExport(
+        user = "login",
+        artists = listOf(LastFmLibraryArtist("Linkin Park", 10970, null, null)),
+        totalArtists = 1,
+        totalScrobbles = 10970,
+      )
+    every { service.libraryExport("login") } returns export
+    val allowlistedController = LastFmController(service, spotify, "login")
+
+    val result = allowlistedController.libraryExport("login")
+
+    assertEquals(export, result)
+  }
+
+  @Test
   fun libraryArtistsUsesServiceForAllowlistedUser() {
     val page =
       LastFmLibraryPage(
