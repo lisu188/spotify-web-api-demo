@@ -222,6 +222,30 @@ The response contains artist name, play count, optional MusicBrainz ID and Last.
 with Last.fm pagination metadata. `limit` must be between 1 and 200. Users outside the configured
 allowlist receive `404 Not Found`.
 
+For analysis jobs that need the complete library in one request, use:
+
+```shell
+curl 'http://localhost:8080/api/lastfm/users/lisek188/library'
+```
+
+The full export is cached for one hour and includes `totalArtists` and `totalScrobbles` in
+addition to every artist entry.
+
+## Spotify taste export
+
+An authenticated Spotify session can export the current user's top artists and tracks across all
+three Spotify affinity windows in one request:
+
+```shell
+curl --cookie 'clientId=session_...' 'http://localhost:8080/api/spotify/taste?limit=50'
+```
+
+The response contains up to 50 top artists and 50 top tracks for `short_term` (about four weeks),
+`medium_term` (about six months), and `long_term` (about one year). Artist genre tags are
+included when Spotify provides them. The endpoint uses the existing `user-top-read` permission,
+requires an authorized session, returns `Cache-Control: no-store`, and never exposes Spotify
+access or refresh tokens.
+
 ## Workflow Notes
 
 Enter your Last.fm login on the main page and click **LAST.FM** to refresh yearly
