@@ -66,6 +66,7 @@ credentials are available at runtime:
 - `SPOTIFY_CLIENT_SECRET` – Spotify application client secret
 - `LASTFM_API_KEY` – Last.fm API key
 - `LASTFM_API_SECRET` – Last.fm API secret
+- `LASTFM_LIBRARY_ALLOWED_USERS` – comma-separated Last.fm users whose public artist library may be read through the export endpoint
 - `LYRICS_MOOD_PROVIDER` – Optional lyric mood classifier (`auto`, `heuristic`, or `openai`)
 - `LYRICS_MOOD_OPENAI_API_KEY` – Optional OpenAI API key for lyric mood scoring
 - `OPENAI_API_KEY` – Standard OpenAI API key env var, also picked up automatically
@@ -206,6 +207,20 @@ can also be supplied as uppercase underscore environment variables:
 
 These settings keep the configured refresh path working for both startup and
 scheduled refreshes while still allowing manual Cloud Scheduler execution.
+
+## Last.fm library export
+
+The service can expose paginated public Last.fm artist libraries without returning or logging the
+configured Last.fm API key. Access is restricted to usernames listed in
+`LASTFM_LIBRARY_ALLOWED_USERS`.
+
+```shell
+curl 'http://localhost:8080/api/lastfm/users/lisek188/artists?page=1&limit=200'
+```
+
+The response contains artist name, play count, optional MusicBrainz ID and Last.fm URL, together
+with Last.fm pagination metadata. `limit` must be between 1 and 200. Users outside the configured
+allowlist receive `404 Not Found`.
 
 ## Workflow Notes
 
