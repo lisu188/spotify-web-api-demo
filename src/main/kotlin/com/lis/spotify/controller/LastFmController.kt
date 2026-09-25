@@ -49,8 +49,7 @@ class LastFmController(
       throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid Last.fm username")
     if (lastFmLogin.lowercase() !in publicLibraryUsers)
       throw ResponseStatusException(HttpStatus.NOT_FOUND, "Last.fm library is not exposed")
-    if (page < 1)
-      throw ResponseStatusException(HttpStatus.BAD_REQUEST, "page must be >= 1")
+    if (page < 1) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "page must be >= 1")
     if (limit !in 1..LastFmService.LIBRARY_ARTISTS_MAX_PAGE_SIZE)
       throw ResponseStatusException(
         HttpStatus.BAD_REQUEST,
