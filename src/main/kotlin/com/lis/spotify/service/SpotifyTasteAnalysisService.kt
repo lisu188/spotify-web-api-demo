@@ -9,7 +9,10 @@ class SpotifyTasteAnalysisService(
   private val spotifyTopArtistService: SpotifyTopArtistService,
   private val spotifyTopTrackService: SpotifyTopTrackService,
 ) {
-  fun snapshot(clientId: String, limit: Int = SpotifyTopArtistService.MAX_LIMIT): SpotifyTasteSnapshot {
+  fun snapshot(
+    clientId: String,
+    limit: Int = SpotifyTopArtistService.MAX_LIMIT,
+  ): SpotifyTasteSnapshot {
     require(limit in 1..SpotifyTopArtistService.MAX_LIMIT) {
       "limit must be between 1 and ${SpotifyTopArtistService.MAX_LIMIT}"
     }
@@ -23,7 +26,9 @@ class SpotifyTasteAnalysisService(
   private fun window(clientId: String, timeRange: String, limit: Int): SpotifyTasteWindow {
     return SpotifyTasteWindow(
       artists =
-        spotifyTopArtistService.getTopArtists(clientId, timeRange, limit).map { it.toTasteArtist() },
+        spotifyTopArtistService.getTopArtists(clientId, timeRange, limit).map {
+          it.toTasteArtist()
+        },
       tracks =
         spotifyTopTrackService.getTopTracks(clientId, timeRange, limit).map { it.toTasteTrack() },
     )
@@ -61,16 +66,9 @@ data class SpotifyTasteWindow(
   val tracks: List<SpotifyTasteTrack>,
 )
 
-data class SpotifyTasteArtist(
-  val id: String,
-  val name: String,
-  val genres: List<String>,
-)
+data class SpotifyTasteArtist(val id: String, val name: String, val genres: List<String>)
 
-data class SpotifyTasteArtistRef(
-  val id: String,
-  val name: String,
-)
+data class SpotifyTasteArtistRef(val id: String, val name: String)
 
 data class SpotifyTasteTrack(
   val id: String,
