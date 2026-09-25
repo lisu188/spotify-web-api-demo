@@ -394,15 +394,12 @@ class LastFmService(
           .toList()
           .chunked(recentTracksParallelism.coerceAtLeast(1))
           .forEach { pageBatch ->
-            val pages =
-              coroutineScope {
-                pageBatch
-                  .map { page ->
-                    async(Dispatchers.IO) { libraryArtists(normalizedUser, page) }
-                  }
-                  .awaitAll()
-                  .sortedBy { it.page }
-              }
+            val pages = coroutineScope {
+              pageBatch
+                .map { page -> async(Dispatchers.IO) { libraryArtists(normalizedUser, page) } }
+                .awaitAll()
+                .sortedBy { it.page }
+            }
             pages.forEach { allArtists += it.artists }
           }
       }
