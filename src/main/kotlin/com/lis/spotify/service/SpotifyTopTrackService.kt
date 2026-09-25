@@ -26,15 +26,17 @@ class SpotifyTopTrackService(var spotifyRestService: SpotifyRestService) {
     private val SHORT_TERM = "short_term"
     private val MID_TERM = "medium_term"
     private val LONG_TERM = "long_term"
+    private val SUPPORTED_TIME_RANGES = setOf(SHORT_TERM, MID_TERM, LONG_TERM)
+    const val MAX_LIMIT = 50
     val logger = LoggerFactory.getLogger(SpotifyTopTrackService::class.java)
   }
 
-  private fun getTopTracks(term: String, clientId: String): Tracks {
+  private fun getTopTracks(term: String, clientId: String, limit: Int = MAX_LIMIT): Tracks {
     logger.debug("getTopTracks {} {}", term, clientId.asSafeClientIdForLogs())
     val tracks =
       spotifyRestService.doGet<Tracks>(
         URL,
-        params = mapOf("limit" to 50, "time_range" to term),
+        params = mapOf("limit" to limit, "time_range" to term),
         clientId = clientId,
       )
     logger.debug(
@@ -44,6 +46,12 @@ class SpotifyTopTrackService(var spotifyRestService: SpotifyRestService) {
       tracks.items.size,
     )
     return tracks
+  }
+
+  fun getTopTracks(clientId: String, timeRange: String, limit: Int = MAX_LIMIT): List<Track> {
+    require(timeRange in SUPPORTED_TIME_RANGES) { "Unsupported Spotify time range" }
+    require(limit in 1..MAX_LIMIT) { "limit must be between 1 and $MAX_LIMIT" }
+    return getTopTracks(timeRange, clientId, limit).items
   }
 
   fun getTopTracksLongTerm(clientId: String): List<Track> {
