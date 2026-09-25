@@ -60,6 +60,8 @@ class LastFmService(
     CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.HOURS).build()
   private val similarArtistsCache: Cache<String, List<LastFmSimilarArtist>> =
     CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.HOURS).build()
+  private val libraryExportCache: Cache<String, LastFmLibraryExport> =
+    CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.HOURS).build()
 
   private fun buildUri(method: String, params: Map<String, Any>, sessionKey: String?): URI {
     var builder =
@@ -371,6 +373,47 @@ class LastFmService(
         "library artists page $page",
       )
     return parseLibraryArtists(payload, page, limit)
+  }
+
+  fun libraryExport(user: String): LastFmLibraryExport {
+    val normalizedUser = user.trim()
+    require(normalizedUser.isNotBlank()) { "user is required" }
+    val cacheKey = normalizedUser.lowercase()
+    libraryExportCache.getIfPresent(cacheKey)?.let {
+      logger.debug("Last.fm library export cache hit {}", cacheKey)
+      return it
+    }
+
+    val firstPage = libraryArtists(normalizedUser)
+    val allArtists = mutableListOf<LastFmLibraryArtist>()
+    allArtists += firstPage.artists
+
+    if (firstPage.totalPages > 1) {
+      runBlocking(Dispatchers.IO) {
+        (2..firstPage.totalPages)
+          .toList()
+          .chunked(recentTracksParallelism.coerceAtLeast(1))
+          .forEach { pageBatch ->
+            val pages = coroutineScope {
+              pageBatch
+                .map { page -> async(Dispatchers.IO) { libraryArtists(normalizedUser, page) } }
+                .awaitAll()
+                .sortedBy { it.page }
+            }
+            pages.forEach { allArtists += it.artists }
+          }
+      }
+    }
+
+    val export =
+      LastFmLibraryExport(
+        user = normalizedUser,
+        artists = allArtists,
+        totalArtists = firstPage.total,
+        totalScrobbles = allArtists.sumOf { it.playcount },
+      )
+    libraryExportCache.put(cacheKey, export)
+    return export
   }
 
   private fun parseLibraryArtists(
@@ -895,4 +938,11 @@ data class LastFmLibraryPage(
   val perPage: Int,
   val totalPages: Int,
   val total: Long,
+)
+
+data class LastFmLibraryExport(
+  val user: String,
+  val artists: List<LastFmLibraryArtist>,
+  val totalArtists: Long,
+  val totalScrobbles: Long,
 )

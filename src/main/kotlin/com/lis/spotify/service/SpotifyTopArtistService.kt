@@ -26,15 +26,18 @@ class SpotifyTopArtistService(var spotifyRestService: SpotifyRestService) {
     private val SHORT_TERM = "short_term"
     private val MID_TERM = "medium_term"
     private val LONG_TERM = "long_term"
+    private val SUPPORTED_TIME_RANGES = setOf(SHORT_TERM, MID_TERM, LONG_TERM)
+    private const val DEFAULT_LIMIT = 10
+    const val MAX_LIMIT = 50
     val logger = LoggerFactory.getLogger(SpotifyTopArtistService::class.java)
   }
 
-  private fun getTopArtists(term: String, clientId: String): Artists {
+  private fun fetchTopArtists(term: String, clientId: String, limit: Int = DEFAULT_LIMIT): Artists {
     logger.debug("getTopArtists {} {}", term, clientId.asSafeClientIdForLogs())
     val artists =
       spotifyRestService.doGet<Artists>(
         URL,
-        params = mapOf("limit" to 10, "time_range" to term),
+        params = mapOf("limit" to limit, "time_range" to term),
         clientId = clientId,
       )
     logger.debug(
@@ -46,9 +49,15 @@ class SpotifyTopArtistService(var spotifyRestService: SpotifyRestService) {
     return artists
   }
 
+  fun getTopArtists(clientId: String, timeRange: String, limit: Int = MAX_LIMIT): List<Artist> {
+    require(timeRange in SUPPORTED_TIME_RANGES) { "Unsupported Spotify time range" }
+    require(limit in 1..MAX_LIMIT) { "limit must be between 1 and $MAX_LIMIT" }
+    return fetchTopArtists(timeRange, clientId, limit).items
+  }
+
   fun getTopArtistsLongTerm(clientId: String): List<Artist> {
     logger.debug("getTopArtistsLongTerm {}", clientId.asSafeClientIdForLogs())
-    val items = getTopArtists(LONG_TERM, clientId).items
+    val items = fetchTopArtists(LONG_TERM, clientId).items
     logger.debug(
       "getTopArtistsLongTerm {} -> {} items",
       clientId.asSafeClientIdForLogs(),
@@ -59,7 +68,7 @@ class SpotifyTopArtistService(var spotifyRestService: SpotifyRestService) {
 
   fun getTopArtistsMidTerm(clientId: String): List<Artist> {
     logger.debug("getTopArtistsMidTerm {}", clientId.asSafeClientIdForLogs())
-    val items = getTopArtists(MID_TERM, clientId).items
+    val items = fetchTopArtists(MID_TERM, clientId).items
     logger.debug(
       "getTopArtistsMidTerm {} -> {} items",
       clientId.asSafeClientIdForLogs(),
@@ -70,7 +79,7 @@ class SpotifyTopArtistService(var spotifyRestService: SpotifyRestService) {
 
   fun getTopArtistsShortTerm(clientId: String): List<Artist> {
     logger.debug("getTopArtistsShortTerm {}", clientId.asSafeClientIdForLogs())
-    val items = getTopArtists(SHORT_TERM, clientId).items
+    val items = fetchTopArtists(SHORT_TERM, clientId).items
     logger.debug(
       "getTopArtistsShortTerm {} -> {} items",
       clientId.asSafeClientIdForLogs(),

@@ -12,6 +12,7 @@
 
 package com.lis.spotify.controller
 
+import com.lis.spotify.service.LastFmLibraryExport
 import com.lis.spotify.service.LastFmLibraryPage
 import com.lis.spotify.service.LastFmService
 import com.lis.spotify.service.SpotifyAuthenticationService
@@ -39,16 +40,20 @@ class LastFmController(
       .filter { it.isNotBlank() }
       .toSet()
 
+  @GetMapping("/api/lastfm/users/{lastFmLogin}/library")
+  fun libraryExport(@PathVariable("lastFmLogin") lastFmLogin: String): LastFmLibraryExport {
+    requirePublicLibraryUser(lastFmLogin)
+    logger.debug("Fetching full public Last.fm library export")
+    return lastFmService.libraryExport(lastFmLogin)
+  }
+
   @GetMapping("/api/lastfm/users/{lastFmLogin}/artists")
   fun libraryArtists(
     @PathVariable("lastFmLogin") lastFmLogin: String,
     @RequestParam(defaultValue = "1") page: Int,
     @RequestParam(defaultValue = "200") limit: Int,
   ): LastFmLibraryPage {
-    if (!lastFmLogin.matches(Regex("[A-Za-z0-9_-]{1,64}")))
-      throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid Last.fm username")
-    if (lastFmLogin.lowercase() !in publicLibraryUsers)
-      throw ResponseStatusException(HttpStatus.NOT_FOUND, "Last.fm library is not exposed")
+    requirePublicLibraryUser(lastFmLogin)
     if (page < 1) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "page must be >= 1")
     if (limit !in 1..LastFmService.LIBRARY_ARTISTS_MAX_PAGE_SIZE)
       throw ResponseStatusException(
@@ -74,6 +79,13 @@ class LastFmController(
     val result = lastFmService.userExists(lastFmLogin)
     logger.debug("Last.fm profile exists: {}", result)
     return result
+  }
+
+  private fun requirePublicLibraryUser(lastFmLogin: String) {
+    if (!lastFmLogin.matches(Regex("[A-Za-z0-9_-]{1,64}")))
+      throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid Last.fm username")
+    if (lastFmLogin.lowercase() !in publicLibraryUsers)
+      throw ResponseStatusException(HttpStatus.NOT_FOUND, "Last.fm library is not exposed")
   }
 
   companion object {

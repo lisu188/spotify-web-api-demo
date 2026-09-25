@@ -26,15 +26,17 @@ class SpotifyTopTrackService(var spotifyRestService: SpotifyRestService) {
     private val SHORT_TERM = "short_term"
     private val MID_TERM = "medium_term"
     private val LONG_TERM = "long_term"
+    private val SUPPORTED_TIME_RANGES = setOf(SHORT_TERM, MID_TERM, LONG_TERM)
+    const val MAX_LIMIT = 50
     val logger = LoggerFactory.getLogger(SpotifyTopTrackService::class.java)
   }
 
-  private fun getTopTracks(term: String, clientId: String): Tracks {
+  private fun fetchTopTracks(term: String, clientId: String, limit: Int = MAX_LIMIT): Tracks {
     logger.debug("getTopTracks {} {}", term, clientId.asSafeClientIdForLogs())
     val tracks =
       spotifyRestService.doGet<Tracks>(
         URL,
-        params = mapOf("limit" to 50, "time_range" to term),
+        params = mapOf("limit" to limit, "time_range" to term),
         clientId = clientId,
       )
     logger.debug(
@@ -46,10 +48,16 @@ class SpotifyTopTrackService(var spotifyRestService: SpotifyRestService) {
     return tracks
   }
 
+  fun getTopTracks(clientId: String, timeRange: String, limit: Int = MAX_LIMIT): List<Track> {
+    require(timeRange in SUPPORTED_TIME_RANGES) { "Unsupported Spotify time range" }
+    require(limit in 1..MAX_LIMIT) { "limit must be between 1 and $MAX_LIMIT" }
+    return fetchTopTracks(timeRange, clientId, limit).items
+  }
+
   fun getTopTracksLongTerm(clientId: String): List<Track> {
     logger.info("Fetching long-term top tracks for {}", clientId.asSafeClientIdForLogs())
     logger.debug("getTopTracksLongTerm {}", clientId.asSafeClientIdForLogs())
-    val items = getTopTracks(LONG_TERM, clientId).items
+    val items = fetchTopTracks(LONG_TERM, clientId).items
     logger.debug(
       "getTopTracksLongTerm {} -> {} items",
       clientId.asSafeClientIdForLogs(),
@@ -62,7 +70,7 @@ class SpotifyTopTrackService(var spotifyRestService: SpotifyRestService) {
   fun getTopTracksMidTerm(clientId: String): List<Track> {
     logger.info("Fetching mid-term top tracks for {}", clientId.asSafeClientIdForLogs())
     logger.debug("getTopTracksMidTerm {}", clientId.asSafeClientIdForLogs())
-    val items = getTopTracks(MID_TERM, clientId).items
+    val items = fetchTopTracks(MID_TERM, clientId).items
     logger.debug("getTopTracksMidTerm {} -> {} items", clientId.asSafeClientIdForLogs(), items.size)
     logger.info("Fetched {} mid-term tracks for {}", items.size, clientId.asSafeClientIdForLogs())
     return items
@@ -71,7 +79,7 @@ class SpotifyTopTrackService(var spotifyRestService: SpotifyRestService) {
   fun getTopTracksShortTerm(clientId: String): List<Track> {
     logger.info("Fetching short-term top tracks for {}", clientId.asSafeClientIdForLogs())
     logger.debug("getTopTracksShortTerm {}", clientId.asSafeClientIdForLogs())
-    val items = getTopTracks(SHORT_TERM, clientId).items
+    val items = fetchTopTracks(SHORT_TERM, clientId).items
     logger.debug(
       "getTopTracksShortTerm {} -> {} items",
       clientId.asSafeClientIdForLogs(),
