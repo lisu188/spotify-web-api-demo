@@ -469,12 +469,7 @@ class LastFmServiceTest {
         "artists" to
           mapOf(
             "@attr" to
-              mapOf(
-                "page" to "2",
-                "perPage" to "100",
-                "totalPages" to "79",
-                "total" to "7803",
-              ),
+              mapOf("page" to "2", "perPage" to "100", "totalPages" to "79", "total" to "7803"),
             "artist" to
               listOf(
                 mapOf(
