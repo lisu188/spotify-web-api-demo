@@ -28,9 +28,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Verify Kotlin formatting
-        run: |
-          ./gradlew ktfmtFormat
-          git diff --exit-code || { git diff; exit 1; }
+        run: ./gradlew ktfmtCheck
 
       - name: Build, test, and verify coverage
         run: ./gradlew build
