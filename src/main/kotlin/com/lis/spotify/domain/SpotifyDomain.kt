@@ -50,7 +50,7 @@ class Tracks(var items: List<Track>)
 
 class Track(var id: String, var name: String, var artists: List<Artist>, var album: Album)
 
-class Artist(var id: String, var name: String)
+class Artist(var id: String, var name: String, var genres: List<String> = emptyList())
 
 class Album(var id: String, var name: String, var artists: List<Artist>)
 
