@@ -12,9 +12,11 @@
 
 package com.lis.spotify.controller
 
+import com.lis.spotify.service.LastFmHistoryService
 import com.lis.spotify.service.LastFmLibraryExport
 import com.lis.spotify.service.LastFmLibraryPage
 import com.lis.spotify.service.LastFmService
+import com.lis.spotify.service.LastFmYearSummary
 import com.lis.spotify.service.SpotifyAuthenticationService
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
@@ -32,6 +34,7 @@ class LastFmController(
   val lastFmService: LastFmService,
   private val spotifyAuthenticationService: SpotifyAuthenticationService,
   @Value("\${lastfm.library.allowed-users:}") configuredLibraryUsers: String = "",
+  private val lastFmHistoryService: LastFmHistoryService = LastFmHistoryService(),
 ) {
   private val publicLibraryUsers =
     configuredLibraryUsers
@@ -45,6 +48,21 @@ class LastFmController(
     requirePublicLibraryUser(lastFmLogin)
     logger.debug("Fetching full public Last.fm library export")
     return lastFmService.libraryExport(lastFmLogin)
+  }
+
+  @GetMapping("/api/lastfm/users/{lastFmLogin}/history")
+  fun yearlyHistory(
+    @PathVariable("lastFmLogin") lastFmLogin: String,
+    @RequestParam fromYear: Int,
+    @RequestParam toYear: Int,
+    @RequestParam(defaultValue = "10") limit: Int,
+  ): List<LastFmYearSummary> {
+    requirePublicLibraryUser(lastFmLogin)
+    return try {
+      lastFmHistoryService.yearlyArtistHistory(lastFmLogin, fromYear, toYear, limit)
+    } catch (ex: IllegalArgumentException) {
+      throw ResponseStatusException(HttpStatus.BAD_REQUEST, ex.message, ex)
+    }
   }
 
   @GetMapping("/api/lastfm/users/{lastFmLogin}/artists")
