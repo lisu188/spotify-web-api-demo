@@ -378,14 +378,15 @@ class LastFmService(
     requestedPage: Int,
     requestedLimit: Int,
   ): LastFmLibraryPage {
-    val artistsPayload = payload["artists"] as? Map<*, *>
-      ?: return LastFmLibraryPage(
-        artists = emptyList(),
-        page = requestedPage,
-        perPage = requestedLimit,
-        totalPages = requestedPage,
-        total = 0,
-      )
+    val artistsPayload =
+      payload["artists"] as? Map<*, *>
+        ?: return LastFmLibraryPage(
+          artists = emptyList(),
+          page = requestedPage,
+          perPage = requestedLimit,
+          totalPages = requestedPage,
+          total = 0,
+        )
     val attributes = artistsPayload["@attr"] as? Map<*, *>
     val artistItems =
       when (val artists = artistsPayload["artist"]) {
