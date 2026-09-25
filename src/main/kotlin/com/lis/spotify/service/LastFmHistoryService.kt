@@ -42,9 +42,9 @@ class LastFmHistoryService(restTemplateBuilder: RestTemplateBuilder = RestTempla
   ): LastFmYearSummary {
     val normalizedUser = user.trim()
     val cacheKey = "${normalizedUser.lowercase()}|$year"
-    val fullSummary = yearlyCache.getIfPresent(cacheKey) ?: fetchYear(normalizedUser, year).also {
-      yearlyCache.put(cacheKey, it)
-    }
+    val fullSummary =
+      yearlyCache.getIfPresent(cacheKey)
+        ?: fetchYear(normalizedUser, year).also { yearlyCache.put(cacheKey, it) }
     return fullSummary.copy(topArtists = fullSummary.topArtists.take(limit))
   }
 
