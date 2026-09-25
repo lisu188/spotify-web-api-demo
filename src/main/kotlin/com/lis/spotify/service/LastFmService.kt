@@ -349,6 +349,90 @@ class LastFmService(
     return similarArtists
   }
 
+  fun libraryArtists(
+    user: String,
+    page: Int = 1,
+    limit: Int = LIBRARY_ARTISTS_MAX_PAGE_SIZE,
+  ): LastFmLibraryPage {
+    val normalizedUser = user.trim()
+    require(normalizedUser.isNotBlank()) { "user is required" }
+    require(page >= 1) { "page must be >= 1" }
+    require(limit in 1..LIBRARY_ARTISTS_MAX_PAGE_SIZE) {
+      "limit must be between 1 and $LIBRARY_ARTISTS_MAX_PAGE_SIZE"
+    }
+
+    val payload =
+      fetchPayload(
+        buildUri(
+          "library.getArtists",
+          mapOf("user" to normalizedUser, "page" to page, "limit" to limit),
+          null,
+        ),
+        "library artists page $page",
+      )
+    return parseLibraryArtists(payload, page, limit)
+  }
+
+  private fun parseLibraryArtists(
+    payload: Map<String, Any?>,
+    requestedPage: Int,
+    requestedLimit: Int,
+  ): LastFmLibraryPage {
+    val artistsPayload = payload["artists"] as? Map<*, *>
+      ?: return LastFmLibraryPage(
+        artists = emptyList(),
+        page = requestedPage,
+        perPage = requestedLimit,
+        totalPages = requestedPage,
+        total = 0,
+      )
+    val attributes = artistsPayload["@attr"] as? Map<*, *>
+    val artistItems =
+      when (val artists = artistsPayload["artist"]) {
+        is List<*> -> artists
+        is Map<*, *> -> listOf(artists)
+        else -> emptyList()
+      }
+
+    val artists =
+      artistItems.mapNotNull { artist ->
+        val map = artist as? Map<*, *> ?: return@mapNotNull null
+        val name = map["name"] as? String ?: return@mapNotNull null
+        if (name.isBlank()) return@mapNotNull null
+        LastFmLibraryArtist(
+          name = name,
+          playcount = parseLongValue(map["playcount"]) ?: 0,
+          mbid = (map["mbid"] as? String)?.takeIf { it.isNotBlank() },
+          url = (map["url"] as? String)?.takeIf { it.isNotBlank() },
+        )
+      }
+
+    val page = parseIntValue(attributes?.get("page")) ?: requestedPage
+    return LastFmLibraryPage(
+      artists = artists,
+      page = page,
+      perPage = parseIntValue(attributes?.get("perPage")) ?: requestedLimit,
+      totalPages = parseIntValue(attributes?.get("totalPages")) ?: page,
+      total = parseLongValue(attributes?.get("total")) ?: artists.size.toLong(),
+    )
+  }
+
+  private fun parseIntValue(value: Any?): Int? {
+    return when (value) {
+      is Number -> value.toInt()
+      is String -> value.toIntOrNull()
+      else -> null
+    }
+  }
+
+  private fun parseLongValue(value: Any?): Long? {
+    return when (value) {
+      is Number -> value.toLong()
+      is String -> value.toLongOrNull()
+      else -> null
+    }
+  }
+
   private fun parseRecentTracksPage(
     payload: String,
     currentPage: Int,
@@ -783,6 +867,7 @@ class LastFmService(
     private const val AUTHENTICATION_REQUIRED_CODE = 17
     private const val TRANSIENT_BACKEND_ERROR_CODE = 8
     private const val RECENT_TRACKS_PAGE_SIZE = 200
+    internal const val LIBRARY_ARTISTS_MAX_PAGE_SIZE = 200
   }
 }
 
@@ -795,3 +880,18 @@ class LastFmException(val code: Int, override val message: String) : RuntimeExce
 data class LastFmSimilarTrack(val song: Song, val match: Double)
 
 data class LastFmSimilarArtist(val name: String, val match: Double)
+
+data class LastFmLibraryArtist(
+  val name: String,
+  val playcount: Long,
+  val mbid: String?,
+  val url: String?,
+)
+
+data class LastFmLibraryPage(
+  val artists: List<LastFmLibraryArtist>,
+  val page: Int,
+  val perPage: Int,
+  val totalPages: Int,
+  val total: Long,
+)
