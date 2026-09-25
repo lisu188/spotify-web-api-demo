@@ -119,11 +119,7 @@ constructor(private val rest: TestRestTemplate, private val spotify: SpotifyAuth
       )
     }
 
-    val resp =
-      rest.getForEntity(
-        "/api/lastfm/users/login/library",
-        LastFmLibraryExport::class.java,
-      )
+    val resp = rest.getForEntity("/api/lastfm/users/login/library", LastFmLibraryExport::class.java)
 
     assertAll(
       { assertEquals(HttpStatus.OK, resp.statusCode) },
