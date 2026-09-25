@@ -12,13 +12,17 @@
 
 package com.lis.spotify.controller
 
+import com.lis.spotify.service.LastFmLibraryPage
 import com.lis.spotify.service.LastFmService
 import com.lis.spotify.service.SpotifyAuthenticationService
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.CookieValue
+import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
 
@@ -26,7 +30,37 @@ import org.springframework.web.server.ResponseStatusException
 class LastFmController(
   val lastFmService: LastFmService,
   private val spotifyAuthenticationService: SpotifyAuthenticationService,
+  @Value("\${lastfm.library.allowed-users:}") configuredLibraryUsers: String = "",
 ) {
+  private val publicLibraryUsers =
+    configuredLibraryUsers
+      .split(",")
+      .map { it.trim().lowercase() }
+      .filter { it.isNotBlank() }
+      .toSet()
+
+  @GetMapping("/api/lastfm/users/{lastFmLogin}/artists")
+  fun libraryArtists(
+    @PathVariable("lastFmLogin") lastFmLogin: String,
+    @RequestParam(defaultValue = "1") page: Int,
+    @RequestParam(defaultValue = "200") limit: Int,
+  ): LastFmLibraryPage {
+    if (!lastFmLogin.matches(Regex("[A-Za-z0-9_-]{1,64}")))
+      throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid Last.fm username")
+    if (lastFmLogin.lowercase() !in publicLibraryUsers)
+      throw ResponseStatusException(HttpStatus.NOT_FOUND, "Last.fm library is not exposed")
+    if (page < 1)
+      throw ResponseStatusException(HttpStatus.BAD_REQUEST, "page must be >= 1")
+    if (limit !in 1..LastFmService.LIBRARY_ARTISTS_MAX_PAGE_SIZE)
+      throw ResponseStatusException(
+        HttpStatus.BAD_REQUEST,
+        "limit must be between 1 and ${LastFmService.LIBRARY_ARTISTS_MAX_PAGE_SIZE}",
+      )
+
+    logger.debug("Fetching public Last.fm library artists page {}", page)
+    return lastFmService.libraryArtists(lastFmLogin, page, limit)
+  }
+
   @PostMapping("/verifyLastFmId/{lastFmLogin}")
   fun verifyLastFmId(
     @PathVariable("lastFmLogin") lastFmLogin: String,
