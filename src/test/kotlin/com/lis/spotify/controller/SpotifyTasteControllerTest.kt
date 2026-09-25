@@ -39,10 +39,7 @@ class SpotifyTasteControllerTest {
   fun tasteRejectsUnauthorizedSession() {
     every { auth.isAuthorizedSession("forged") } returns false
 
-    val ex =
-      assertThrows(ResponseStatusException::class.java) {
-        controller.taste("forged", 50)
-      }
+    val ex = assertThrows(ResponseStatusException::class.java) { controller.taste("forged", 50) }
 
     assertEquals(HttpStatus.UNAUTHORIZED, ex.statusCode)
   }
@@ -52,9 +49,7 @@ class SpotifyTasteControllerTest {
     every { auth.isAuthorizedSession("session_test") } returns true
 
     val ex =
-      assertThrows(ResponseStatusException::class.java) {
-        controller.taste("session_test", 51)
-      }
+      assertThrows(ResponseStatusException::class.java) { controller.taste("session_test", 51) }
 
     assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
   }
