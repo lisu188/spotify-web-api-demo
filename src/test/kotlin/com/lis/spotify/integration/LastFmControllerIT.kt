@@ -133,11 +133,7 @@ constructor(private val rest: TestRestTemplate, private val spotify: SpotifyAuth
 
   @Test
   fun libraryArtistsReturnsNotFoundOutsideAllowlist() {
-    val resp =
-      rest.getForEntity(
-        "/api/lastfm/users/other/artists",
-        String::class.java,
-      )
+    val resp = rest.getForEntity("/api/lastfm/users/other/artists", String::class.java)
 
     assertEquals(HttpStatus.NOT_FOUND, resp.statusCode)
   }
