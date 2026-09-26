@@ -15,9 +15,12 @@ package com.lis.spotify.controller
 import com.lis.spotify.service.LastFmHistoryService
 import com.lis.spotify.service.LastFmLibraryExport
 import com.lis.spotify.service.LastFmLibraryPage
+import com.lis.spotify.service.LastFmMonthSummary
 import com.lis.spotify.service.LastFmService
 import com.lis.spotify.service.LastFmYearSummary
 import com.lis.spotify.service.SpotifyAuthenticationService
+import java.time.YearMonth
+import java.time.format.DateTimeParseException
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
@@ -60,6 +63,28 @@ class LastFmController(
     requirePublicLibraryUser(lastFmLogin)
     return try {
       lastFmHistoryService.yearlyArtistHistory(lastFmLogin, fromYear, toYear, limit)
+    } catch (ex: IllegalArgumentException) {
+      throw ResponseStatusException(HttpStatus.BAD_REQUEST, ex.message, ex)
+    }
+  }
+
+  @GetMapping("/api/lastfm/users/{lastFmLogin}/monthly-history")
+  fun monthlyHistory(
+    @PathVariable("lastFmLogin") lastFmLogin: String,
+    @RequestParam from: String,
+    @RequestParam to: String,
+    @RequestParam(defaultValue = "50") limit: Int,
+  ): List<LastFmMonthSummary> {
+    requirePublicLibraryUser(lastFmLogin)
+    return try {
+      lastFmHistoryService.monthlyArtistHistory(
+        lastFmLogin,
+        YearMonth.parse(from),
+        YearMonth.parse(to),
+        limit,
+      )
+    } catch (ex: DateTimeParseException) {
+      throw ResponseStatusException(HttpStatus.BAD_REQUEST, "from and to must use YYYY-MM", ex)
     } catch (ex: IllegalArgumentException) {
       throw ResponseStatusException(HttpStatus.BAD_REQUEST, ex.message, ex)
     }
