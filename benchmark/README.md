@@ -1,7 +1,7 @@
 # Yearly generation benchmark
 
 This opt-in harness compiles unchanged against the pinned production baseline
-f5fd91fad25f25494ba20733d262bf0e628e30df and the optimized revision. It is not included
+5369a02692f026d989b527dfa19ba74799382045 and the optimized revision. It is not included
 in normal tests or coverage. It never connects to Spotify, Last.fm, or an account.
 
 Use Linux/WSL with Java 21, Python 3, and taskset. Build artifacts should live in
@@ -9,16 +9,16 @@ Linux storage rather than the Windows drive. Keep production source snapshots at
 the exact measured commits; the harness is supplied externally to both snapshots.
 
 ~~~sh
-export JAVA_HOME=/tmp/spotify-yearly-java/jdk-21.0.12.1+1
+export JAVA_HOME=/absolute/path/to/jdk-21
 export PATH="$JAVA_HOME/bin:$PATH"
-export BENCHMARK_BASELINE_REVISION=f5fd91fad25f25494ba20733d262bf0e628e30df
-export BENCHMARK_OPTIMIZED_REVISION=ACTUAL_VERIFIED_OPTIMIZED_COMMIT
+export BENCHMARK_BASELINE_REVISION=5369a02692f026d989b527dfa19ba74799382045
+export BENCHMARK_OPTIMIZED_REVISION=0ae29dd1be1233ca883aeea3586a025eee38447d
 export BENCHMARK_BASELINE_ARCHIVE=/absolute/path/baseline-source.tar
 export BENCHMARK_OPTIMIZED_ARCHIVE=/absolute/path/optimized-source.tar
 bash /absolute/path/benchmark/run.sh \
-  /tmp/spotify-yearly-benchmark/baseline \
-  /tmp/spotify-yearly-benchmark/optimized \
-  /tmp/spotify-yearly-benchmark/results
+  "$HOME"/spotify-yearly-benchmark/baseline \
+  "$HOME"/spotify-yearly-benchmark/optimized \
+  "$HOME"/spotify-yearly-benchmark/results
 ~~~
 
 Revision overrides support verified source copies without Git metadata. With real
@@ -61,13 +61,13 @@ Memory sampling is every 10 ms and includes the mocking/test runtime.
 To smoke-test one baseline trial before the full run:
 
 ~~~sh
-cd /tmp/spotify-yearly-benchmark/baseline
+cd "$HOME"/spotify-yearly-benchmark/baseline
 taskset -c 0 bash ./gradlew --no-daemon --max-workers=1 \
   -I /absolute/path/benchmark/yearly-benchmark.init.gradle yearlyBenchmark \
   -Pbenchmark.harness=/absolute/path/benchmark \
   -Pbenchmark.variant=baseline -Pbenchmark.scenario=sparse-repeated-cold \
-  -Pbenchmark.revision=f5fd91fad25f25494ba20733d262bf0e628e30df \
-  -Pbenchmark.trials=1 -Pbenchmark.output=/tmp/spotify-yearly-benchmark/smoke
+  -Pbenchmark.revision=5369a02692f026d989b527dfa19ba74799382045 \
+  -Pbenchmark.trials=1 -Pbenchmark.output="$HOME"/spotify-yearly-benchmark/smoke
 ~~~
 
 Choose a CPU in the process's allowed affinity if CPU 0 is unavailable. Regenerate
