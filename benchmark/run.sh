@@ -17,8 +17,8 @@ baseline_revision="$BENCHMARK_BASELINE_REVISION"
 optimized_revision="$BENCHMARK_OPTIMIZED_REVISION"
 if [ -z "$baseline_revision" ]; then baseline_revision=$(git -C "$baseline" rev-parse HEAD); fi
 if [ -z "$optimized_revision" ]; then optimized_revision=$(git -C "$optimized" rev-parse HEAD); fi
-if [ "$baseline_revision" != f5fd91fad25f25494ba20733d262bf0e628e30df ]; then
-  echo "Baseline must be unchanged pinned main f5fd91fad25f25494ba20733d262bf0e628e30df" >&2
+if [ "$baseline_revision" != 5369a02692f026d989b527dfa19ba74799382045 ]; then
+  echo "Baseline must be unchanged pinned main 5369a02692f026d989b527dfa19ba74799382045" >&2
   exit 2
 fi
 if [ -e "$output/run.json" ]; then
