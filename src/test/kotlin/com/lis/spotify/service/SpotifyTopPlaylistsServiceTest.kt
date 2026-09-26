@@ -1,13 +1,9 @@
 package com.lis.spotify.service
 
 import com.lis.spotify.domain.Album
-import com.lis.spotify.domain.Artist
 import com.lis.spotify.domain.Playlist
-import com.lis.spotify.domain.SearchResult
-import com.lis.spotify.domain.SearchResultInternal
 import com.lis.spotify.domain.Song
 import com.lis.spotify.domain.Track
-import com.lis.spotify.persistence.InMemorySpotifySearchCacheStore
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -21,6 +17,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.launch
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -104,51 +101,117 @@ class SpotifyTopPlaylistsServiceTest {
   }
 
   @Test
-  fun updateYearlyPlaylistsSearchesTracksSequentiallyWithinYear() {
-    val playlistService = mockk<SpotifyPlaylistService>(relaxed = true)
-    val trackService = mockk<SpotifyTopTrackService>(relaxed = true)
-    val lastFmService = mockk<LastFmService>()
-    val restService = mockk<SpotifyRestService>()
-    val activeSearches = AtomicInteger()
-    val maxActiveSearches = AtomicInteger()
-    val songs = (1..20).map { Song("Artist $it", "Title $it") }
-
-    every { lastFmService.yearlyChartlist("cid", 2024, "login", any()) } returns songs
-    every { playlistService.getCurrentUserPlaylists("cid") } returns mutableListOf()
-    every { playlistService.createPlaylist("LAST.FM 2024", "cid", true) } returns
-      Playlist("playlist-2024", "LAST.FM 2024")
-    every { restService.doRequest(any<() -> Any>()) } answers
-      {
-        val active = activeSearches.incrementAndGet()
-        maxActiveSearches.accumulateAndGet(active, ::maxOf)
-        Thread.sleep(10)
-        activeSearches.decrementAndGet()
-        SearchResult(
-          SearchResultInternal(
-            listOf(
-              Track(
-                "track-$active",
-                "Title",
-                listOf(Artist("artist", "Artist")),
-                Album("album", "Album", emptyList()),
-              )
-            )
-          )
-        )
-      }
-
-    val searchService =
-      SpotifySearchService(restService, InMemorySpotifySearchCacheStore(), fixedClock())
+  fun updateYearlyPlaylistsMatchesOnlyFirst250ScrobblesAndPreservesMatchOrder() {
+    val playlists = mockk<SpotifyPlaylistService>(relaxed = true)
+    val lastFm = mockk<LastFmService>()
+    val search = mockk<SpotifySearchService>()
+    val songs = (1..300).map { Song("Artist $it", "Title $it") }
+    every { lastFm.yearlyChartlist("cid", 2024, "login", 250) } returns songs
+    coEvery { search.searchTrackIds(songs.take(250), "cid", any()) } returns
+      listOf("track-2", "track-1")
+    every { playlists.getCurrentUserPlaylists("cid") } returns
+      mutableListOf(Playlist("playlist-2024", "LAST.FM 2024"))
     val service =
-      SpotifyTopPlaylistsService(playlistService, trackService, lastFmService, searchService)
-    service.firstSupportedYear = 2024
-    service.currentYearProvider = { 2024 }
+      SpotifyTopPlaylistsService(playlists, mockk(relaxed = true), lastFm, search).apply {
+        firstSupportedYear = 2024
+        currentYearProvider = { 2024 }
+      }
 
     service.updateYearlyPlaylists("cid", "login")
 
-    assertEquals(1, maxActiveSearches.get())
-    verify(exactly = songs.size) { restService.doRequest(any<() -> Any>()) }
+    coVerify(exactly = 1) { search.searchTrackIds(songs.take(250), "cid", any()) }
+    verify(exactly = 1) {
+      playlists.modifyPlaylist("playlist-2024", listOf("track-2", "track-1"), "cid", any())
+      playlists.deduplicatePlaylist("playlist-2024", "cid", any())
+    }
+    verify(exactly = 0) { playlists.createPlaylist(any(), any(), any(), any()) }
   }
+
+  @Test
+  fun cancellationDuringLastFmReadStopsMatchingAndPlaylistWrites() =
+    kotlinx.coroutines.runBlocking {
+      val playlists = mockk<SpotifyPlaylistService>(relaxed = true)
+      val lastFm = mockk<LastFmService>()
+      val search = mockk<SpotifySearchService>(relaxed = true)
+      val entered = CountDownLatch(1)
+      val release = CountDownLatch(1)
+      val progress = Collections.synchronizedList(mutableListOf<Int>())
+      every { lastFm.yearlyChartlist("cid", 2024, "login", 250) } answers
+        {
+          entered.countDown()
+          check(release.await(5, TimeUnit.SECONDS))
+          listOf(Song("Artist", "Title"))
+        }
+      val service =
+        SpotifyTopPlaylistsService(playlists, mockk(relaxed = true), lastFm, search).apply {
+          firstSupportedYear = 2024
+          currentYearProvider = { 2024 }
+        }
+      val job =
+        launch(kotlinx.coroutines.Dispatchers.IO) {
+          service.updateYearlyPlaylistsSuspending("cid", "login") { percent, _ ->
+            progress += percent
+          }
+        }
+      try {
+        assertTrue(entered.await(5, TimeUnit.SECONDS))
+        job.cancel()
+      } finally {
+        release.countDown()
+      }
+      job.join()
+
+      coVerify(exactly = 0) { search.searchTrackIds(any(), any(), any()) }
+      verify(exactly = 0) {
+        playlists.getCurrentUserPlaylists(any())
+        playlists.createPlaylist(any(), any(), any(), any())
+        playlists.modifyPlaylist(any(), any(), any(), any())
+      }
+      assertEquals(listOf(0), progress)
+    }
+
+  @Test
+  fun cancellationDuringPlaylistDiscoveryStopsCreationAndWrites() =
+    kotlinx.coroutines.runBlocking {
+      val playlists = mockk<SpotifyPlaylistService>(relaxed = true)
+      val lastFm = mockk<LastFmService>()
+      val search = mockk<SpotifySearchService>()
+      val entered = CountDownLatch(1)
+      val release = CountDownLatch(1)
+      every { lastFm.yearlyChartlist("cid", 2024, "login", 250) } returns listOf(Song("A", "T"))
+      coEvery { search.searchTrackIds(any(), "cid", any()) } returns listOf("track")
+      val discoveryCalls = AtomicInteger()
+      every { playlists.getCurrentUserPlaylists("cid") } answers
+        {
+          if (discoveryCalls.incrementAndGet() == 2) {
+            entered.countDown()
+            check(release.await(5, TimeUnit.SECONDS))
+          }
+          mutableListOf()
+        }
+      val service =
+        SpotifyTopPlaylistsService(playlists, mockk(relaxed = true), lastFm, search).apply {
+          firstSupportedYear = 2024
+          currentYearProvider = { 2024 }
+        }
+      val job =
+        launch(kotlinx.coroutines.Dispatchers.IO) {
+          service.updateYearlyPlaylistsSuspending("cid", "login")
+        }
+      try {
+        assertTrue(entered.await(5, TimeUnit.SECONDS))
+        job.cancel()
+      } finally {
+        release.countDown()
+      }
+      job.join()
+
+      verify(exactly = 0) {
+        playlists.createPlaylist(any(), any(), any(), any())
+        playlists.modifyPlaylist(any(), any(), any(), any())
+        playlists.deduplicatePlaylist(any(), any(), any())
+      }
+    }
 
   @Test
   fun updateYearlyPlaylistsRunsYearsInParallelWithoutStartingEveryYearAtOnce() {

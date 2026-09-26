@@ -368,3 +368,33 @@ Automatic deduplication uses a single replacement and refuses to rewrite mixed
 media or more than 100 unique tracks; those playlists remain unchanged rather
 than risking a truncated result. Creation locks prevent concurrent submissions
 from creating duplicate named playlists within the current single instance.
+
+## Yearly generation concurrency
+
+Yearly generation processes four years at a time and selects up to the latest
+250 Last.fm scrobbles from each year, from 2005 through the current year. This
+preserves the existing selection; it is not a full-year play-count ranking.
+
+The spotify.search.max-parallelism setting (environment variable
+SPOTIFY_SEARCH_MAX_PARALLELISM) defaults to **8**. It limits upstream search
+requests across all years and jobs in this application instance. Previously it
+defaulted to 64 and applied separately to each batch, while yearly matching was
+sequential within each year. Cache hits do not consume network capacity, and
+concurrent lookups for the same client and query share their result.
+
+The lastfm.jobs.max-parallelism setting continues to default to **4**. The job
+scheduler and cloud CPU, memory, and instance settings are unchanged. Search
+limits and the shared Spotify rate-limit cooldown are process-local and assume
+the existing single-instance deployment. Spotify HTTP connections use an explicit
+pool of 16 with a five-second acquisition timeout. A 429 pauses new Spotify
+requests until the latest observed Retry-After deadline, with bounded retries.
+
+Matching preserves source order despite out-of-order responses. Cancellation
+stops queued work and is checked before playlist operations; an already-issued
+playlist request may still complete. Progress remains year-based, avoiding a
+Firestore status write for every track.
+
+The opt-in benchmark harness under benchmark/ compares actual pinned revisions
+using synthetic provider latency and validates resulting playlists before
+reporting timings. Its results do not measure live Spotify quotas, Firestore
+latency, or Cloud Run background CPU availability.
