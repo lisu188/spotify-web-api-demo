@@ -51,7 +51,9 @@ class LastFmHistoryService(restTemplateBuilder: RestTemplateBuilder = RestTempla
   ): List<LastFmMonthSummary> {
     val normalizedUser = user.trim()
     require(normalizedUser.isNotBlank()) { "user is required" }
-    require(!fromMonth.isBefore(YearMonth.of(MIN_YEAR, 1))) { "fromMonth is outside supported range" }
+    require(!fromMonth.isBefore(YearMonth.of(MIN_YEAR, 1))) {
+      "fromMonth is outside supported range"
+    }
     require(!toMonth.isAfter(YearMonth.of(MAX_YEAR, 12))) { "toMonth is outside supported range" }
     require(!fromMonth.isAfter(toMonth)) { "fromMonth must be <= toMonth" }
     val monthCount = fromMonth.until(toMonth, java.time.temporal.ChronoUnit.MONTHS) + 1
@@ -67,16 +69,14 @@ class LastFmHistoryService(restTemplateBuilder: RestTemplateBuilder = RestTempla
         .toList()
 
     return runBlocking(Dispatchers.IO) {
-      months
-        .chunked(MONTHLY_PARALLELISM)
-        .flatMap { batch ->
-          coroutineScope {
-              batch.map { month ->
-                async(Dispatchers.IO) { monthlyArtistSummary(normalizedUser, month, limit) }
-              }
+      months.chunked(MONTHLY_PARALLELISM).flatMap { batch ->
+        coroutineScope {
+            batch.map { month ->
+              async(Dispatchers.IO) { monthlyArtistSummary(normalizedUser, month, limit) }
             }
-            .awaitAll()
-        }
+          }
+          .awaitAll()
+      }
     }
   }
 
