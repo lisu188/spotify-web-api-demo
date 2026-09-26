@@ -13,6 +13,7 @@ import com.github.tomakehurst.wiremock.core.WireMockConfiguration
 import com.lis.spotify.domain.AuthToken
 import com.lis.spotify.service.LastFmLibraryExport
 import com.lis.spotify.service.LastFmLibraryPage
+import com.lis.spotify.service.LastFmMonthSummary
 import com.lis.spotify.service.SpotifyAuthenticationService
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertAll
@@ -126,6 +127,52 @@ constructor(private val rest: TestRestTemplate, private val spotify: SpotifyAuth
       { assertEquals(2L, resp.body?.totalArtists) },
       { assertEquals(30L, resp.body?.totalScrobbles) },
       { assertEquals(listOf("Artist 1", "Artist 2"), resp.body?.artists?.map { it.name }) },
+    )
+  }
+
+  @Test
+  fun monthlyHistoryReturnsRequestedMonths() {
+    listOf(
+        Triple("1767225600", "1769903999", "January Artist"),
+        Triple("1769904000", "1772323199", "February Artist"),
+      )
+      .forEachIndexed { index, (from, to, artist) ->
+        stubFor(
+          get(urlPathEqualTo("/2.0/"))
+            .withQueryParam("method", equalTo("user.getWeeklyArtistChart"))
+            .withQueryParam("api_key", equalTo("key"))
+            .withQueryParam("user", equalTo("login"))
+            .withQueryParam("from", equalTo(from))
+            .withQueryParam("to", equalTo(to))
+            .withQueryParam("limit", equalTo("1000"))
+            .willReturn(
+              okJson(
+                """
+                {
+                  "weeklyartistchart": {
+                    "artist": [
+                      {"name": "$artist", "playcount": "${(index + 1) * 10}"}
+                    ]
+                  }
+                }
+                """
+                  .trimIndent()
+              )
+            )
+        )
+      }
+
+    val resp =
+      rest.getForEntity(
+        "/api/lastfm/users/login/monthly-history?from=2026-01&to=2026-02&limit=50",
+        Array<LastFmMonthSummary>::class.java,
+      )
+
+    assertAll(
+      { assertEquals(HttpStatus.OK, resp.statusCode) },
+      { assertEquals(2, resp.body?.size) },
+      { assertEquals("January Artist", resp.body?.get(0)?.topArtists?.single()?.name) },
+      { assertEquals(20L, resp.body?.get(1)?.totalScrobbles) },
     )
   }
 
