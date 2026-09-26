@@ -9,6 +9,8 @@ baseline=$(realpath "$1")
 optimized=$(realpath "$2")
 output=$(realpath -m "$3")
 harness=$(cd "$(dirname "$0")" && pwd)
+java_command=$(command -v java)
+if [ -n "$JAVA_HOME" ]; then java_command="$JAVA_HOME/bin/java"; fi
 cpu="$4"
 if [ -z "$cpu" ]; then cpu=$(python3 -c 'import os; print(min(os.sched_getaffinity(0)))'); fi
 baseline_revision="$BENCHMARK_BASELINE_REVISION"
@@ -24,15 +26,18 @@ if [ -e "$output/run.json" ]; then
   exit 2
 fi
 mkdir -p "$output/logs"
-python3 - "$output" "$baseline" "$optimized" "$baseline_revision" "$optimized_revision" "$cpu" "$harness" <<'PY'
-import hashlib, json, os, pathlib, platform, subprocess, sys
-output, baseline, optimized, baseline_sha, optimized_sha, cpu, harness = sys.argv[1:]
+python3 - "$output" "$baseline" "$optimized" "$baseline_revision" "$optimized_revision" "$cpu" "$harness" "$java_command" <<'PY'
+import hashlib, json, os, pathlib, platform, re, subprocess, sys
+output, baseline, optimized, baseline_sha, optimized_sha, cpu, harness, java_command = sys.argv[1:]
+java_version = subprocess.check_output([java_command, "-version"], stderr=subprocess.STDOUT, text=True)
+if not re.search(r'version "21[.+"]', java_version):
+    raise ValueError("Benchmark requires Java 21: " + java_version)
 root = pathlib.Path(harness)
 files = sorted(p for p in root.rglob("*") if p.is_file() and "__pycache__" not in p.parts)
 metadata = {
     "baselineDirectory": baseline, "optimizedDirectory": optimized,
     "baselineRevision": baseline_sha, "optimizedRevision": optimized_sha,
-    "cpu": cpu, "loadAverageStart": os.getloadavg(), "host": platform.platform(), "java": subprocess.check_output(["java", "-version"], stderr=subprocess.STDOUT, text=True),
+    "cpu": cpu, "loadAverageStart": os.getloadavg(), "host": platform.platform(), "java": java_version,
     "profile": "WSL/Linux one CPU affinity; JVM -Xmx1536m -XX:ActiveProcessorCount=1; no container memory limit; shared host with other builds",
     "trialProtocol": "3 paired trials per scenario; alternating revision order per trial; fresh JVM per revision/trial; each JVM does 1 untimed warmup then 1 measured run; warm scenarios additionally prime caches once",
     "latencyMs": {"spotifySearch": 20, "lastFmPage": 5, "playlistRequest": 5},
@@ -77,7 +82,7 @@ run_one() {
   echo "Running $variant $scenario trial $trial on CPU $cpu"
   if ! (
     cd "$checkout"
-    taskset -c "$cpu" java -Xms256m -Xmx1536m -XX:ActiveProcessorCount=1 \
+    taskset -c "$cpu" "$java_command" -Xms256m -Xmx1536m -XX:ActiveProcessorCount=1 \
       -Dapp.state-store.mode=memory -DBASE_URL=http://localhost \
       -DSPOTIFY_CLIENT_ID=synthetic-id -DSPOTIFY_CLIENT_SECRET=synthetic-secret \
       -DLASTFM_API_KEY=synthetic-key -DLASTFM_API_SECRET=synthetic-secret \
