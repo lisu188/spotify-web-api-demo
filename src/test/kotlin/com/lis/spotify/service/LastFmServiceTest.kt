@@ -575,6 +575,32 @@ class LastFmServiceTest {
   }
 
   @Test
+  fun libraryExportRejectsLibrariesAbovePageLimit() {
+    val rest = mockk<RestTemplate>()
+    val service = service()
+    service.rest = rest
+    every { rest.getForObject(any<URI>(), Map::class.java) } returns
+      mapOf(
+        "artists" to
+          mapOf(
+            "@attr" to
+              mapOf(
+                "page" to "1",
+                "perPage" to "200",
+                "totalPages" to (LastFmService.LIBRARY_EXPORT_MAX_PAGES + 1).toString(),
+                "total" to "10200",
+              ),
+            "artist" to emptyList<Map<String, String>>(),
+          )
+      )
+
+    val error = assertThrows(LastFmException::class.java) { service.libraryExport("lisek188") }
+
+    assertTrue(error.message.contains("maximum export size"))
+    verify(exactly = 1) { rest.getForObject(any<URI>(), Map::class.java) }
+  }
+
+  @Test
   fun trackSimilarParsesSongsAndUsesCache() {
     val rest = mockk<RestTemplate>()
     val service = service()

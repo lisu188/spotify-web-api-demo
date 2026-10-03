@@ -379,12 +379,19 @@ class LastFmService(
     val normalizedUser = user.trim()
     require(normalizedUser.isNotBlank()) { "user is required" }
     val cacheKey = normalizedUser.lowercase()
-    libraryExportCache.getIfPresent(cacheKey)?.let {
-      logger.debug("Last.fm library export cache hit {}", cacheKey)
-      return it
+    return libraryExportCache.asMap().computeIfAbsent(cacheKey) {
+      loadLibraryExport(normalizedUser)
     }
+  }
 
+  private fun loadLibraryExport(normalizedUser: String): LastFmLibraryExport {
     val firstPage = libraryArtists(normalizedUser)
+    if (firstPage.totalPages > LIBRARY_EXPORT_MAX_PAGES) {
+      throw LastFmException(
+        500,
+        "Last.fm library exceeds the maximum export size of $LIBRARY_EXPORT_MAX_PAGES pages",
+      )
+    }
     val allArtists = mutableListOf<LastFmLibraryArtist>()
     allArtists += firstPage.artists
 
@@ -405,15 +412,12 @@ class LastFmService(
       }
     }
 
-    val export =
-      LastFmLibraryExport(
-        user = normalizedUser,
-        artists = allArtists,
-        totalArtists = firstPage.total,
-        totalScrobbles = allArtists.sumOf { it.playcount },
-      )
-    libraryExportCache.put(cacheKey, export)
-    return export
+    return LastFmLibraryExport(
+      user = normalizedUser,
+      artists = allArtists,
+      totalArtists = firstPage.total,
+      totalScrobbles = allArtists.sumOf { it.playcount },
+    )
   }
 
   private fun parseLibraryArtists(
@@ -912,6 +916,7 @@ class LastFmService(
     private const val TRANSIENT_BACKEND_ERROR_CODE = 8
     private const val RECENT_TRACKS_PAGE_SIZE = 200
     internal const val LIBRARY_ARTISTS_MAX_PAGE_SIZE = 200
+    internal const val LIBRARY_EXPORT_MAX_PAGES = 50
   }
 }
 

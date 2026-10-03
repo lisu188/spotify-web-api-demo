@@ -47,9 +47,14 @@ class LastFmController(
       .toSet()
 
   @GetMapping("/api/lastfm/users/{lastFmLogin}/library")
-  fun libraryExport(@PathVariable("lastFmLogin") lastFmLogin: String): LastFmLibraryExport {
+  fun libraryExport(
+    @PathVariable("lastFmLogin") lastFmLogin: String,
+    @CookieValue("clientId", defaultValue = "") clientId: String,
+  ): LastFmLibraryExport {
+    if (!spotifyAuthenticationService.isAuthorizedSession(clientId))
+      throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Spotify authentication required")
     requirePublicLibraryUser(lastFmLogin)
-    logger.debug("Fetching full public Last.fm library export")
+    logger.debug("Fetching full Last.fm library export")
     return lastFmService.libraryExport(lastFmLogin)
   }
 

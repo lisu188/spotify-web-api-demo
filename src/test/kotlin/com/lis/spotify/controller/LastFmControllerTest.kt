@@ -28,11 +28,25 @@ class LastFmControllerTest {
         totalScrobbles = 10970,
       )
     every { service.libraryExport("login") } returns export
+    every { spotify.isAuthorizedSession("session_test") } returns true
     val allowlistedController = LastFmController(service, spotify, "login")
 
-    val result = allowlistedController.libraryExport("login")
+    val result = allowlistedController.libraryExport("login", "session_test")
 
     assertEquals(export, result)
+  }
+
+  @Test
+  fun libraryExportRequiresAuthenticatedSpotifySession() {
+    every { spotify.isAuthorizedSession("") } returns false
+    val allowlistedController = LastFmController(service, spotify, "login")
+
+    val ex =
+      assertThrows(ResponseStatusException::class.java) {
+        allowlistedController.libraryExport("login", "")
+      }
+
+    assertEquals(HttpStatus.UNAUTHORIZED, ex.statusCode)
   }
 
   @Test
