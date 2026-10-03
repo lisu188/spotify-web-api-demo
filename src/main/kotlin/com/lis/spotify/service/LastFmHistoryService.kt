@@ -6,6 +6,7 @@ import com.lis.spotify.AppEnvironment.LastFm
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneOffset
+import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -23,6 +24,7 @@ class LastFmHistoryService(restTemplateBuilder: RestTemplateBuilder = RestTempla
     CacheBuilder.newBuilder().expireAfterWrite(24, TimeUnit.HOURS).build()
   private val monthlyCache: Cache<String, LastFmMonthSummary> =
     CacheBuilder.newBuilder().expireAfterWrite(24, TimeUnit.HOURS).build()
+  private val lastFmRequestPermits = Semaphore(LASTFM_REQUEST_CONCURRENCY, true)
 
   fun yearlyArtistHistory(
     user: String,
@@ -87,9 +89,7 @@ class LastFmHistoryService(restTemplateBuilder: RestTemplateBuilder = RestTempla
   ): LastFmMonthSummary {
     val normalizedUser = user.trim()
     val cacheKey = "${normalizedUser.lowercase()}|$month"
-    val fullSummary =
-      monthlyCache.getIfPresent(cacheKey)
-        ?: fetchMonth(normalizedUser, month).also { monthlyCache.put(cacheKey, it) }
+    val fullSummary = monthlyCache.get(cacheKey) { fetchMonth(normalizedUser, month) }
     return fullSummary.copy(topArtists = fullSummary.topArtists.take(limit))
   }
 
@@ -100,9 +100,7 @@ class LastFmHistoryService(restTemplateBuilder: RestTemplateBuilder = RestTempla
   ): LastFmYearSummary {
     val normalizedUser = user.trim()
     val cacheKey = "${normalizedUser.lowercase()}|$year"
-    val fullSummary =
-      yearlyCache.getIfPresent(cacheKey)
-        ?: fetchYear(normalizedUser, year).also { yearlyCache.put(cacheKey, it) }
+    val fullSummary = yearlyCache.get(cacheKey) { fetchYear(normalizedUser, year) }
     return fullSummary.copy(topArtists = fullSummary.topArtists.take(limit))
   }
 
@@ -144,7 +142,13 @@ class LastFmHistoryService(restTemplateBuilder: RestTemplateBuilder = RestTempla
         .build()
         .toUri()
 
-    val payload = rest.getForObject(uri, Map::class.java) as? Map<*, *> ?: emptyMap<Any, Any>()
+    lastFmRequestPermits.acquire()
+    val payload =
+      try {
+        rest.getForObject(uri, Map::class.java) as? Map<*, *> ?: emptyMap<Any, Any>()
+      } finally {
+        lastFmRequestPermits.release()
+      }
     val chart = payload["weeklyartistchart"] as? Map<*, *>
     val artistItems =
       when (val artists = chart?.get("artist")) {
@@ -173,7 +177,8 @@ class LastFmHistoryService(restTemplateBuilder: RestTemplateBuilder = RestTempla
     const val MAX_TOP_ARTISTS_LIMIT = 50
     private const val LASTFM_ARTIST_LIMIT = 1000
     private const val MONTHLY_PARALLELISM = 3
-    private const val MAX_MONTH_RANGE = 240L
+    private const val LASTFM_REQUEST_CONCURRENCY = 3
+    private const val MAX_MONTH_RANGE = 12L
     private const val MIN_YEAR = 2002
     private const val MAX_YEAR = 2100
     private const val MAX_YEAR_RANGE = 30

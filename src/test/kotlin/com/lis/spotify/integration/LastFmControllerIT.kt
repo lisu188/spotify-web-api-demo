@@ -5,16 +5,19 @@ import com.github.tomakehurst.wiremock.client.WireMock.aResponse
 import com.github.tomakehurst.wiremock.client.WireMock.configureFor
 import com.github.tomakehurst.wiremock.client.WireMock.equalTo
 import com.github.tomakehurst.wiremock.client.WireMock.get
+import com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor
 import com.github.tomakehurst.wiremock.client.WireMock.okJson
 import com.github.tomakehurst.wiremock.client.WireMock.reset as wireMockReset
 import com.github.tomakehurst.wiremock.client.WireMock.stubFor
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
+import com.github.tomakehurst.wiremock.client.WireMock.verify
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
 import com.lis.spotify.domain.AuthToken
 import com.lis.spotify.service.LastFmLibraryExport
 import com.lis.spotify.service.LastFmLibraryPage
 import com.lis.spotify.service.LastFmMonthSummary
 import com.lis.spotify.service.SpotifyAuthenticationService
+import java.util.concurrent.CompletableFuture
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertAll
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -173,6 +176,58 @@ constructor(private val rest: TestRestTemplate, private val spotify: SpotifyAuth
       { assertEquals(2, resp.body?.size) },
       { assertEquals("January Artist", resp.body?.get(0)?.topArtists?.single()?.name) },
       { assertEquals(20L, resp.body?.get(1)?.totalScrobbles) },
+    )
+  }
+
+  @Test
+  fun monthlyHistoryRejectsRangesLongerThanOneYear() {
+    val resp =
+      rest.getForEntity(
+        "/api/lastfm/users/login/monthly-history?from=2024-01&to=2025-01&limit=50",
+        String::class.java,
+      )
+
+    assertEquals(HttpStatus.BAD_REQUEST, resp.statusCode)
+  }
+
+  @Test
+  fun concurrentMonthlyHistoryRequestsShareCacheFill() {
+    stubFor(
+      get(urlPathEqualTo("/2.0/"))
+        .withQueryParam("method", equalTo("user.getWeeklyArtistChart"))
+        .withQueryParam("user", equalTo("login"))
+        .withQueryParam("from", equalTo("1761955200"))
+        .withQueryParam("to", equalTo("1764547199"))
+        .willReturn(
+          okJson(
+              """
+              {
+                "weeklyartistchart": {
+                  "artist": [{"name": "Shared Artist", "playcount": "10"}]
+                }
+              }
+              """
+                .trimIndent()
+            )
+            .withFixedDelay(250)
+        )
+    )
+    val path = "/api/lastfm/users/login/monthly-history?from=2025-11&to=2025-11&limit=50"
+
+    val responses =
+      List(2) {
+          CompletableFuture.supplyAsync {
+            rest.getForEntity(path, Array<LastFmMonthSummary>::class.java)
+          }
+        }
+        .map { it.join() }
+
+    responses.forEach { assertEquals(HttpStatus.OK, it.statusCode) }
+    verify(
+      1,
+      getRequestedFor(urlPathEqualTo("/2.0/"))
+        .withQueryParam("method", equalTo("user.getWeeklyArtistChart"))
+        .withQueryParam("user", equalTo("login")),
     )
   }
 
