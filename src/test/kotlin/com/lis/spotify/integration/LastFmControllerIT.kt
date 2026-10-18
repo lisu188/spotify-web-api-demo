@@ -123,7 +123,15 @@ constructor(private val rest: TestRestTemplate, private val spotify: SpotifyAuth
       )
     }
 
-    val resp = rest.getForEntity("/api/lastfm/users/login/library", LastFmLibraryExport::class.java)
+    val headers = HttpHeaders()
+    headers.add(HttpHeaders.COOKIE, "clientId=session_verify")
+    val resp =
+      rest.exchange(
+        "/api/lastfm/users/login/library",
+        org.springframework.http.HttpMethod.GET,
+        HttpEntity<Void>(headers),
+        LastFmLibraryExport::class.java,
+      )
 
     assertAll(
       { assertEquals(HttpStatus.OK, resp.statusCode) },

@@ -17,7 +17,11 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -62,6 +66,9 @@ class LastFmService(
     CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.HOURS).build()
   private val libraryExportCache: Cache<String, LastFmLibraryExport> =
     CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.HOURS).build()
+
+  private val libraryExportLoads =
+    ConcurrentHashMap<String, CompletableFuture<LastFmLibraryExport>>()
 
   private fun buildUri(method: String, params: Map<String, Any>, sessionKey: String?): URI {
     var builder =
@@ -380,11 +387,44 @@ class LastFmService(
     require(normalizedUser.isNotBlank()) { "user is required" }
     val cacheKey = normalizedUser.lowercase()
     libraryExportCache.getIfPresent(cacheKey)?.let {
-      logger.debug("Last.fm library export cache hit {}", cacheKey)
       return it
     }
+    val pending = CompletableFuture<LastFmLibraryExport>()
+    val existing = libraryExportLoads.putIfAbsent(cacheKey, pending)
+    if (existing != null) {
+      return try {
+        existing.get(LIBRARY_EXPORT_WAIT_MS, TimeUnit.MILLISECONDS)
+      } catch (ex: TimeoutException) {
+        throw LastFmLibraryBusyException(ex)
+      } catch (ex: InterruptedException) {
+        Thread.currentThread().interrupt()
+        throw LastFmLibraryBusyException(ex)
+      } catch (ex: ExecutionException) {
+        throw ex.cause ?: ex
+      }
+    }
+    try {
+      val export =
+        libraryExportCache.getIfPresent(cacheKey)
+          ?: loadLibraryExport(normalizedUser).also { libraryExportCache.put(cacheKey, it) }
+      pending.complete(export)
+      return export
+    } catch (ex: Throwable) {
+      pending.completeExceptionally(ex)
+      throw ex
+    } finally {
+      libraryExportLoads.remove(cacheKey, pending)
+    }
+  }
 
+  private fun loadLibraryExport(normalizedUser: String): LastFmLibraryExport {
     val firstPage = libraryArtists(normalizedUser)
+    if (firstPage.totalPages > LIBRARY_EXPORT_MAX_PAGES) {
+      throw LastFmException(
+        500,
+        "Last.fm library exceeds the maximum export size of $LIBRARY_EXPORT_MAX_PAGES pages",
+      )
+    }
     val allArtists = mutableListOf<LastFmLibraryArtist>()
     allArtists += firstPage.artists
 
@@ -405,15 +445,12 @@ class LastFmService(
       }
     }
 
-    val export =
-      LastFmLibraryExport(
-        user = normalizedUser,
-        artists = allArtists,
-        totalArtists = firstPage.total,
-        totalScrobbles = allArtists.sumOf { it.playcount },
-      )
-    libraryExportCache.put(cacheKey, export)
-    return export
+    return LastFmLibraryExport(
+      user = normalizedUser,
+      artists = allArtists,
+      totalArtists = firstPage.total,
+      totalScrobbles = allArtists.sumOf { it.playcount },
+    )
   }
 
   private fun parseLibraryArtists(
@@ -912,12 +949,17 @@ class LastFmService(
     private const val TRANSIENT_BACKEND_ERROR_CODE = 8
     private const val RECENT_TRACKS_PAGE_SIZE = 200
     internal const val LIBRARY_ARTISTS_MAX_PAGE_SIZE = 200
+    internal const val LIBRARY_EXPORT_MAX_PAGES = 50
+    private const val LIBRARY_EXPORT_WAIT_MS = 250L
   }
 }
 
 fun interface LastFmSleeper {
   fun sleep(millis: Long)
 }
+
+class LastFmLibraryBusyException(cause: Throwable? = null) :
+  RuntimeException("Last.fm library export is busy; retry later", cause)
 
 class LastFmException(val code: Int, override val message: String) : RuntimeException(message)
 

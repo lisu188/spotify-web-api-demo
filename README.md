@@ -225,11 +225,16 @@ allowlist receive `404 Not Found`.
 For analysis jobs that need the complete library in one request, use:
 
 ```shell
-curl 'http://localhost:8080/api/lastfm/users/lisek188/library'
+curl --cookie 'clientId=session_...' \
+  'http://localhost:8080/api/lastfm/users/lisek188/library'
 ```
 
-The full export is cached for one hour and includes `totalArtists` and `totalScrobbles` in
-addition to every artist entry.
+The full export requires an authenticated Spotify session, is limited to 50 pages, and is cached
+for one hour. Concurrent cache misses for the same user share one load. Followers wait up to
+250 ms, then receive `503 Service Unavailable` with `Retry-After: 1` while the owner continues.
+Retrying after the export completes reads the cached result without repeating provider work.
+The response includes
+`totalArtists` and `totalScrobbles` in addition to every artist entry.
 
 ## Spotify taste export
 
