@@ -230,7 +230,10 @@ curl --cookie 'clientId=session_...' \
 ```
 
 The full export requires an authenticated Spotify session, is limited to 50 pages, and is cached
-for one hour. Concurrent cache misses for the same user share one load. The response includes
+for one hour. Concurrent cache misses for the same user share one load. Followers wait up to
+250 ms, then receive `503 Service Unavailable` with `Retry-After: 1` while the owner continues.
+Retrying after the export completes reads the cached result without repeating provider work.
+The response includes
 `totalArtists` and `totalScrobbles` in addition to every artist entry.
 
 ## Spotify taste export
