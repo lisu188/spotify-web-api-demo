@@ -628,7 +628,7 @@ class LastFmServiceTest {
     val service = service()
     service.rest = rest
     every { rest.getForObject(any<URI>(), Map::class.java) } throws
-      HttpClientErrorException.create(HttpStatus.BAD_REQUEST, "Invalid request", null, null, null)
+      HttpClientErrorException(HttpStatus.BAD_REQUEST)
 
     assertThrows(LastFmException::class.java) { service.libraryExport("lisek188") }
     every { rest.getForObject(any<URI>(), Map::class.java) } returns
