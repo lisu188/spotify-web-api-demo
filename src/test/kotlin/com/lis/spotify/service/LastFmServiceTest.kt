@@ -18,7 +18,9 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -572,6 +574,99 @@ class LastFmServiceTest {
     assertEquals(60L, first.totalScrobbles)
     assertEquals(first, second)
     verify(exactly = 3) { rest.getForObject(any<URI>(), Map::class.java) }
+  }
+
+  @Test
+  fun libraryExportSharesConcurrentColdLoads() {
+    val rest = mockk<RestTemplate>()
+    val service = service()
+    service.rest = rest
+    val firstRequestStarted = CountDownLatch(1)
+    val releaseFirstRequest = CountDownLatch(1)
+    val secondCallerStarted = CountDownLatch(1)
+    every { rest.getForObject(any<URI>(), Map::class.java) } answers
+      {
+        val currentPage = page(firstArg())
+        if (currentPage == 1) {
+          firstRequestStarted.countDown()
+          check(releaseFirstRequest.await(5, TimeUnit.SECONDS))
+        }
+        mapOf(
+          "artists" to
+            mapOf(
+              "@attr" to
+                mapOf("page" to "$currentPage", "totalPages" to "3", "total" to "3"),
+              "artist" to mapOf("name" to "Artist $currentPage", "playcount" to "10"),
+            )
+        )
+      }
+    val executor = Executors.newFixedThreadPool(2)
+    try {
+      val first = executor.submit<LastFmLibraryExport> { service.libraryExport(" lisek188 ") }
+      assertTrue(firstRequestStarted.await(2, TimeUnit.SECONDS))
+      val second =
+        executor.submit<LastFmLibraryExport> {
+          secondCallerStarted.countDown()
+          service.libraryExport("LISEK188")
+        }
+      assertTrue(secondCallerStarted.await(2, TimeUnit.SECONDS))
+      assertThrows(TimeoutException::class.java) { second.get(200, TimeUnit.MILLISECONDS) }
+      releaseFirstRequest.countDown()
+
+      val export = first.get(5, TimeUnit.SECONDS)
+      assertEquals(export, second.get(5, TimeUnit.SECONDS))
+      assertEquals(listOf("Artist 1", "Artist 2", "Artist 3"), export.artists.map { it.name })
+      verify(exactly = 3) { rest.getForObject(any<URI>(), Map::class.java) }
+    } finally {
+      releaseFirstRequest.countDown()
+      executor.shutdownNow()
+    }
+  }
+
+  @Test
+  fun libraryExportRetriesAfterFailedLoad() {
+    val rest = mockk<RestTemplate>()
+    val service = service()
+    service.rest = rest
+    every { rest.getForObject(any<URI>(), Map::class.java) } throws
+      HttpClientErrorException.create(HttpStatus.BAD_REQUEST, "Invalid request", null, null, null)
+
+    assertThrows(LastFmException::class.java) { service.libraryExport("lisek188") }
+    every { rest.getForObject(any<URI>(), Map::class.java) } returns
+      mapOf(
+        "artists" to
+          mapOf(
+            "@attr" to mapOf("page" to "1", "totalPages" to "1", "total" to "1"),
+            "artist" to mapOf("name" to "Recovered Artist", "playcount" to "10"),
+          )
+      )
+
+    assertEquals("Recovered Artist", service.libraryExport("lisek188").artists.single().name)
+    verify(exactly = 2) { rest.getForObject(any<URI>(), Map::class.java) }
+  }
+
+  @Test
+  fun libraryExportAllowsExactlyFiftyPages() {
+    val rest = mockk<RestTemplate>()
+    val service = service()
+    service.rest = rest
+    every { rest.getForObject(any<URI>(), Map::class.java) } answers
+      {
+        val currentPage = page(firstArg())
+        mapOf(
+          "artists" to
+            mapOf(
+              "@attr" to
+                mapOf("page" to "$currentPage", "totalPages" to "50", "total" to "50"),
+              "artist" to mapOf("name" to "Artist $currentPage", "playcount" to "10"),
+            )
+        )
+      }
+
+    val export = service.libraryExport("lisek188")
+
+    assertEquals((1..50).map { "Artist $it" }, export.artists.map { it.name })
+    verify(exactly = 50) { rest.getForObject(any<URI>(), Map::class.java) }
   }
 
   @Test

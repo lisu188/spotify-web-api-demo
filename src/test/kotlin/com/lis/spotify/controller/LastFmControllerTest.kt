@@ -6,6 +6,7 @@ import com.lis.spotify.service.LastFmService
 import com.lis.spotify.service.SpotifyAuthenticationService
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -47,6 +48,34 @@ class LastFmControllerTest {
       }
 
     assertEquals(HttpStatus.UNAUTHORIZED, ex.statusCode)
+    verify(exactly = 0) { service.libraryExport(any()) }
+  }
+
+  @Test
+  fun libraryExportRejectsInvalidSessionBeforeLoading() {
+    every { spotify.isAuthorizedSession("session_unknown") } returns false
+    val allowlistedController = LastFmController(service, spotify, "login")
+
+    val ex =
+      assertThrows(ResponseStatusException::class.java) {
+        allowlistedController.libraryExport("login", "session_unknown")
+      }
+
+    assertEquals(HttpStatus.UNAUTHORIZED, ex.statusCode)
+    verify(exactly = 0) { service.libraryExport(any()) }
+  }
+
+  @Test
+  fun libraryExportHidesUsersOutsideAllowlistAfterAuthentication() {
+    every { spotify.isAuthorizedSession("session_test") } returns true
+
+    val ex =
+      assertThrows(ResponseStatusException::class.java) {
+        controller.libraryExport("other", "session_test")
+      }
+
+    assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)
+    verify(exactly = 0) { service.libraryExport(any()) }
   }
 
   @Test
