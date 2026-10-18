@@ -89,6 +89,55 @@ class LastFmHistoryServiceTest {
   }
 
   @Test
+  fun sameKeyFollowersTimeOutWithoutCancellingOwnersOrDuplicatingHttp() {
+    val requestCount = AtomicInteger()
+    val ownersStarted = CountDownLatch(2)
+    val releaseOwners = CountDownLatch(1)
+    val service = historyService {
+      requestCount.incrementAndGet()
+      ownersStarted.countDown()
+      check(releaseOwners.await(10, TimeUnit.SECONDS))
+      response()
+    }
+    val mvc =
+      MockMvcBuilders.standaloneSetup(LastFmController(mockk(), mockk(), "login", service))
+        .setControllerAdvice(ExceptionLoggingAdvice())
+        .build()
+    val paths =
+      listOf(
+        "/api/lastfm/users/LOGIN/history?fromYear=2025&toYear=2025",
+        "/api/lastfm/users/LOGIN/monthly-history?from=2025-01&to=2025-01",
+      )
+    val executor = Executors.newFixedThreadPool(3)
+    try {
+      val yearOwner = executor.submit { service.yearlyArtistSummary("login", 2025) }
+      val monthOwner =
+        executor.submit { service.monthlyArtistSummary("login", YearMonth.of(2025, 1)) }
+      assertTrue(ownersStarted.await(2, TimeUnit.SECONDS))
+      paths.forEach { path ->
+        executor
+          .submit {
+            mvc
+              .perform(get(path))
+              .andExpect(status().isServiceUnavailable())
+              .andExpect(header().string("Retry-After", "1"))
+          }
+          .get(2, TimeUnit.SECONDS)
+        assertEquals(2, requestCount.get())
+      }
+      releaseOwners.countDown()
+      yearOwner.get(5, TimeUnit.SECONDS)
+      monthOwner.get(5, TimeUnit.SECONDS)
+
+      paths.forEach { path -> mvc.perform(get(path)).andExpect(status().isOk()) }
+      assertEquals(2, requestCount.get())
+    } finally {
+      releaseOwners.countDown()
+      executor.shutdownNow()
+    }
+  }
+
+  @Test
   fun interruptedPermitWaitPreservesInterruptAndMakesNoHttpRequest() {
     val requestCount = AtomicInteger()
     val service = historyService {
