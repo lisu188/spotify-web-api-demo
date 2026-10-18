@@ -2,6 +2,7 @@ package com.lis.spotify.service
 
 import com.google.common.cache.Cache
 import com.google.common.cache.CacheBuilder
+import com.google.common.util.concurrent.UncheckedExecutionException
 import com.lis.spotify.AppEnvironment.LastFm
 import java.time.LocalDate
 import java.time.YearMonth
@@ -89,7 +90,7 @@ class LastFmHistoryService(restTemplateBuilder: RestTemplateBuilder = RestTempla
   ): LastFmMonthSummary {
     val normalizedUser = user.trim()
     val cacheKey = "${normalizedUser.lowercase()}|$month"
-    val fullSummary = monthlyCache.get(cacheKey) { fetchMonth(normalizedUser, month) }
+    val fullSummary = cachedSummary(monthlyCache, cacheKey) { fetchMonth(normalizedUser, month) }
     return fullSummary.copy(topArtists = fullSummary.topArtists.take(limit))
   }
 
@@ -100,9 +101,18 @@ class LastFmHistoryService(restTemplateBuilder: RestTemplateBuilder = RestTempla
   ): LastFmYearSummary {
     val normalizedUser = user.trim()
     val cacheKey = "${normalizedUser.lowercase()}|$year"
-    val fullSummary = yearlyCache.get(cacheKey) { fetchYear(normalizedUser, year) }
+    val fullSummary = cachedSummary(yearlyCache, cacheKey) { fetchYear(normalizedUser, year) }
     return fullSummary.copy(topArtists = fullSummary.topArtists.take(limit))
   }
+
+  private fun <T : Any> cachedSummary(cache: Cache<String, T>, key: String, load: () -> T): T =
+    try {
+      cache.get(key) { load() }
+    } catch (ex: UncheckedExecutionException) {
+      val cause = ex.cause
+      if (cause is LastFmHistoryBusyException) throw cause
+      throw ex
+    }
 
   private fun fetchMonth(user: String, month: YearMonth): LastFmMonthSummary {
     val from = month.atDay(1).atStartOfDay().toEpochSecond(ZoneOffset.UTC)
@@ -142,7 +152,14 @@ class LastFmHistoryService(restTemplateBuilder: RestTemplateBuilder = RestTempla
         .build()
         .toUri()
 
-    lastFmRequestPermits.acquire()
+    val acquired =
+      try {
+        lastFmRequestPermits.tryAcquire(LASTFM_REQUEST_WAIT_MS, TimeUnit.MILLISECONDS)
+      } catch (ex: InterruptedException) {
+        Thread.currentThread().interrupt()
+        throw LastFmHistoryBusyException(ex)
+      }
+    if (!acquired) throw LastFmHistoryBusyException()
     val payload =
       try {
         rest.getForObject(uri, Map::class.java) as? Map<*, *> ?: emptyMap<Any, Any>()
@@ -178,12 +195,16 @@ class LastFmHistoryService(restTemplateBuilder: RestTemplateBuilder = RestTempla
     private const val LASTFM_ARTIST_LIMIT = 1000
     private const val MONTHLY_PARALLELISM = 3
     private const val LASTFM_REQUEST_CONCURRENCY = 3
+    private const val LASTFM_REQUEST_WAIT_MS = 250L
     private const val MAX_MONTH_RANGE = 12L
     private const val MIN_YEAR = 2002
     private const val MAX_YEAR = 2100
     private const val MAX_YEAR_RANGE = 30
   }
 }
+
+class LastFmHistoryBusyException(cause: Throwable? = null) :
+  RuntimeException("Last.fm history service is busy; retry later", cause)
 
 data class LastFmYearArtist(val name: String, val playcount: Long)
 

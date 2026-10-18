@@ -1,12 +1,14 @@
 package com.lis.spotify.service
 
+import com.lis.spotify.config.ExceptionLoggingAdvice
+import com.lis.spotify.controller.LastFmController
+import io.mockk.mockk
 import java.time.YearMonth
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -15,33 +17,45 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.client.ClientHttpRequestInterceptor
 import org.springframework.mock.http.client.MockClientHttpResponse
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import org.springframework.web.client.ResourceAccessException
 
 class LastFmHistoryServiceTest {
   @Test
-  fun yearlyAndMonthlyRequestsShareTheServiceWideConcurrencyLimit() {
+  fun saturatedHistoryRequestsReturn503WithoutExtraHttpAndRecover() {
     val activeRequests = AtomicInteger()
     val maxActiveRequests = AtomicInteger()
     val requestCount = AtomicInteger()
     val firstWaveStarted = CountDownLatch(3)
-    val fourthRequestStarted = CountDownLatch(1)
     val releaseRequests = CountDownLatch(1)
     val service = historyService {
       val active = activeRequests.incrementAndGet()
       maxActiveRequests.accumulateAndGet(active, ::maxOf)
-      if (requestCount.incrementAndGet() >= 4) fourthRequestStarted.countDown()
+      requestCount.incrementAndGet()
       firstWaveStarted.countDown()
       try {
-        check(releaseRequests.await(5, TimeUnit.SECONDS))
+        check(releaseRequests.await(10, TimeUnit.SECONDS))
         response()
       } finally {
         activeRequests.decrementAndGet()
       }
     }
-    val executor = Executors.newFixedThreadPool(8)
+    val mvc =
+      MockMvcBuilders.standaloneSetup(LastFmController(mockk(), mockk(), "login", service))
+        .setControllerAdvice(ExceptionLoggingAdvice())
+        .build()
+    val paths =
+      listOf(
+        "/api/lastfm/users/login/history?fromYear=2025&toYear=2025",
+        "/api/lastfm/users/login/monthly-history?from=2025-01&to=2025-01",
+      )
+    val executor = Executors.newFixedThreadPool(4)
     try {
       val requests =
-        (1..8).map { index ->
+        (1..3).map { index ->
           executor.submit {
             if (index % 2 == 0) {
               service.yearlyArtistSummary("login", 2002 + index)
@@ -51,14 +65,61 @@ class LastFmHistoryServiceTest {
           }
         }
       assertTrue(firstWaveStarted.await(2, TimeUnit.SECONDS))
-      assertFalse(fourthRequestStarted.await(200, TimeUnit.MILLISECONDS))
+      paths.forEach { path ->
+        executor
+          .submit {
+            mvc
+              .perform(get(path))
+              .andExpect(status().isServiceUnavailable)
+              .andExpect(header().string("Retry-After", "1"))
+          }
+          .get(2, TimeUnit.SECONDS)
+        assertEquals(3, requestCount.get())
+      }
+      assertEquals(3, maxActiveRequests.get())
       releaseRequests.countDown()
       requests.forEach { it.get(5, TimeUnit.SECONDS) }
 
-      assertEquals(8, requestCount.get())
-      assertEquals(3, maxActiveRequests.get())
+      paths.forEach { path -> mvc.perform(get(path)).andExpect(status().isOk) }
+      assertEquals(5, requestCount.get())
     } finally {
       releaseRequests.countDown()
+      executor.shutdownNow()
+    }
+  }
+
+  @Test
+  fun interruptedPermitWaitPreservesInterruptAndMakesNoHttpRequest() {
+    val requestCount = AtomicInteger()
+    val service = historyService {
+      requestCount.incrementAndGet()
+      response()
+    }
+    val executor = Executors.newSingleThreadExecutor()
+    try {
+      executor
+        .submit {
+          Thread.currentThread().interrupt()
+          try {
+            val error =
+              assertThrows(LastFmHistoryBusyException::class.java) {
+                service.yearlyArtistSummary("login", 2020)
+              }
+            assertTrue(error.cause is InterruptedException)
+            assertTrue(Thread.currentThread().isInterrupted)
+          } finally {
+            Thread.interrupted()
+          }
+        }
+        .get(2, TimeUnit.SECONDS)
+
+      assertEquals(0, requestCount.get())
+      assertEquals(
+        "Recovered Artist",
+        service.yearlyArtistSummary("login", 2020).topArtists.single().name,
+      )
+      assertEquals(1, requestCount.get())
+    } finally {
       executor.shutdownNow()
     }
   }

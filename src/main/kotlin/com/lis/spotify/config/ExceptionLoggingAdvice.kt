@@ -2,6 +2,7 @@ package com.lis.spotify.config
 
 import com.lis.spotify.service.AuthenticationRequiredException
 import com.lis.spotify.service.LastFmException
+import com.lis.spotify.service.LastFmHistoryBusyException
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
@@ -33,6 +34,12 @@ class ExceptionLoggingAdvice {
       ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build()
     }
   }
+
+  @ExceptionHandler(LastFmHistoryBusyException::class)
+  fun handleHistoryBusy(ex: LastFmHistoryBusyException): ResponseEntity<String> =
+    ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+      .header(HttpHeaders.RETRY_AFTER, "1")
+      .body(ex.message)
 
   @ExceptionHandler(AuthenticationRequiredException::class)
   fun handleAuthenticationRequired(ex: AuthenticationRequiredException): ResponseEntity<Void> {
