@@ -15,7 +15,13 @@ be started manually with `workflow_dispatch`. It checks out exact commit archive
 uses the existing source verifier and runner, serializes benchmark jobs, and
 retains raw trials, command logs, source manifests and the report for 30 days.
 An interrupted run uploads its partial evidence and does not satisfy the gate.
-Download the artifact if the evidence must remain available beyond that period.
+Once the complete evidence is retained in Git, workflow pushes validate those
+48 completed trials, exact archive identities/hashes, executable harness hashes
+and recomputed reports rather than claim fresh measurements. Manual dispatch
+still executes all 48 trials, using the verified retained source archives so an
+old optimized commit remains reproducible after branch rebases. Small verifier
+regressions cover missing trials, altered source/results, executable drift and
+unsafe ZIP paths. The retained ZIP preserves raw evidence beyond artifact expiry.
 The measured revisions stay pinned to the production commits above; a later
 security or workflow commit is not silently relabeled as a measured revision.
 

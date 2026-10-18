@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   benchmark:
-    name: Complete 48-run comparison
+    name: Validate complete 48-trial evidence
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -37,7 +37,20 @@ jobs:
       - name: Set up shared Gradle dependency cache
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Verify retained-evidence validation regressions
+        run: python3 -m unittest discover -s benchmark -p test_verify_retained.py
+
+      - name: Verify retained measurements without rerunning them
+        if: hashFiles('benchmark/evidence/2026-10-18/evidence.zip') != ''
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/yearly-playlist-benchmark"
+          if [ "${{ github.event_name }}" = push ]; then destination="$root/results"; else destination="$root/retained"; fi
+          python3 benchmark/verify_retained.py benchmark/evidence/2026-10-18/evidence.zip "$destination" "$BENCHMARK_BASELINE_REVISION" "$BENCHMARK_OPTIMIZED_REVISION"
+          if [ "${{ github.event_name }}" = push ]; then echo "BENCHMARK_RETAINED_EVIDENCE=true" >> "$GITHUB_ENV"; fi
+
       - name: Prepare unchanged comparison snapshots
+        if: env.BENCHMARK_RETAINED_EVIDENCE != 'true'
         shell: bash
         run: |
           python3 - <<'PY'
@@ -48,18 +61,29 @@ jobs:
           PY
           root="$RUNNER_TEMP/yearly-playlist-benchmark"
           mkdir -p "$root/baseline" "$root/optimized" "$root/results"
-          git archive --format=tar --output="$root/results/baseline-source.tar" "$BENCHMARK_BASELINE_REVISION"
-          git archive --format=tar --output="$root/results/optimized-source.tar" "$BENCHMARK_OPTIMIZED_REVISION"
+          if [ -d "$root/retained" ]; then
+            cp "$root/retained/baseline-source.tar" "$root/results/baseline-source.tar"
+            cp "$root/retained/optimized-source.tar" "$root/results/optimized-source.tar"
+          else
+            git archive --format=tar --output="$root/results/baseline-source.tar" "$BENCHMARK_BASELINE_REVISION"
+            git archive --format=tar --output="$root/results/optimized-source.tar" "$BENCHMARK_OPTIMIZED_REVISION"
+          fi
           tar -xf "$root/results/baseline-source.tar" -C "$root/baseline"
           tar -xf "$root/results/optimized-source.tar" -C "$root/optimized"
           echo "BENCHMARK_BASELINE_ARCHIVE=$root/results/baseline-source.tar" >> "$GITHUB_ENV"
           echo "BENCHMARK_OPTIMIZED_ARCHIVE=$root/results/optimized-source.tar" >> "$GITHUB_ENV"
 
       - name: Run every scenario and all three paired trials
+        if: env.BENCHMARK_RETAINED_EVIDENCE != 'true'
         shell: bash
         run: |
           root="$RUNNER_TEMP/yearly-playlist-benchmark"
           bash benchmark/run.sh "$root/baseline" "$root/optimized" "$root/results"
+
+      - name: Confirm the complete evidence inventory
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/yearly-playlist-benchmark"
           python3 - "$root/results" <<'PY'
           import json, pathlib, sys
           root = pathlib.Path(sys.argv[1])
