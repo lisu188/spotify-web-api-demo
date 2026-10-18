@@ -26,19 +26,18 @@ class LastFmHistoryServiceTest {
     val firstWaveStarted = CountDownLatch(3)
     val fourthRequestStarted = CountDownLatch(1)
     val releaseRequests = CountDownLatch(1)
-    val service =
-      historyService {
-        val active = activeRequests.incrementAndGet()
-        maxActiveRequests.accumulateAndGet(active, ::maxOf)
-        if (requestCount.incrementAndGet() >= 4) fourthRequestStarted.countDown()
-        firstWaveStarted.countDown()
-        try {
-          check(releaseRequests.await(5, TimeUnit.SECONDS))
-          response()
-        } finally {
-          activeRequests.decrementAndGet()
-        }
+    val service = historyService {
+      val active = activeRequests.incrementAndGet()
+      maxActiveRequests.accumulateAndGet(active, ::maxOf)
+      if (requestCount.incrementAndGet() >= 4) fourthRequestStarted.countDown()
+      firstWaveStarted.countDown()
+      try {
+        check(releaseRequests.await(5, TimeUnit.SECONDS))
+        response()
+      } finally {
+        activeRequests.decrementAndGet()
       }
+    }
     val executor = Executors.newFixedThreadPool(8)
     try {
       val requests =
@@ -67,20 +66,20 @@ class LastFmHistoryServiceTest {
   @Test
   fun failedHistoryLoadsReleasePermitsAndCanBeRetried() {
     val requestCount = AtomicInteger()
-    val service =
-      historyService {
-        if (requestCount.incrementAndGet() <= 3) {
-          throw ResourceAccessException("Provider unavailable")
-        }
-        response()
+    val service = historyService {
+      if (requestCount.incrementAndGet() <= 3) {
+        throw ResourceAccessException("Provider unavailable")
       }
+      response()
+    }
     repeat(3) {
       assertThrows(RuntimeException::class.java) { service.yearlyArtistSummary("login", 2020) }
     }
     val executor = Executors.newSingleThreadExecutor()
     try {
       val recovered =
-        executor.submit<LastFmYearSummary> { service.yearlyArtistSummary("login", 2020) }
+        executor
+          .submit<LastFmYearSummary> { service.yearlyArtistSummary("login", 2020) }
           .get(5, TimeUnit.SECONDS)
 
       assertEquals("Recovered Artist", recovered.topArtists.single().name)
