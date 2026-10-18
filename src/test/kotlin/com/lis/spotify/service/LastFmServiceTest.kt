@@ -1,6 +1,8 @@
 package com.lis.spotify.service
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.lis.spotify.config.ExceptionLoggingAdvice
+import com.lis.spotify.controller.LastFmController
 import com.lis.spotify.domain.Song
 import com.lis.spotify.persistence.InMemoryLastFmRecentTracksCacheStore
 import com.lis.spotify.persistence.LastFmRecentTracksCacheStore
@@ -9,6 +11,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
 import io.mockk.verify
+import jakarta.servlet.http.Cookie
 import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
@@ -28,6 +31,10 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.HttpServerErrorException
 import org.springframework.web.client.ResourceAccessException
@@ -609,7 +616,7 @@ class LastFmServiceTest {
           service.libraryExport("LISEK188")
         }
       assertTrue(secondCallerStarted.await(2, TimeUnit.SECONDS))
-      assertThrows(TimeoutException::class.java) { second.get(200, TimeUnit.MILLISECONDS) }
+      assertThrows(TimeoutException::class.java) { second.get(100, TimeUnit.MILLISECONDS) }
       releaseFirstRequest.countDown()
 
       val export = first.get(5, TimeUnit.SECONDS)
@@ -618,6 +625,105 @@ class LastFmServiceTest {
       verify(exactly = 3) { rest.getForObject(any<URI>(), Map::class.java) }
     } finally {
       releaseFirstRequest.countDown()
+      executor.shutdownNow()
+    }
+  }
+
+  @Test
+  fun libraryExportFollowersReturn503WithoutCancellingOrDuplicatingOwner() {
+    val rest = mockk<RestTemplate>()
+    val service = service()
+    service.rest = rest
+    val requestCount = AtomicInteger()
+    val ownerStarted = CountDownLatch(1)
+    val releaseOwner = CountDownLatch(1)
+    every { rest.getForObject(any<URI>(), Map::class.java) } answers
+      {
+        requestCount.incrementAndGet()
+        val currentPage = page(firstArg())
+        if (currentPage == 1) {
+          ownerStarted.countDown()
+          check(releaseOwner.await(10, TimeUnit.SECONDS))
+        }
+        mapOf(
+          "artists" to
+            mapOf(
+              "@attr" to mapOf("page" to "$currentPage", "totalPages" to "3", "total" to "3"),
+              "artist" to mapOf("name" to "Artist $currentPage", "playcount" to "10"),
+            )
+        )
+      }
+    val spotify = mockk<SpotifyAuthenticationService>()
+    every { spotify.isAuthorizedSession("session_test") } returns true
+    val mvc =
+      MockMvcBuilders.standaloneSetup(LastFmController(service, spotify, "login"))
+        .setControllerAdvice(ExceptionLoggingAdvice())
+        .build()
+    val executor = Executors.newFixedThreadPool(2)
+    try {
+      val owner = executor.submit<LastFmLibraryExport> { service.libraryExport("login") }
+      assertTrue(ownerStarted.await(2, TimeUnit.SECONDS))
+      executor
+        .submit {
+          mvc
+            .perform(
+              get("/api/lastfm/users/LOGIN/library").cookie(Cookie("clientId", "session_test"))
+            )
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(header().string("Retry-After", "1"))
+        }
+        .get(2, TimeUnit.SECONDS)
+      assertEquals(1, requestCount.get())
+      releaseOwner.countDown()
+      assertEquals(3, owner.get(5, TimeUnit.SECONDS).artists.size)
+
+      mvc
+        .perform(get("/api/lastfm/users/login/library").cookie(Cookie("clientId", "session_test")))
+        .andExpect(status().isOk())
+      assertEquals(3, requestCount.get())
+    } finally {
+      releaseOwner.countDown()
+      executor.shutdownNow()
+    }
+  }
+
+  @Test
+  fun interruptedLibraryFollowerPreservesInterruptWithoutDuplicatingOwner() {
+    val rest = mockk<RestTemplate>()
+    val service = service()
+    service.rest = rest
+    val ownerStarted = CountDownLatch(1)
+    val releaseOwner = CountDownLatch(1)
+    every { rest.getForObject(any<URI>(), Map::class.java) } answers
+      {
+        ownerStarted.countDown()
+        check(releaseOwner.await(10, TimeUnit.SECONDS))
+        mapOf("artists" to mapOf("@attr" to mapOf("page" to "1", "totalPages" to "1")))
+      }
+    val executor = Executors.newFixedThreadPool(2)
+    try {
+      val owner = executor.submit<LastFmLibraryExport> { service.libraryExport("login") }
+      assertTrue(ownerStarted.await(2, TimeUnit.SECONDS))
+      executor
+        .submit {
+          Thread.currentThread().interrupt()
+          try {
+            val error =
+              assertThrows(LastFmLibraryBusyException::class.java) {
+                service.libraryExport("LOGIN")
+              }
+            assertTrue(error.cause is InterruptedException)
+            assertTrue(Thread.currentThread().isInterrupted)
+          } finally {
+            Thread.interrupted()
+          }
+        }
+        .get(2, TimeUnit.SECONDS)
+      releaseOwner.countDown()
+      owner.get(5, TimeUnit.SECONDS)
+      verify(exactly = 1) { rest.getForObject(any<URI>(), Map::class.java) }
+    } finally {
+      releaseOwner.countDown()
       executor.shutdownNow()
     }
   }
