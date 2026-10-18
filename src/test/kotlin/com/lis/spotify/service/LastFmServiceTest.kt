@@ -594,8 +594,7 @@ class LastFmServiceTest {
         mapOf(
           "artists" to
             mapOf(
-              "@attr" to
-                mapOf("page" to "$currentPage", "totalPages" to "3", "total" to "3"),
+              "@attr" to mapOf("page" to "$currentPage", "totalPages" to "3", "total" to "3"),
               "artist" to mapOf("name" to "Artist $currentPage", "playcount" to "10"),
             )
         )
@@ -656,8 +655,7 @@ class LastFmServiceTest {
         mapOf(
           "artists" to
             mapOf(
-              "@attr" to
-                mapOf("page" to "$currentPage", "totalPages" to "50", "total" to "50"),
+              "@attr" to mapOf("page" to "$currentPage", "totalPages" to "50", "total" to "50"),
               "artist" to mapOf("name" to "Artist $currentPage", "playcount" to "10"),
             )
         )
