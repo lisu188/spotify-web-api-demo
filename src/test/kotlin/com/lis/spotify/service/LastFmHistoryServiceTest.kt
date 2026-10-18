@@ -70,7 +70,7 @@ class LastFmHistoryServiceTest {
           .submit {
             mvc
               .perform(get(path))
-              .andExpect(status().isServiceUnavailable)
+              .andExpect(status().isServiceUnavailable())
               .andExpect(header().string("Retry-After", "1"))
           }
           .get(2, TimeUnit.SECONDS)
@@ -80,7 +80,7 @@ class LastFmHistoryServiceTest {
       releaseRequests.countDown()
       requests.forEach { it.get(5, TimeUnit.SECONDS) }
 
-      paths.forEach { path -> mvc.perform(get(path)).andExpect(status().isOk) }
+      paths.forEach { path -> mvc.perform(get(path)).andExpect(status().isOk()) }
       assertEquals(5, requestCount.get())
     } finally {
       releaseRequests.countDown()
