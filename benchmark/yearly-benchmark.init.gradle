@@ -1,0 +1,45 @@
+// Opt in with: ./gradlew -I /absolute/path/benchmark/yearly-benchmark.init.gradle yearlyBenchmark
+gradle.projectsEvaluated {
+    def p = gradle.rootProject
+    def harness = new File(p.findProperty('benchmark.harness') ?: new File(p.projectDir, 'benchmark').absolutePath)
+    p.sourceSets.test.kotlin.srcDir(new File(harness, 'src'))
+    if (p.findProperty('benchmark.formatOnly') == 'true') {
+        p.tasks.named('ktfmtFormatTest') {
+            setSource(p.fileTree(new File(harness, 'src')) { include '**/*.kt' })
+        }
+    }
+    p.tasks.register('writeYearlyBenchmarkClasspath') {
+        dependsOn p.tasks.named('testClasses')
+        doLast {
+            def target = new File(p.layout.buildDirectory.get().asFile, 'yearly-benchmark-classpath.txt')
+            target.parentFile.mkdirs()
+            target.text = p.sourceSets.test.runtimeClasspath.asPath
+        }
+    }
+    p.tasks.register('yearlyBenchmark', Test) {
+        description = 'Synthetic yearly-generation benchmark; never contacts real accounts.'
+        group = 'verification'
+        testClassesDirs = p.sourceSets.test.output.classesDirs
+        classpath = p.sourceSets.test.runtimeClasspath
+        dependsOn p.tasks.named('testClasses')
+        useJUnitPlatform()
+        filter { includeTestsMatching 'com.lis.spotify.service.YearlyPlaylistBenchmark' }
+        maxParallelForks = 1
+        minHeapSize = '256m'
+        maxHeapSize = '1536m'
+        jvmArgs '-XX:ActiveProcessorCount=1'
+        outputs.upToDateWhen { false }
+        extensions.configure(org.gradle.testing.jacoco.plugins.JacocoTaskExtension) { jacocoExtension -> jacocoExtension.enabled = false }
+        ['variant', 'revision', 'scenario', 'output', 'trials', 'trialOffset'].each { key ->
+            def value = p.findProperty('benchmark.' + key)
+            if (value != null) systemProperty 'benchmark.' + key, value.toString()
+        }
+        systemProperty 'app.state-store.mode', 'memory'
+        systemProperty 'BASE_URL', 'http://localhost'
+        systemProperty 'SPOTIFY_CLIENT_ID', 'synthetic-id'
+        systemProperty 'SPOTIFY_CLIENT_SECRET', 'synthetic-secret'
+        systemProperty 'LASTFM_API_KEY', 'synthetic-key'
+        systemProperty 'LASTFM_API_SECRET', 'synthetic-secret'
+        testLogging { events 'failed'; showStandardStreams = true }
+    }
+}

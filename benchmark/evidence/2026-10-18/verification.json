@@ -1,0 +1,15 @@
+{
+  "ciRun": 39154709369,
+  "harnessHead": "3818234c8d3393f208f82c9dacebdc6846e328a0",
+  "trials": 48,
+  "allSuccessful": true,
+  "sourceArchiveIdentitiesAndHashesVerified": true,
+  "oneCpuVerified": true,
+  "requestedHeapMiB": 1536,
+  "reportedMaxHeapBytes": 1556938752,
+  "optimizedConcurrencyAtMostEightAndNoDuplicateQueries": true,
+  "summaryRawCsvAndReportRecomputedExactly": true,
+  "baseline": "5369a02692f026d989b527dfa19ba74799382045",
+  "optimizedProduction": "0ae29dd1be1233ca883aeea3586a025eee38447d",
+  "harnessHashesMatchRecordedCommit": true
+}
