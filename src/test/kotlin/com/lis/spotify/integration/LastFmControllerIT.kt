@@ -209,7 +209,7 @@ constructor(private val rest: TestRestTemplate, private val spotify: SpotifyAuth
               """
                 .trimIndent()
             )
-            .withFixedDelay(250)
+            .withFixedDelay(100)
         )
     )
     val path = "/api/lastfm/users/login/monthly-history?from=2025-11&to=2025-11&limit=50"
