@@ -4,6 +4,17 @@ This opt-in harness compiles unchanged against the pinned production baseline
 5369a02692f026d989b527dfa19ba74799382045 and the optimized revision. It is not included
 in normal tests or coverage. It never connects to Spotify, Last.fm, or an account.
 
+The `Yearly playlist benchmark` GitHub Actions workflow runs the complete 48-trial
+comparison on a hosted Linux runner. Its first delivery runs when that workflow
+file is pushed to `codex/yearly-playlist-parallelism`; after merging, it can also
+be started manually with `workflow_dispatch`. It checks out exact commit archives,
+uses the existing source verifier and runner, serializes benchmark jobs, and
+retains raw trials, command logs, source manifests and the report for 30 days.
+An interrupted run uploads its partial evidence and does not satisfy the gate.
+Download the artifact if the evidence must remain available beyond that period.
+The measured revisions stay pinned to the production commits above; a later
+security or workflow commit is not silently relabeled as a measured revision.
+
 Use Linux/WSL with Java 21, Python 3, and taskset. Build artifacts should live in
 Linux storage rather than the Windows drive. Keep production source snapshots at
 the exact measured commits; the harness is supplied externally to both snapshots.

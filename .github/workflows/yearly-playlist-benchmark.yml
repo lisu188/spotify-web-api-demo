@@ -1,0 +1,83 @@
+name: Yearly playlist benchmark
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/yearly-playlist-parallelism]
+    paths: [.github/workflows/yearly-playlist-benchmark.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: yearly-playlist-benchmark-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    name: Complete 48-run comparison
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BENCHMARK_BASELINE_REVISION: 5369a02692f026d989b527dfa19ba74799382045
+      BENCHMARK_OPTIMIZED_REVISION: 0ae29dd1be1233ca883aeea3586a025eee38447d
+    steps:
+      - name: Check out the benchmark harness and comparison history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up shared Gradle dependency cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Prepare unchanged comparison snapshots
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, shutil
+          disk = shutil.disk_usage(os.environ['RUNNER_TEMP'])
+          if disk.free / disk.total <= 0.10:
+              raise SystemExit('Benchmark stopped: runner disk is at least 90% used')
+          PY
+          root="$RUNNER_TEMP/yearly-playlist-benchmark"
+          mkdir -p "$root/baseline" "$root/optimized" "$root/results"
+          git archive --format=tar --output="$root/results/baseline-source.tar" "$BENCHMARK_BASELINE_REVISION"
+          git archive --format=tar --output="$root/results/optimized-source.tar" "$BENCHMARK_OPTIMIZED_REVISION"
+          tar -xf "$root/results/baseline-source.tar" -C "$root/baseline"
+          tar -xf "$root/results/optimized-source.tar" -C "$root/optimized"
+          echo "BENCHMARK_BASELINE_ARCHIVE=$root/results/baseline-source.tar" >> "$GITHUB_ENV"
+          echo "BENCHMARK_OPTIMIZED_ARCHIVE=$root/results/optimized-source.tar" >> "$GITHUB_ENV"
+
+      - name: Run every scenario and all three paired trials
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/yearly-playlist-benchmark"
+          bash benchmark/run.sh "$root/baseline" "$root/optimized" "$root/results"
+          python3 - "$root/results" <<'PY'
+          import json, pathlib, sys
+          root = pathlib.Path(sys.argv[1])
+          trials = list(root.glob('*/*/trial-*.json'))
+          if len(trials) != 48 or not all(json.loads(p.read_text())['success'] for p in trials):
+              raise SystemExit('Expected exactly 48 successful measured trials')
+          for name in ('run.json', 'raw.csv', 'summary.json', 'report.md',
+                       'baseline-source-manifest.json', 'optimized-source-manifest.json'):
+              if not (root / name).is_file():
+                  raise SystemExit('Missing evidence: ' + name)
+          PY
+          cat "$root/results/report.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain complete or interrupted benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: yearly-playlist-benchmark-${{ github.sha }}
+          path: ${{ runner.temp }}/yearly-playlist-benchmark/results/
+          retention-days: 30
+          if-no-files-found: error
