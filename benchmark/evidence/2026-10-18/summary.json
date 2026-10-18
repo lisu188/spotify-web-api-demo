@@ -1,0 +1,1263 @@
+{
+  "run": {
+    "baselineDirectory": "/home/runner/work/_temp/yearly-playlist-benchmark/baseline",
+    "optimizedDirectory": "/home/runner/work/_temp/yearly-playlist-benchmark/optimized",
+    "baselineRevision": "5369a02692f026d989b527dfa19ba74799382045",
+    "optimizedRevision": "0ae29dd1be1233ca883aeea3586a025eee38447d",
+    "cpu": "0",
+    "loadAverageStart": [
+      0.3779296875,
+      0.11865234375,
+      0.04052734375
+    ],
+    "host": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "java": "openjdk version \"21.0.12.1\" 2026-08-18 LTS\nOpenJDK Runtime Environment Temurin-21.0.12.1+1 (build 21.0.12.1+1-LTS)\nOpenJDK 64-Bit Server VM Temurin-21.0.12.1+1 (build 21.0.12.1+1-LTS, mixed mode, sharing)\n",
+    "profile": "WSL/Linux one CPU affinity; JVM -Xmx1536m -XX:ActiveProcessorCount=1; no container memory limit; shared host with other builds",
+    "trialProtocol": "3 paired trials per scenario; alternating revision order per trial; fresh JVM per revision/trial; each JVM does 1 untimed warmup then 1 measured run; warm scenarios additionally prime caches once",
+    "latencyMs": {
+      "spotifySearch": 20,
+      "lastFmPage": 5,
+      "playlistRequest": 5
+    },
+    "harnessSha256": {
+      ".gitignore": "32dae3052f331ee34d628ef535709b301259a45df7c7522c4d35dcf49873f00b",
+      "README.md": "f9ff4aeacf8365aa64b19f0a7fc9daefa20ce2361df33397130c1681c8e4d87f",
+      "run.sh": "f40fea69ff1aaf7091ed1509a4fdd231a81670a6448e9f8620bc9c7d7ea17e80",
+      "src/com/lis/spotify/service/YearlyPlaylistBenchmark.kt": "d51e7d783e7925f68d40b616fd0cf934645c11b945d9f2f7c62bb4b7d275138d",
+      "summarize.py": "382d44ab8d567f7bd04f58fefcd7733c95f8b9b96985bb3a3acfde6dfee4e7b3",
+      "verify_sources.py": "10c1867681221bfaaad783463b688e8de6151bf92dd2bb03c7cb3f23d5d84f9e",
+      "yearly-benchmark.init.gradle": "26dcc1b8188b32de6401f57a5582cecbd7f47f1f259e75c741207e07f31e1b62"
+    },
+    "loadAverageEnd": [
+      3.72119140625,
+      2.5654296875,
+      1.48046875
+    ]
+  },
+  "scenarios": {
+    "sparse-unique-cold": {
+      "baseline": {
+        "elapsedMs": {
+          "median": 5412.974995,
+          "min": 5395.758772,
+          "max": 5430.206201
+        },
+        "cpuMs": {
+          "median": 1080.0,
+          "min": 1070.0,
+          "max": 1080.0
+        },
+        "peakHeapBytes": {
+          "median": 96621032,
+          "min": 95501168,
+          "max": 97915840
+        },
+        "peakRssBytes": {
+          "median": 285200384,
+          "min": 279969792,
+          "max": 287502336
+        },
+        "peakThreads": {
+          "median": 33,
+          "min": 26,
+          "max": 38
+        },
+        "queryRequestCount": {
+          "median": 250,
+          "min": 250,
+          "max": 250
+        },
+        "uniqueQueriesRequested": {
+          "median": 250,
+          "min": 250,
+          "max": 250
+        },
+        "duplicateQueryRequests": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "authHeaderCalls": {
+          "median": 258,
+          "min": 258,
+          "max": 258
+        },
+        "requests": {
+          "lastfm.page": {
+            "median": 23,
+            "min": 23,
+            "max": 23
+          },
+          "spotify.playlist.add": {
+            "median": 3,
+            "min": 3,
+            "max": 3
+          },
+          "spotify.playlist.list": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "spotify.playlist.read": {
+            "median": 4,
+            "min": 4,
+            "max": 4
+          },
+          "spotify.search": {
+            "median": 250,
+            "min": 250,
+            "max": 250
+          }
+        },
+        "peakConcurrency": {
+          "lastfm.page": 4,
+          "spotify.playlist.add": 1,
+          "spotify.playlist.list": 1,
+          "spotify.playlist.read": 1,
+          "spotify.search": 1
+        }
+      },
+      "optimized": {
+        "elapsedMs": {
+          "median": 782.833466,
+          "min": 782.231535,
+          "max": 792.572549
+        },
+        "cpuMs": {
+          "median": 710.0,
+          "min": 700.0,
+          "max": 760.0
+        },
+        "peakHeapBytes": {
+          "median": 70262280,
+          "min": 67991704,
+          "max": 70413168
+        },
+        "peakRssBytes": {
+          "median": 275685376,
+          "min": 275374080,
+          "max": 278167552
+        },
+        "peakThreads": {
+          "median": 26,
+          "min": 25,
+          "max": 27
+        },
+        "queryRequestCount": {
+          "median": 250,
+          "min": 250,
+          "max": 250
+        },
+        "uniqueQueriesRequested": {
+          "median": 250,
+          "min": 250,
+          "max": 250
+        },
+        "duplicateQueryRequests": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "authHeaderCalls": {
+          "median": 258,
+          "min": 258,
+          "max": 258
+        },
+        "requests": {
+          "lastfm.page": {
+            "median": 23,
+            "min": 23,
+            "max": 23
+          },
+          "spotify.playlist.add": {
+            "median": 3,
+            "min": 3,
+            "max": 3
+          },
+          "spotify.playlist.list": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "spotify.playlist.read": {
+            "median": 4,
+            "min": 4,
+            "max": 4
+          },
+          "spotify.search": {
+            "median": 250,
+            "min": 250,
+            "max": 250
+          }
+        },
+        "peakConcurrency": {
+          "lastfm.page": 4,
+          "spotify.playlist.add": 1,
+          "spotify.playlist.list": 1,
+          "spotify.playlist.read": 1,
+          "spotify.search": 8
+        }
+      },
+      "speedup": 6.914593243769167
+    },
+    "sparse-unique-warm": {
+      "baseline": {
+        "elapsedMs": {
+          "median": 145.437371,
+          "min": 134.254628,
+          "max": 148.257668
+        },
+        "cpuMs": {
+          "median": 140.0,
+          "min": 120.0,
+          "max": 150.0
+        },
+        "peakHeapBytes": {
+          "median": 66115888,
+          "min": 64736560,
+          "max": 66268768
+        },
+        "peakRssBytes": {
+          "median": 282136576,
+          "min": 279093248,
+          "max": 283357184
+        },
+        "peakThreads": {
+          "median": 38,
+          "min": 28,
+          "max": 38
+        },
+        "queryRequestCount": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "uniqueQueriesRequested": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "duplicateQueryRequests": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "authHeaderCalls": {
+          "median": 8,
+          "min": 8,
+          "max": 8
+        },
+        "requests": {
+          "spotify.playlist.add": {
+            "median": 3,
+            "min": 3,
+            "max": 3
+          },
+          "spotify.playlist.list": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "spotify.playlist.read": {
+            "median": 4,
+            "min": 4,
+            "max": 4
+          }
+        },
+        "peakConcurrency": {
+          "spotify.playlist.add": 1,
+          "spotify.playlist.list": 1,
+          "spotify.playlist.read": 1
+        }
+      },
+      "optimized": {
+        "elapsedMs": {
+          "median": 120.693343,
+          "min": 120.134665,
+          "max": 131.064576
+        },
+        "cpuMs": {
+          "median": 120.0,
+          "min": 120.0,
+          "max": 130.0
+        },
+        "peakHeapBytes": {
+          "median": 66181800,
+          "min": 66075376,
+          "max": 69159912
+        },
+        "peakRssBytes": {
+          "median": 282296320,
+          "min": 278986752,
+          "max": 283467776
+        },
+        "peakThreads": {
+          "median": 26,
+          "min": 26,
+          "max": 26
+        },
+        "queryRequestCount": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "uniqueQueriesRequested": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "duplicateQueryRequests": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "authHeaderCalls": {
+          "median": 8,
+          "min": 8,
+          "max": 8
+        },
+        "requests": {
+          "spotify.playlist.add": {
+            "median": 3,
+            "min": 3,
+            "max": 3
+          },
+          "spotify.playlist.list": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "spotify.playlist.read": {
+            "median": 4,
+            "min": 4,
+            "max": 4
+          }
+        },
+        "peakConcurrency": {
+          "spotify.playlist.add": 1,
+          "spotify.playlist.list": 1,
+          "spotify.playlist.read": 1
+        }
+      },
+      "speedup": 1.2050156817679665
+    },
+    "dense-unique-cold": {
+      "baseline": {
+        "elapsedMs": {
+          "median": 30866.260095,
+          "min": 30850.222034,
+          "max": 30891.730749
+        },
+        "cpuMs": {
+          "median": 3150.0,
+          "min": 2850.0,
+          "max": 3410.0
+        },
+        "peakHeapBytes": {
+          "median": 144031856,
+          "min": 142170280,
+          "max": 145612688
+        },
+        "peakRssBytes": {
+          "median": 335966208,
+          "min": 334041088,
+          "max": 351830016
+        },
+        "peakThreads": {
+          "median": 35,
+          "min": 34,
+          "max": 38
+        },
+        "queryRequestCount": {
+          "median": 5500,
+          "min": 5500,
+          "max": 5500
+        },
+        "uniqueQueriesRequested": {
+          "median": 5500,
+          "min": 5500,
+          "max": 5500
+        },
+        "duplicateQueryRequests": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "authHeaderCalls": {
+          "median": 5655,
+          "min": 5655,
+          "max": 5655
+        },
+        "requests": {
+          "lastfm.page": {
+            "median": 44,
+            "min": 44,
+            "max": 44
+          },
+          "spotify.playlist.add": {
+            "median": 66,
+            "min": 66,
+            "max": 66
+          },
+          "spotify.playlist.list": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "spotify.playlist.read": {
+            "median": 88,
+            "min": 88,
+            "max": 88
+          },
+          "spotify.search": {
+            "median": 5500,
+            "min": 5500,
+            "max": 5500
+          }
+        },
+        "peakConcurrency": {
+          "lastfm.page": 4,
+          "spotify.playlist.add": 4,
+          "spotify.playlist.list": 1,
+          "spotify.playlist.read": 4,
+          "spotify.search": 4
+        }
+      },
+      "optimized": {
+        "elapsedMs": {
+          "median": 14359.675992,
+          "min": 14266.938288,
+          "max": 14367.525852
+        },
+        "cpuMs": {
+          "median": 2800.0,
+          "min": 2740.0,
+          "max": 2820.0
+        },
+        "peakHeapBytes": {
+          "median": 143950800,
+          "min": 141988264,
+          "max": 146037488
+        },
+        "peakRssBytes": {
+          "median": 336900096,
+          "min": 334086144,
+          "max": 343699456
+        },
+        "peakThreads": {
+          "median": 45,
+          "min": 42,
+          "max": 46
+        },
+        "queryRequestCount": {
+          "median": 5500,
+          "min": 5500,
+          "max": 5500
+        },
+        "uniqueQueriesRequested": {
+          "median": 5500,
+          "min": 5500,
+          "max": 5500
+        },
+        "duplicateQueryRequests": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "authHeaderCalls": {
+          "median": 5655,
+          "min": 5655,
+          "max": 5655
+        },
+        "requests": {
+          "lastfm.page": {
+            "median": 44,
+            "min": 44,
+            "max": 44
+          },
+          "spotify.playlist.add": {
+            "median": 66,
+            "min": 66,
+            "max": 66
+          },
+          "spotify.playlist.list": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "spotify.playlist.read": {
+            "median": 88,
+            "min": 88,
+            "max": 88
+          },
+          "spotify.search": {
+            "median": 5500,
+            "min": 5500,
+            "max": 5500
+          }
+        },
+        "peakConcurrency": {
+          "lastfm.page": 4,
+          "spotify.playlist.add": 4,
+          "spotify.playlist.list": 1,
+          "spotify.playlist.read": 4,
+          "spotify.search": 8
+        }
+      },
+      "speedup": 2.149509509281134
+    },
+    "dense-unique-warm": {
+      "baseline": {
+        "elapsedMs": {
+          "median": 535.378812,
+          "min": 501.883787,
+          "max": 545.775584
+        },
+        "cpuMs": {
+          "median": 530.0,
+          "min": 480.0,
+          "max": 540.0
+        },
+        "peakHeapBytes": {
+          "median": 127217728,
+          "min": 126327520,
+          "max": 127776272
+        },
+        "peakRssBytes": {
+          "median": 319819776,
+          "min": 316485632,
+          "max": 321355776
+        },
+        "peakThreads": {
+          "median": 37,
+          "min": 32,
+          "max": 38
+        },
+        "queryRequestCount": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "uniqueQueriesRequested": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "duplicateQueryRequests": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "authHeaderCalls": {
+          "median": 155,
+          "min": 155,
+          "max": 155
+        },
+        "requests": {
+          "spotify.playlist.add": {
+            "median": 66,
+            "min": 66,
+            "max": 66
+          },
+          "spotify.playlist.list": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "spotify.playlist.read": {
+            "median": 88,
+            "min": 88,
+            "max": 88
+          }
+        },
+        "peakConcurrency": {
+          "spotify.playlist.add": 4,
+          "spotify.playlist.list": 1,
+          "spotify.playlist.read": 4
+        }
+      },
+      "optimized": {
+        "elapsedMs": {
+          "median": 572.107087,
+          "min": 544.568343,
+          "max": 590.101247
+        },
+        "cpuMs": {
+          "median": 580.0,
+          "min": 550.0,
+          "max": 590.0
+        },
+        "peakHeapBytes": {
+          "median": 128318760,
+          "min": 127274616,
+          "max": 128565296
+        },
+        "peakRssBytes": {
+          "median": 318341120,
+          "min": 316002304,
+          "max": 319193088
+        },
+        "peakThreads": {
+          "median": 46,
+          "min": 44,
+          "max": 46
+        },
+        "queryRequestCount": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "uniqueQueriesRequested": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "duplicateQueryRequests": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "authHeaderCalls": {
+          "median": 155,
+          "min": 155,
+          "max": 155
+        },
+        "requests": {
+          "spotify.playlist.add": {
+            "median": 66,
+            "min": 66,
+            "max": 66
+          },
+          "spotify.playlist.list": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "spotify.playlist.read": {
+            "median": 88,
+            "min": 88,
+            "max": 88
+          }
+        },
+        "peakConcurrency": {
+          "spotify.playlist.add": 4,
+          "spotify.playlist.list": 1,
+          "spotify.playlist.read": 4
+        }
+      },
+      "speedup": 0.935801747898991
+    },
+    "sparse-repeated-cold": {
+      "baseline": {
+        "elapsedMs": {
+          "median": 735.475553,
+          "min": 730.738046,
+          "max": 754.024337
+        },
+        "cpuMs": {
+          "median": 500.0,
+          "min": 460.0,
+          "max": 560.0
+        },
+        "peakHeapBytes": {
+          "median": 67304584,
+          "min": 66436840,
+          "max": 67595200
+        },
+        "peakRssBytes": {
+          "median": 280645632,
+          "min": 279678976,
+          "max": 283238400
+        },
+        "peakThreads": {
+          "median": 38,
+          "min": 38,
+          "max": 38
+        },
+        "queryRequestCount": {
+          "median": 25,
+          "min": 25,
+          "max": 25
+        },
+        "uniqueQueriesRequested": {
+          "median": 25,
+          "min": 25,
+          "max": 25
+        },
+        "duplicateQueryRequests": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "authHeaderCalls": {
+          "median": 29,
+          "min": 29,
+          "max": 29
+        },
+        "requests": {
+          "lastfm.page": {
+            "median": 23,
+            "min": 23,
+            "max": 23
+          },
+          "spotify.playlist.add": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "spotify.playlist.list": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "spotify.playlist.read": {
+            "median": 2,
+            "min": 2,
+            "max": 2
+          },
+          "spotify.search": {
+            "median": 25,
+            "min": 25,
+            "max": 25
+          }
+        },
+        "peakConcurrency": {
+          "lastfm.page": 4,
+          "spotify.playlist.add": 1,
+          "spotify.playlist.list": 1,
+          "spotify.playlist.read": 1,
+          "spotify.search": 1
+        }
+      },
+      "optimized": {
+        "elapsedMs": {
+          "median": 272.036544,
+          "min": 257.364553,
+          "max": 278.95327
+        },
+        "cpuMs": {
+          "median": 270.0,
+          "min": 250.0,
+          "max": 270.0
+        },
+        "peakHeapBytes": {
+          "median": 63121896,
+          "min": 61949352,
+          "max": 63486808
+        },
+        "peakRssBytes": {
+          "median": 276807680,
+          "min": 276316160,
+          "max": 277590016
+        },
+        "peakThreads": {
+          "median": 27,
+          "min": 27,
+          "max": 27
+        },
+        "queryRequestCount": {
+          "median": 25,
+          "min": 25,
+          "max": 25
+        },
+        "uniqueQueriesRequested": {
+          "median": 25,
+          "min": 25,
+          "max": 25
+        },
+        "duplicateQueryRequests": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "authHeaderCalls": {
+          "median": 29,
+          "min": 29,
+          "max": 29
+        },
+        "requests": {
+          "lastfm.page": {
+            "median": 23,
+            "min": 23,
+            "max": 23
+          },
+          "spotify.playlist.add": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "spotify.playlist.list": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "spotify.playlist.read": {
+            "median": 2,
+            "min": 2,
+            "max": 2
+          },
+          "spotify.search": {
+            "median": 25,
+            "min": 25,
+            "max": 25
+          }
+        },
+        "peakConcurrency": {
+          "lastfm.page": 4,
+          "spotify.playlist.add": 1,
+          "spotify.playlist.list": 1,
+          "spotify.playlist.read": 1,
+          "spotify.search": 8
+        }
+      },
+      "speedup": 2.703591003567521
+    },
+    "sparse-repeated-warm": {
+      "baseline": {
+        "elapsedMs": {
+          "median": 119.007869,
+          "min": 114.921311,
+          "max": 119.512861
+        },
+        "cpuMs": {
+          "median": 110.0,
+          "min": 110.0,
+          "max": 130.0
+        },
+        "peakHeapBytes": {
+          "median": 74750072,
+          "min": 74606368,
+          "max": 74809760
+        },
+        "peakRssBytes": {
+          "median": 278089728,
+          "min": 276099072,
+          "max": 283176960
+        },
+        "peakThreads": {
+          "median": 35,
+          "min": 29,
+          "max": 38
+        },
+        "queryRequestCount": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "uniqueQueriesRequested": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "duplicateQueryRequests": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "authHeaderCalls": {
+          "median": 4,
+          "min": 4,
+          "max": 4
+        },
+        "requests": {
+          "spotify.playlist.add": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "spotify.playlist.list": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "spotify.playlist.read": {
+            "median": 2,
+            "min": 2,
+            "max": 2
+          }
+        },
+        "peakConcurrency": {
+          "spotify.playlist.add": 1,
+          "spotify.playlist.list": 1,
+          "spotify.playlist.read": 1
+        }
+      },
+      "optimized": {
+        "elapsedMs": {
+          "median": 133.693265,
+          "min": 126.012004,
+          "max": 135.705816
+        },
+        "cpuMs": {
+          "median": 130.0,
+          "min": 130.0,
+          "max": 150.0
+        },
+        "peakHeapBytes": {
+          "median": 71285392,
+          "min": 63439168,
+          "max": 72462952
+        },
+        "peakRssBytes": {
+          "median": 280162304,
+          "min": 275046400,
+          "max": 284499968
+        },
+        "peakThreads": {
+          "median": 26,
+          "min": 25,
+          "max": 26
+        },
+        "queryRequestCount": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "uniqueQueriesRequested": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "duplicateQueryRequests": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "authHeaderCalls": {
+          "median": 4,
+          "min": 4,
+          "max": 4
+        },
+        "requests": {
+          "spotify.playlist.add": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "spotify.playlist.list": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "spotify.playlist.read": {
+            "median": 2,
+            "min": 2,
+            "max": 2
+          }
+        },
+        "peakConcurrency": {
+          "spotify.playlist.add": 1,
+          "spotify.playlist.list": 1,
+          "spotify.playlist.read": 1
+        }
+      },
+      "speedup": 0.8901560523635952
+    },
+    "dense-repeated-cold": {
+      "baseline": {
+        "elapsedMs": {
+          "median": 1589.746348,
+          "min": 1588.34457,
+          "max": 1656.449565
+        },
+        "cpuMs": {
+          "median": 1320.0,
+          "min": 1290.0,
+          "max": 1330.0
+        },
+        "peakHeapBytes": {
+          "median": 103663280,
+          "min": 103058792,
+          "max": 104159328
+        },
+        "peakRssBytes": {
+          "median": 285351936,
+          "min": 283385856,
+          "max": 285560832
+        },
+        "peakThreads": {
+          "median": 32,
+          "min": 30,
+          "max": 38
+        },
+        "queryRequestCount": {
+          "median": 199,
+          "min": 199,
+          "max": 200
+        },
+        "uniqueQueriesRequested": {
+          "median": 50,
+          "min": 50,
+          "max": 50
+        },
+        "duplicateQueryRequests": {
+          "median": 149,
+          "min": 149,
+          "max": 150
+        },
+        "authHeaderCalls": {
+          "median": 266,
+          "min": 266,
+          "max": 267
+        },
+        "requests": {
+          "lastfm.page": {
+            "median": 44,
+            "min": 44,
+            "max": 44
+          },
+          "spotify.playlist.add": {
+            "median": 22,
+            "min": 22,
+            "max": 22
+          },
+          "spotify.playlist.list": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "spotify.playlist.read": {
+            "median": 44,
+            "min": 44,
+            "max": 44
+          },
+          "spotify.search": {
+            "median": 199,
+            "min": 199,
+            "max": 200
+          }
+        },
+        "peakConcurrency": {
+          "lastfm.page": 4,
+          "spotify.playlist.add": 4,
+          "spotify.playlist.list": 1,
+          "spotify.playlist.read": 4,
+          "spotify.search": 4
+        }
+      },
+      "optimized": {
+        "elapsedMs": {
+          "median": 966.904267,
+          "min": 878.012986,
+          "max": 1003.108114
+        },
+        "cpuMs": {
+          "median": 960.0,
+          "min": 880.0,
+          "max": 1000.0
+        },
+        "peakHeapBytes": {
+          "median": 104462992,
+          "min": 102940576,
+          "max": 104472448
+        },
+        "peakRssBytes": {
+          "median": 284401664,
+          "min": 282984448,
+          "max": 284966912
+        },
+        "peakThreads": {
+          "median": 45,
+          "min": 44,
+          "max": 45
+        },
+        "queryRequestCount": {
+          "median": 50,
+          "min": 50,
+          "max": 50
+        },
+        "uniqueQueriesRequested": {
+          "median": 50,
+          "min": 50,
+          "max": 50
+        },
+        "duplicateQueryRequests": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "authHeaderCalls": {
+          "median": 117,
+          "min": 117,
+          "max": 117
+        },
+        "requests": {
+          "lastfm.page": {
+            "median": 44,
+            "min": 44,
+            "max": 44
+          },
+          "spotify.playlist.add": {
+            "median": 22,
+            "min": 22,
+            "max": 22
+          },
+          "spotify.playlist.list": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "spotify.playlist.read": {
+            "median": 44,
+            "min": 44,
+            "max": 44
+          },
+          "spotify.search": {
+            "median": 50,
+            "min": 50,
+            "max": 50
+          }
+        },
+        "peakConcurrency": {
+          "lastfm.page": 4,
+          "spotify.playlist.add": 4,
+          "spotify.playlist.list": 1,
+          "spotify.playlist.read": 4,
+          "spotify.search": 8
+        }
+      },
+      "speedup": 1.6441610635688713
+    },
+    "dense-repeated-warm": {
+      "baseline": {
+        "elapsedMs": {
+          "median": 632.68557,
+          "min": 589.913969,
+          "max": 699.957752
+        },
+        "cpuMs": {
+          "median": 620.0,
+          "min": 600.0,
+          "max": 710.0
+        },
+        "peakHeapBytes": {
+          "median": 101929144,
+          "min": 101856096,
+          "max": 103818616
+        },
+        "peakRssBytes": {
+          "median": 283856896,
+          "min": 279465984,
+          "max": 284946432
+        },
+        "peakThreads": {
+          "median": 29,
+          "min": 27,
+          "max": 30
+        },
+        "queryRequestCount": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "uniqueQueriesRequested": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "duplicateQueryRequests": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "authHeaderCalls": {
+          "median": 67,
+          "min": 67,
+          "max": 67
+        },
+        "requests": {
+          "spotify.playlist.add": {
+            "median": 22,
+            "min": 22,
+            "max": 22
+          },
+          "spotify.playlist.list": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "spotify.playlist.read": {
+            "median": 44,
+            "min": 44,
+            "max": 44
+          }
+        },
+        "peakConcurrency": {
+          "spotify.playlist.add": 4,
+          "spotify.playlist.list": 1,
+          "spotify.playlist.read": 4
+        }
+      },
+      "optimized": {
+        "elapsedMs": {
+          "median": 743.474784,
+          "min": 677.7445,
+          "max": 913.680848
+        },
+        "cpuMs": {
+          "median": 740.0,
+          "min": 680.0,
+          "max": 920.0
+        },
+        "peakHeapBytes": {
+          "median": 104287880,
+          "min": 104132320,
+          "max": 104593688
+        },
+        "peakRssBytes": {
+          "median": 284041216,
+          "min": 283537408,
+          "max": 285159424
+        },
+        "peakThreads": {
+          "median": 45,
+          "min": 44,
+          "max": 45
+        },
+        "queryRequestCount": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "uniqueQueriesRequested": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "duplicateQueryRequests": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "authHeaderCalls": {
+          "median": 67,
+          "min": 67,
+          "max": 67
+        },
+        "requests": {
+          "spotify.playlist.add": {
+            "median": 22,
+            "min": 22,
+            "max": 22
+          },
+          "spotify.playlist.list": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "spotify.playlist.read": {
+            "median": 44,
+            "min": 44,
+            "max": 44
+          }
+        },
+        "peakConcurrency": {
+          "spotify.playlist.add": 4,
+          "spotify.playlist.list": 1,
+          "spotify.playlist.read": 4
+        }
+      },
+      "speedup": 0.8509845708499509
+    }
+  }
+}

@@ -1,5 +1,9 @@
 # Yearly generation benchmark
 
+The complete [2026-10-18 report and retained raw evidence](evidence/2026-10-18/README.md)
+cover all 48 trials. Cold medians improve; three warm cases regress. The report
+states both results and the synthetic-transport limits.
+
 This opt-in harness compiles unchanged against the pinned production baseline
 5369a02692f026d989b527dfa19ba74799382045 and the optimized revision. It is not included
 in normal tests or coverage. It never connects to Spotify, Last.fm, or an account.

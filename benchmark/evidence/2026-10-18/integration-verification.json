@@ -1,0 +1,19 @@
+{
+  "currentMainBase": "5fec6a63ff671714b044e08ec9a1b0070e73d843",
+  "comparisonScope": "src/main",
+  "measuredBaseline": "5369a02692f026d989b527dfa19ba74799382045",
+  "measuredOptimizedProduction": "0ae29dd1be1233ca883aeea3586a025eee38447d",
+  "exactProductionPatchIdentity": true,
+  "patchSha256": "82714ea0fee760fbb84bc6ea06a970e0c50bd6f05927198b966e4837cc2ca841",
+  "securityChanges": "#138 and #139 are included in currentMainBase; they were not relabeled as measured benchmark revisions",
+  "benchmarkHarnessCommit": "3818234c8d3393f208f82c9dacebdc6846e328a0",
+  "changedProductionFiles": [
+    "src/main/kotlin/com/lis/spotify/service/PlaylistSupport.kt",
+    "src/main/kotlin/com/lis/spotify/service/RetryAfterHeaderBackOffPolicy.kt",
+    "src/main/kotlin/com/lis/spotify/service/SpotifyPlaylistService.kt",
+    "src/main/kotlin/com/lis/spotify/service/SpotifyRateLimitCoordinator.kt",
+    "src/main/kotlin/com/lis/spotify/service/SpotifyRestService.kt",
+    "src/main/kotlin/com/lis/spotify/service/SpotifySearchService.kt",
+    "src/main/kotlin/com/lis/spotify/service/SpotifyTopPlaylistsService.kt"
+  ]
+}
