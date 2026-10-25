@@ -1,0 +1,18 @@
+name: Static analysis
+
+on:
+  pull_request:
+  push:
+    branches: ['main']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    uses: lisu188/jexperiments/.github/workflows/reusable-static-analysis.yml@d3eb3aeadb71bdca8740e182211253b466575e69
+    permissions:
+      contents: read
+      security-events: write
