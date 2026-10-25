@@ -10,6 +10,9 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build & verify
@@ -66,3 +69,4 @@ jobs:
           name: browser-screenshots
           path: build/ui-*.png
           if-no-files-found: ignore
+
