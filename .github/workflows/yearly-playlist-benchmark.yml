@@ -35,7 +35,7 @@ jobs:
           java-version: '21'
 
       - name: Set up shared Gradle dependency cache
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Verify retained-evidence validation regressions
         run: python3 -m unittest discover -s benchmark -p test_verify_retained.py
