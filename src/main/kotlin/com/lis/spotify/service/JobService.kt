@@ -13,6 +13,7 @@ import java.time.Instant
 import java.util.Date
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.TaskScheduler
@@ -186,6 +187,13 @@ class JobService(
     reserveJobSlot(clientId, createdAt)
     val id = UUID.randomUUID().toString()
     val expiresAt = createdAt.plus(JOB_TTL)
+    val slotReleased = AtomicBoolean(false)
+    fun releaseReservedSlot() {
+      if (slotReleased.compareAndSet(false, true)) {
+        releaseJobSlot(clientId)
+      }
+    }
+    var queuedStatusSaved = false
     try {
       updateJob(
         jobId = id,
@@ -197,6 +205,7 @@ class JobService(
         createdAt = createdAt,
         expiresAt = expiresAt,
       )
+      queuedStatusSaved = true
       scheduler.schedule(
         {
           try {
@@ -272,17 +281,44 @@ class JobService(
               expiresAt = expiresAt,
             )
           } finally {
-            releaseJobSlot(clientId)
+            releaseReservedSlot()
           }
         },
         Date.from(createdAt),
       )
     } catch (e: Exception) {
-      releaseJobSlot(clientId)
+      if (queuedStatusSaved) {
+        recordSchedulingFailure(id, e)
+      }
+      releaseReservedSlot()
       throw e
     }
     logger.info("Job {} scheduled", id)
     return id
+  }
+
+  private fun recordSchedulingFailure(jobId: String, schedulingFailure: Exception) {
+    logger.error("Job {} could not be scheduled", jobId, schedulingFailure)
+    try {
+      val queuedStatus =
+        jobStatusStore.findById(jobId)?.takeIf { it.state == JobState.QUEUED } ?: return
+      jobStatusStore.save(
+        queuedStatus.copy(
+          state = JobState.FAILED,
+          message = "Playlist job could not be scheduled",
+          updatedAt = Instant.now(clock),
+        )
+      )
+    } catch (persistenceFailure: Exception) {
+      if (persistenceFailure !== schedulingFailure) {
+        schedulingFailure.addSuppressed(persistenceFailure)
+      }
+      logger.error(
+        "Could not persist scheduler rejection for job {}; its saved status may remain queued",
+        jobId,
+        persistenceFailure,
+      )
+    }
   }
 
   private fun reserveJobSlot(clientId: String, now: Instant) {
