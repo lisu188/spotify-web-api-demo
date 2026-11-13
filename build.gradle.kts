@@ -43,7 +43,7 @@ dependencies {
   testImplementation("org.jetbrains.kotlin:kotlin-test")
   testImplementation("io.mockk:mockk:1.14.3")
   testImplementation("org.htmlunit:htmlunit")
-  testImplementation("org.junit.jupiter:junit-jupiter-api:5.12.2")
+  testImplementation("org.junit.jupiter:junit-jupiter-api:6.1.3")
   testImplementation("org.testcontainers:junit-jupiter:1.19.7")
   testImplementation("com.github.tomakehurst:wiremock-standalone:3.0.1")
   testImplementation("javax.servlet:javax.servlet-api:4.0.1")
