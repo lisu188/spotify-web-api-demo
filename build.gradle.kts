@@ -34,7 +34,7 @@ dependencies {
   implementation("org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion")
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
   implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
-  implementation("org.jsoup:jsoup:1.21.1")
+  implementation("org.jsoup:jsoup:1.24.1")
   implementation("com.google.guava:guava:33.4.8-jre")
   implementation("org.apache.httpcomponents.client5:httpclient5")
   implementation("org.springframework.retry:spring-retry")
