@@ -5,8 +5,8 @@ val javaVersion = (project.findProperty("javaVersion") as String?)?.toInt() ?: 2
 
 plugins {
   id("org.springframework.boot") version "3.5.3"
-  id("org.jetbrains.kotlin.jvm") version "2.2.0"
-  id("org.jetbrains.kotlin.plugin.spring") version "2.2.0"
+  id("org.jetbrains.kotlin.jvm") version "2.4.21"
+  id("org.jetbrains.kotlin.plugin.spring") version "2.4.21"
   id("org.jetbrains.kotlin.plugin.jpa") version "2.4.21"
   id("io.spring.dependency-management") version "1.1.7"
   // Apply the ktfmt plugin
@@ -43,11 +43,10 @@ dependencies {
   testImplementation("org.jetbrains.kotlin:kotlin-test")
   testImplementation("io.mockk:mockk:1.14.12")
   testImplementation("org.htmlunit:htmlunit")
-  testImplementation("org.junit.jupiter:junit-jupiter-api:6.1.3")
   testImplementation("org.testcontainers:junit-jupiter:1.19.7")
   testImplementation("com.github.tomakehurst:wiremock-standalone:3.0.1")
   testImplementation("javax.servlet:javax.servlet-api:4.0.1")
-  testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.12.2")
+  testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.withType<KotlinCompile> {
