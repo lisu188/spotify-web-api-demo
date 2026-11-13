@@ -23,7 +23,7 @@ jobs:
       BENCHMARK_OPTIMIZED_REVISION: 0ae29dd1be1233ca883aeea3586a025eee38447d
     steps:
       - name: Check out the benchmark harness and comparison history
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
