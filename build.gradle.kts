@@ -1,6 +1,6 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
-val kotlinVersion = "2.2.0"
+val kotlinVersion = "2.4.21"
 val javaVersion = (project.findProperty("javaVersion") as String?)?.toInt() ?: 21
 
 plugins {
