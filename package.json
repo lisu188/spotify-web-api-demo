@@ -2,5 +2,5 @@
   "name": "replay-frontend-checks",
   "private": true,
   "scripts": { "test": "node --test tests/frontend.test.cjs" },
-  "devDependencies": { "playwright": "1.62.1" }
+  "devDependencies": { "playwright": "1.65.0" }
 }
