@@ -26,7 +26,7 @@ java {
 repositories { mavenCentral() }
 
 dependencies {
-  implementation(platform("com.google.cloud:libraries-bom:26.69.0"))
+  implementation(platform("com.google.cloud:libraries-bom:26.93.0"))
   implementation("org.springframework.boot:spring-boot-starter-web")
   implementation("org.springframework.boot:spring-boot-starter-actuator")
   implementation("com.google.cloud:google-cloud-firestore")
