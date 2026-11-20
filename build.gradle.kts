@@ -10,7 +10,7 @@ plugins {
   id("org.jetbrains.kotlin.plugin.jpa") version "2.4.21"
   id("io.spring.dependency-management") version "1.1.7"
   // Apply the ktfmt plugin
-  id("com.ncorti.ktfmt.gradle") version "0.23.0"
+  id("com.ncorti.ktfmt.gradle") version "0.28.0"
   id("jacoco")
 }
 
