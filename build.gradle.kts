@@ -4,7 +4,7 @@ val kotlinVersion = "2.4.21"
 val javaVersion = (project.findProperty("javaVersion") as String?)?.toInt() ?: 21
 
 plugins {
-  id("org.springframework.boot") version "3.5.3"
+  id("org.springframework.boot") version "4.1.2"
   id("org.jetbrains.kotlin.jvm") version "2.2.0"
   id("org.jetbrains.kotlin.plugin.spring") version "2.2.0"
   id("org.jetbrains.kotlin.plugin.jpa") version "2.4.21"
